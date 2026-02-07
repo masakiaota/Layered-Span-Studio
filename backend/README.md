@@ -67,6 +67,12 @@ uv run uvicorn layered_span_studio_backend.main:app --host 127.0.0.1 --port 8000
 
 サーバー起動後のデフォルト URL は `http://127.0.0.1:8000` である。
 
+ブラウザで API ドキュメントを確認する場合:
+
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
+- OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
+
 ## 開発用ログイン情報（ローカル専用）
 
 開発中の動作確認では、次の認証情報を使う。
