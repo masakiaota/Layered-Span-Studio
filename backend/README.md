@@ -61,7 +61,23 @@ uv run pytest tests/test_auth.py
 
 ```bash
 cd backend
-uv run fastapi dev src/layered_span_studio_backend/main.py
+export JWT_SECRET='dev-secret'
+uv run uvicorn layered_span_studio_backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 サーバー起動後のデフォルト URL は `http://127.0.0.1:8000` である。
+
+## 開発用ログイン情報（ローカル専用）
+
+開発中の動作確認では、次の認証情報を使う。
+
+- `username`: `demo_login_user`
+- `password`: `demo_login_pass`
+
+未作成の場合は次で作成する。
+
+```bash
+cd backend
+export JWT_SECRET='dev-secret'
+uv run scripts/create_user.py demo_login_user demo_login_pass
+```
