@@ -1,0 +1,1154 @@
+# API設計
+
+## 概要
+
+このドキュメントでは、Layered Span Studio の Backend API の全エンドポイントを定義する。
+
+- **認証方式**: Bearer Token (JWT) - 詳細は `auth.md` を参照
+- **データ形式**: JSON - 詳細は `json-schema.md` を参照
+- **ベースURL**: `http://localhost:8000` (開発時)
+
+---
+
+## API一覧
+
+**注記**
+- 原則として全APIは `Authorization: Bearer <token>` が必要（例外: `/auth/login`）
+
+### Auth
+
+- `POST /auth/login` - ログインしてアクセストークン（JWT）を取得
+- `GET /auth/me` - 現在ログイン中ユーザー情報を取得
+
+### Projects
+
+- `GET /projects` - プロジェクト一覧を取得
+- `POST /projects` - プロジェクトを作成
+- `GET /projects/{project_id}` - プロジェクト詳細を取得
+- `PATCH /projects/{project_id}` - プロジェクトを更新（主に `name` / `description` / `meta`）
+- `DELETE /projects/{project_id}` - プロジェクトを削除（配下も連動削除）
+
+### Labels
+
+- `GET /projects/{project_id}/labels` - ラベル一覧を取得
+- `POST /projects/{project_id}/labels` - ラベルを作成
+- `GET /projects/{project_id}/labels/{label_id}` - ラベル詳細を取得
+- `PATCH /projects/{project_id}/labels/{label_id}` - ラベルを更新（色/説明/ショートカット等）
+- `DELETE /projects/{project_id}/labels/{label_id}` - ラベルを削除（関連アノテも連動削除）
+
+### Documents
+
+- `GET /projects/{project_id}/documents` - ドキュメント一覧を取得（`offset/limit`）
+- `POST /projects/{project_id}/documents` - ドキュメントを作成（`text` は作成時のみ）
+- `GET /projects/{project_id}/documents/{document_id}` - ドキュメント詳細を取得（`annotations` 全件含む）
+- `PATCH /projects/{project_id}/documents/{document_id}` - ドキュメントの `document_name` / `meta` を更新（`text` は更新不可）
+- `DELETE /projects/{project_id}/documents/{document_id}` - ドキュメントを削除（関連アノテも連動削除）
+
+### Annotations
+
+- `POST /projects/{project_id}/documents/{document_id}/annotations` - アノテーションを1件作成
+- `POST /projects/{project_id}/documents/{document_id}/annotations/bulk` - アノテーションを一括作成（事前アノテ投入向け）
+- `GET /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}` - アノテーション詳細を取得
+- `PATCH /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}` - アノテーションを更新（主に `comment` / `status` / `meta`）
+- `DELETE /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}` - アノテーションを削除
+
+### Import/Export
+
+- `POST /projects/{project_id}/export` - プロジェクト全体をJSONでエクスポート
+- `POST /projects/{project_id}/import` - JSONからプロジェクトへインポート（不整合時は全体失敗）
+
+---
+
+## 認証
+
+詳細は `auth.md` を参照。
+
+### POST /auth/login
+
+ユーザー名とパスワードでログインし、JWTトークンを取得する。
+
+**Request:**
+```json
+{
+  "username": "user1",
+  "password": "password123"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in": 28800
+}
+```
+
+**Error (401 Unauthorized):**
+```json
+{
+  "detail": "Invalid username or password"
+}
+```
+
+---
+
+### GET /auth/me
+
+現在ログイン中のユーザー情報を取得する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "username": "user1",
+  "meta": {}
+}
+```
+
+**Error (401 Unauthorized):**
+```json
+{
+  "detail": "Not authenticated"
+}
+```
+
+---
+
+## Project API
+
+### GET /projects
+
+プロジェクト一覧を取得する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "projects": [
+    {
+      "id": "uuid",
+      "name": "医療文書NER",
+      "description": "医療分野の固有表現抽出",
+      "meta": {}
+    },
+    {
+      "id": "uuid",
+      "name": "法律文書NER",
+      "description": "法律文書からの固有表現抽出",
+      "meta": {}
+    }
+  ]
+}
+```
+
+---
+
+### POST /projects
+
+新しいプロジェクトを作成する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "name": "医療文書NER",
+  "description": "医療分野の固有表現抽出",
+  "meta": {}
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": "uuid",
+  "name": "医療文書NER",
+  "description": "医療分野の固有表現抽出",
+  "meta": {}
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "detail": "Project name already exists"
+}
+```
+
+---
+
+### GET /projects/{project_id}
+
+特定のプロジェクトの詳細を取得する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "name": "医療文書NER",
+  "description": "医療分野の固有表現抽出",
+  "meta": {}
+}
+```
+
+**Error (404 Not Found):**
+```json
+{
+  "detail": "Project not found"
+}
+```
+
+---
+
+### PATCH /projects/{project_id}
+
+プロジェクト情報を更新する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "name": "医療文書NER v2",
+  "description": "医療分野の固有表現抽出（改訂版）",
+  "meta": {}
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "name": "医療文書NER v2",
+  "description": "医療分野の固有表現抽出（改訂版）",
+  "meta": {}
+}
+```
+
+---
+
+### DELETE /projects/{project_id}
+
+プロジェクトを削除する。関連する全てのラベル、ドキュメント、アノテーションも削除される。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (204 No Content)**
+
+**Error (404 Not Found):**
+```json
+{
+  "detail": "Project not found"
+}
+```
+
+---
+
+## Label API
+
+### GET /projects/{project_id}/labels
+
+プロジェクトの全ラベルを取得する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "labels": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "name": "疾患名",
+      "color": "#FF5733",
+      "description": "疾患や病気の名前",
+      "shortcut": "d",
+      "meta": {}
+    },
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "name": "薬剤名",
+      "color": "#33FF57",
+      "description": "薬品や医薬品の名前",
+      "shortcut": "m",
+      "meta": {}
+    }
+  ]
+}
+```
+
+---
+
+### POST /projects/{project_id}/labels
+
+新しいラベルを作成する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "name": "疾患名",
+  "color": "#FF5733",
+  "description": "疾患や病気の名前",
+  "shortcut": "d",
+  "meta": {}
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "project_name": "医療文書NER",
+  "name": "疾患名",
+  "color": "#FF5733",
+  "description": "疾患や病気の名前",
+  "shortcut": "d",
+  "meta": {}
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "detail": "Label name already exists in this project"
+}
+```
+
+---
+
+### GET /projects/{project_id}/labels/{label_id}
+
+特定のラベルの詳細を取得する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "project_name": "医療文書NER",
+  "name": "疾患名",
+  "color": "#FF5733",
+  "description": "疾患や病気の名前。例：糖尿病、高血圧など",
+  "shortcut": "d",
+  "meta": {}
+}
+```
+
+---
+
+### PATCH /projects/{project_id}/labels/{label_id}
+
+ラベル情報を更新する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "description": "疾患や病気の名前。ICD-10コードに準拠",
+  "color": "#FF6644"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "project_name": "医療文書NER",
+  "name": "疾患名",
+  "color": "#FF6644",
+  "description": "疾患や病気の名前。ICD-10コードに準拠",
+  "shortcut": "d",
+  "meta": {}
+}
+```
+
+---
+
+### DELETE /projects/{project_id}/labels/{label_id}
+
+ラベルを削除する。このラベルを使用している全てのアノテーションも削除される。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (204 No Content)**
+
+**Error (404 Not Found):**
+```json
+{
+  "detail": "Label not found"
+}
+```
+
+---
+
+## Document API
+
+### GET /projects/{project_id}/documents
+
+プロジェクト内のドキュメント一覧を取得する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `offset` (integer, optional): スキップする件数（デフォルト: 0）
+- `limit` (integer, optional): 取得する最大件数（デフォルト: 50, 最大: 100）
+
+**Response (200 OK):**
+```json
+{
+  "documents": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "document_name": "患者記録_001",
+      "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+      "meta": {
+        "source": "hospital_records"
+      }
+    },
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "document_name": "患者記録_002",
+      "text": "患者は腹痛で来院。検査の結果、胃潰瘍と診断。",
+      "meta": {}
+    }
+  ],
+  "total": 120,
+  "offset": 0,
+  "limit": 50
+}
+```
+
+**注記:**
+- `offset/limit` 方式のページングを採用（シンプルさを優先）
+- 将来的に検索条件やソート機能を追加する可能性がある
+
+---
+
+### POST /projects/{project_id}/documents
+
+新しいドキュメントを作成する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "document_name": "患者記録_001",
+  "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "meta": {
+    "source": "hospital_records",
+    "date": "2024-01-15"
+  }
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "project_name": "医療文書NER",
+  "document_name": "患者記録_001",
+  "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "meta": {
+    "source": "hospital_records",
+    "date": "2024-01-15"
+  }
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "detail": "Document name already exists in this project"
+}
+```
+
+---
+
+### GET /projects/{project_id}/documents/{document_id}
+
+特定のドキュメントの詳細（アノテーション含む）を取得する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "project_name": "医療文書NER",
+  "document_name": "患者記録_001",
+  "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "annotations": [
+    {
+      "id": "uuid",
+      "document_id": "uuid",
+      "document_name": "患者記録_001",
+      "label_id": "uuid",
+      "label_name": "症状",
+      "start": 3,
+      "end": 5,
+      "span_text": "頭痛",
+      "comment": "",
+      "status": "verified",
+      "meta": {}
+    },
+    {
+      "id": "uuid",
+      "document_id": "uuid",
+      "document_name": "患者記録_001",
+      "label_id": "uuid",
+      "label_name": "薬剤名",
+      "start": 9,
+      "end": 14,
+      "span_text": "アスピリン",
+      "comment": "",
+      "status": "verified",
+      "meta": {}
+    },
+    {
+      "id": "uuid",
+      "document_id": "uuid",
+      "document_name": "患者記録_001",
+      "label_id": "uuid",
+      "label_name": "疾患名",
+      "start": 24,
+      "end": 27,
+      "span_text": "糖尿病",
+      "comment": "",
+      "status": "pending",
+      "meta": {
+        "confidence": 0.85,
+        "source": "llm_pre_annotation"
+      }
+    }
+  ],
+  "meta": {
+    "source": "hospital_records"
+  }
+}
+```
+
+**注記:**
+- `annotations` は一旦全件返す設計
+- 将来的にクエリパラメータで条件を絞る機能を追加する可能性がある（例: `?label_id=xxx`, `?status=verified`）
+
+---
+
+### PATCH /projects/{project_id}/documents/{document_id}
+
+ドキュメントのメタデータを更新する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "document_name": "患者記録_001_revised",
+  "meta": {
+    "source": "hospital_records",
+    "date": "2024-01-15",
+    "reviewed": true
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "project_name": "医療文書NER",
+  "document_name": "患者記録_001_revised",
+  "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "meta": {
+    "source": "hospital_records",
+    "date": "2024-01-15",
+    "reviewed": true
+  }
+}
+```
+
+**注記:**
+- `text` フィールドは更新不可（既存のアノテーションが壊れるため）
+- `document_name` と `meta` のみ更新可能
+
+---
+
+### DELETE /projects/{project_id}/documents/{document_id}
+
+ドキュメントを削除する。関連する全てのアノテーションも削除される。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (204 No Content)**
+
+**Error (404 Not Found):**
+```json
+{
+  "detail": "Document not found"
+}
+```
+
+---
+
+## Annotation API
+
+### POST /projects/{project_id}/documents/{document_id}/annotations
+
+新しいアノテーションを作成する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "label_id": "uuid",
+  "start": 3,
+  "end": 5,
+  "span_text": "頭痛",
+  "comment": "典型的な症状表現",
+  "status": "verified",
+  "meta": {}
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": "uuid",
+  "document_id": "uuid",
+  "document_name": "患者記録_001",
+  "label_id": "uuid",
+  "label_name": "症状",
+  "start": 3,
+  "end": 5,
+  "span_text": "頭痛",
+  "comment": "典型的な症状表現",
+  "status": "verified",
+  "meta": {}
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "detail": "span_text does not match the specified range"
+}
+```
+
+**注記:**
+- `span_text` の整合性チェック: リクエストの `span_text` が `document.text[start:end]` と一致するかを検証
+- `status` は必須（`pending` または `verified`）
+
+---
+
+### POST /projects/{project_id}/documents/{document_id}/annotations/bulk
+
+複数のアノテーションを一括で作成する（事前アノテーション用）。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "annotations": [
+    {
+      "label_id": "uuid",
+      "start": 3,
+      "end": 5,
+      "span_text": "頭痛",
+      "comment": "",
+      "status": "pending",
+      "meta": {
+        "confidence": 0.95,
+        "source": "llm_pre_annotation"
+      }
+    },
+    {
+      "label_id": "uuid",
+      "start": 24,
+      "end": 27,
+      "span_text": "糖尿病",
+      "comment": "",
+      "status": "pending",
+      "meta": {
+        "confidence": 0.88,
+        "source": "llm_pre_annotation"
+      }
+    }
+  ]
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "created": [
+    {
+      "id": "uuid",
+      "document_id": "uuid",
+      "document_name": "患者記録_001",
+      "label_id": "uuid",
+      "label_name": "症状",
+      "start": 3,
+      "end": 5,
+      "span_text": "頭痛",
+      "comment": "",
+      "status": "pending",
+      "meta": {
+        "confidence": 0.95,
+        "source": "llm_pre_annotation"
+      }
+    },
+    {
+      "id": "uuid",
+      "document_id": "uuid",
+      "document_name": "患者記録_001",
+      "label_id": "uuid",
+      "label_name": "疾患名",
+      "start": 24,
+      "end": 27,
+      "span_text": "糖尿病",
+      "comment": "",
+      "status": "pending",
+      "meta": {
+        "confidence": 0.88,
+        "source": "llm_pre_annotation"
+      }
+    }
+  ],
+  "errors": []
+}
+```
+
+**注記:**
+- LLMや外部ツールからの事前アノテーション投入を想定
+- バルク作成は all-or-nothing で処理し、1件でも不正があれば 400 を返す
+
+---
+
+### GET /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}
+
+特定のアノテーションの詳細を取得する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "document_id": "uuid",
+  "document_name": "患者記録_001",
+  "label_id": "uuid",
+  "label_name": "症状",
+  "start": 3,
+  "end": 5,
+  "span_text": "頭痛",
+  "comment": "典型的な症状表現",
+  "status": "verified",
+  "meta": {}
+}
+```
+
+---
+
+### PATCH /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}
+
+アノテーションを更新する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "comment": "確認済み：典型的な症状表現",
+  "status": "verified",
+  "meta": {
+    "reviewer": "user1"
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "document_id": "uuid",
+  "document_name": "患者記録_001",
+  "label_id": "uuid",
+  "label_name": "症状",
+  "start": 3,
+  "end": 5,
+  "span_text": "頭痛",
+  "comment": "確認済み：典型的な症状表現",
+  "status": "verified",
+  "meta": {
+    "reviewer": "user1"
+  }
+}
+```
+
+**注記:**
+- `start`, `end`, `span_text`, `label_id` は更新不可（既存のアノテーションが壊れるため）
+- `comment`, `status`, `meta` のみ更新可能
+
+---
+
+### DELETE /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}
+
+アノテーションを削除する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (204 No Content)**
+
+**Error (404 Not Found):**
+```json
+{
+  "detail": "Annotation not found"
+}
+```
+
+---
+
+## Import/Export API
+
+### POST /projects/{project_id}/export
+
+プロジェクト全体をエクスポートする。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request (Optional):**
+```json
+{
+  "include_pending": true,
+  "include_verified": true
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "project": {
+    "id": "uuid",
+    "name": "医療文書NER",
+    "description": "医療文書からエンティティ抽出",
+    "meta": {}
+  },
+  "labels": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "name": "疾患名",
+      "color": "#FF5733",
+      "description": "疾患や病気の名前",
+      "shortcut": "d",
+      "meta": {}
+    },
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "name": "薬剤名",
+      "color": "#33FF57",
+      "description": "薬品や医薬品の名前",
+      "shortcut": "m",
+      "meta": {}
+    }
+  ],
+  "documents": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "document_name": "患者記録_001",
+      "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+      "annotations": [
+        {
+          "id": "uuid",
+          "document_id": "uuid",
+          "document_name": "患者記録_001",
+          "label_id": "uuid",
+          "label_name": "症状",
+          "start": 3,
+          "end": 5,
+          "span_text": "頭痛",
+          "comment": "",
+          "status": "verified",
+          "meta": {}
+        },
+        {
+          "id": "uuid",
+          "document_id": "uuid",
+          "document_name": "患者記録_001",
+          "label_id": "uuid",
+          "label_name": "疾患名",
+          "start": 24,
+          "end": 27,
+          "span_text": "糖尿病",
+          "comment": "",
+          "status": "pending",
+          "meta": {}
+        }
+      ],
+      "meta": {}
+    }
+  ],
+  "meta": {
+    "format": "layered-span-studio/export",
+    "version": "1.0"
+  }
+}
+```
+
+**注記:**
+- `json-schema.md` で定義した Export 形式に準拠
+- ファイルとしてダウンロードする場合は `Content-Disposition: attachment` ヘッダーを付与
+
+---
+
+### POST /projects/{project_id}/import
+
+プロジェクトデータをインポートする。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "project": {
+    "id": "uuid",
+    "name": "医療文書NER",
+    "description": "医療文書からエンティティ抽出",
+    "meta": {}
+  },
+  "labels": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "name": "疾患名",
+      "color": "#FF5733",
+      "description": "疾患や病気の名前",
+      "shortcut": "d",
+      "meta": {}
+    }
+  ],
+  "documents": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "document_name": "患者記録_001",
+      "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+      "annotations": [
+        {
+          "id": "uuid",
+          "document_id": "uuid",
+          "document_name": "患者記録_001",
+          "label_id": "uuid",
+          "label_name": "疾患名",
+          "start": 24,
+          "end": 27,
+          "span_text": "糖尿病",
+          "comment": "",
+          "status": "pending",
+          "meta": {}
+        }
+      ],
+      "meta": {}
+    }
+  ],
+  "meta": {
+    "format": "layered-span-studio/export",
+    "version": "1.0"
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "imported": {
+    "labels": 1,
+    "documents": 1,
+    "annotations": 1
+  },
+  "errors": []
+}
+```
+
+**注記:**
+- URL の `project_id` が正。payload の `project.id` や各エンティティの `project_id` は無視
+- `project.name` / `project.description` / `project.meta` を既存プロジェクトへ反映
+- インポート時は `id`（project/labels/documents/annotations）を無視し、新しい UUID を生成
+- payload の `labels` に既存ラベル名と同名が含まれている場合は、競合としてインポート全体を中断（400）
+- `label_name` は「既存ラベル」または「今回 payload に含めた新規ラベル」を参照可能
+- 不整合データがある場合は部分成功せず、インポート全体を中断（400）
+
+---
+
+## エラーレスポンス
+
+全てのエラーレスポンスは以下の形式に従う。
+
+```json
+{
+  "detail": "エラーメッセージ"
+}
+```
+
+### HTTPステータスコード
+
+- `200 OK`: 成功
+- `201 Created`: リソース作成成功
+- `204 No Content`: 削除成功
+- `400 Bad Request`: リクエストが不正
+- `401 Unauthorized`: 認証が必要
+- `403 Forbidden`: 権限がない
+- `404 Not Found`: リソースが見つからない
+- `500 Internal Server Error`: サーバーエラー
+
+---
+
+## 設計方針
+
+### ページング
+
+- Document一覧には `offset/limit` 方式を採用
+- シンプルさを優先し、将来的に cursor 方式への移行も検討可能
+
+### データの不変性
+
+- `Document.text` は作成後は不変（既存アノテーションが壊れるのを防ぐため）
+- `Annotation` の `start`, `end`, `span_text`, `label_id` も更新不可
+
+### アノテーション全件返却
+
+- Document詳細取得時は annotations を一旦全件返す
+- 将来的にクエリパラメータで絞り込み機能を追加する可能性がある
+
+### 整合性チェック
+
+- アノテーション作成時に `span_text` が `document.text[start:end]` と一致するかを検証
+- Backend が `document_name`, `label_name` を自動補完（source of truth は `documents`, `labels` テーブル）
+
+---
+
+## 今後の拡張
+
+以下の機能は将来的に追加を検討する。
+
+1. **Document一覧の検索・フィルタリング**
+   - `?document_name=xxx`
+   - `?meta.source=xxx`
+
+2. **Annotation一覧の絞り込み**
+   - `?label_id=xxx`
+   - `?status=pending`
+
+3. **Label単位でのAnnotation取得**
+   - `GET /projects/{project_id}/documents/{document_id}/layers/{label_id}/annotations`
+   - ツールの特色である「レイヤー単位の独立したスパン管理」を反映
+
+4. **統計情報API**
+   - プロジェクトの進捗状況
+   - ラベルごとのアノテーション数
+   - pending/verified の割合
+
+5. **バッチ操作**
+   - 複数アノテーションの一括更新
+   - 複数ドキュメントの一括削除
