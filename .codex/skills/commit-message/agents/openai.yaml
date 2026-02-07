@@ -1,0 +1,4 @@
+interface:
+  display_name: "Commit Message"
+  short_description: "Japanese Conventional Commit generator"
+  default_prompt: "Analyze my git changes and suggest a concise Japanese Conventional Commit message."

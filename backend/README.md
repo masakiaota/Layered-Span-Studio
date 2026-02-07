@@ -6,6 +6,25 @@ FastAPI backend for Layered Span Studio.
 開発者ごとの差分を減らし、手元でも CI でも同じ依存関係を再現しやすくするためだ。
 そのため、日常の作業は `uv sync` / `uv run ...` / `uv add ...` の流れで進める。
 
+## 実装とドキュメントの探し方
+
+実装を追うときは、まず次の順で見ると速い。
+
+- アプリ起動点: [`src/layered_span_studio_backend/main.py`](src/layered_span_studio_backend/main.py)
+- API ルーター: [`src/layered_span_studio_backend/api/router.py`](src/layered_span_studio_backend/api/router.py)
+- ビジネスロジック: [`src/layered_span_studio_backend/services/`](src/layered_span_studio_backend/services/)
+- 永続化層: [`src/layered_span_studio_backend/repositories/`](src/layered_span_studio_backend/repositories/)
+- テスト: [`tests/`](tests/)
+
+仕様や前提を確認するときは、次のドキュメントを見る。
+
+- API 設計: [`../docs/backend/api.md`](../docs/backend/api.md)
+- 認証仕様: [`../docs/backend/auth.md`](../docs/backend/auth.md)
+- DB スキーマ: [`../docs/backend/database-schema.md`](../docs/backend/database-schema.md)
+- JSON スキーマ: [`../docs/backend/json-schema.md`](../docs/backend/json-schema.md)
+- 全体設計: [`../docs/architecture.md`](../docs/architecture.md)
+- 要件: [`../docs/requirements.md`](../docs/requirements.md)
+
 ## 前提
 
 - `uv` がインストール済みであること
