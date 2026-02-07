@@ -101,3 +101,186 @@ def test_bulk_missing_status_returns_400(client: TestClient, auth_headers: dict[
         headers=auth_headers,
     )
     assert response.status_code == 400
+
+
+def test_annotation_same_label_overlap_rejected(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project, label, doc = _setup(client, auth_headers)
+
+    first = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 0,
+            "end": 5,
+            "span_text": "Hello",
+            "comment": "",
+            "status": "verified",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+    assert first.status_code == 201
+
+    overlapped = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 3,
+            "end": 8,
+            "span_text": "lo wo",
+            "comment": "",
+            "status": "pending",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+    assert overlapped.status_code == 400
+
+
+def test_annotation_different_label_overlap_allowed(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project, label1, doc = _setup(client, auth_headers)
+    label2 = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Label2", "color": "#33AA44", "description": "desc"},
+        headers=auth_headers,
+    ).json()
+
+    first = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label1["id"],
+            "start": 0,
+            "end": 5,
+            "span_text": "Hello",
+            "comment": "",
+            "status": "verified",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+    assert first.status_code == 201
+
+    overlapped = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label2["id"],
+            "start": 3,
+            "end": 8,
+            "span_text": "lo wo",
+            "comment": "",
+            "status": "pending",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+    assert overlapped.status_code == 201
+
+
+def test_bulk_same_label_overlap_returns_400(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project, label, doc = _setup(client, auth_headers)
+
+    response = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations/bulk",
+        json={
+            "annotations": [
+                {
+                    "label_id": label["id"],
+                    "start": 0,
+                    "end": 5,
+                    "span_text": "Hello",
+                    "comment": "",
+                    "status": "verified",
+                    "meta": {},
+                },
+                {
+                    "label_id": label["id"],
+                    "start": 3,
+                    "end": 8,
+                    "span_text": "lo wo",
+                    "comment": "",
+                    "status": "pending",
+                    "meta": {},
+                },
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+
+
+def test_bulk_different_label_overlap_allowed(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project, label1, doc = _setup(client, auth_headers)
+    label2 = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Label2", "color": "#33AA44", "description": "desc"},
+        headers=auth_headers,
+    ).json()
+
+    response = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations/bulk",
+        json={
+            "annotations": [
+                {
+                    "label_id": label1["id"],
+                    "start": 0,
+                    "end": 5,
+                    "span_text": "Hello",
+                    "comment": "",
+                    "status": "verified",
+                    "meta": {},
+                },
+                {
+                    "label_id": label2["id"],
+                    "start": 3,
+                    "end": 8,
+                    "span_text": "lo wo",
+                    "comment": "",
+                    "status": "pending",
+                    "meta": {},
+                },
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    assert len(response.json()["created"]) == 2
+
+
+def test_bulk_same_label_overlap_with_existing_returns_400(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project, label, doc = _setup(client, auth_headers)
+
+    first = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 0,
+            "end": 5,
+            "span_text": "Hello",
+            "comment": "",
+            "status": "verified",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+    assert first.status_code == 201
+
+    response = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations/bulk",
+        json={
+            "annotations": [
+                {
+                    "label_id": label["id"],
+                    "start": 3,
+                    "end": 8,
+                    "span_text": "lo wo",
+                    "comment": "",
+                    "status": "pending",
+                    "meta": {},
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400

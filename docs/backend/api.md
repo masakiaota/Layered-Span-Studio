@@ -712,6 +712,11 @@ Authorization: Bearer <token>
 **注記:**
 - `span_text` の整合性チェック: リクエストの `span_text` が `document.text[start:end]` と一致するかを検証
 - `status` は必須（`pending` または `verified`）
+- 同一ドキュメント内で、同一ラベルの区間重複は不可（400）
+  - 判定は半開区間 `[start, end)` を使用
+  - 判定式は `existing.start < new.end && existing.end > new.start`
+  - 隣接区間（`existing.end == new.start`）は重複ではない
+  - 異なるラベル同士の区間重複は許可
 
 ---
 
@@ -800,6 +805,11 @@ Authorization: Bearer <token>
 **注記:**
 - LLMや外部ツールからの事前アノテーション投入を想定
 - バルク作成は all-or-nothing で処理し、1件でも不正があれば 400 を返す
+- 同一ドキュメント内で、同一ラベルの区間重複は不可（400）
+  - 判定は半開区間 `[start, end)` を使用
+  - 判定式は `existing.start < new.end && existing.end > new.start`
+  - 隣接区間（`existing.end == new.start`）は重複ではない
+  - 異なるラベル同士の区間重複は許可
 
 ---
 
@@ -1077,6 +1087,11 @@ Authorization: Bearer <token>
 - インポート時は `id`（project/labels/documents/annotations）を無視し、新しい UUID を生成
 - payload の `labels` に既存ラベル名と同名が含まれている場合は、競合としてインポート全体を中断（400）
 - `label_name` は「既存ラベル」または「今回 payload に含めた新規ラベル」を参照可能
+- 同一ドキュメント内で、同一ラベルの区間重複は不可（400）
+  - 判定は半開区間 `[start, end)` を使用
+  - 判定式は `existing.start < new.end && existing.end > new.start`
+  - 隣接区間（`existing.end == new.start`）は重複ではない
+  - 異なるラベル同士の区間重複は許可
 - 不整合データがある場合は部分成功せず、インポート全体を中断（400）
 
 ---

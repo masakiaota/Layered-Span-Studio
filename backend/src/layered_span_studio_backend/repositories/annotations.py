@@ -16,6 +16,24 @@ from layered_span_studio_backend.storage.project_db import (
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
 
 
+def _has_overlapping_annotation(
+    conn,
+    document_id: str,
+    label_id: str,
+    start: int,
+    end: int,
+) -> bool:
+    row = conn.execute(
+        select(annotations_table.c.id).where(
+            annotations_table.c.document_id == document_id,
+            annotations_table.c.label_id == label_id,
+            annotations_table.c.start < end,
+            annotations_table.c.end > start,
+        )
+    ).first()
+    return row is not None
+
+
 def get_annotation(settings: Settings, project_id: str, document_id: str, annotation_id: str) -> Optional[Dict[str, Any]]:
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
@@ -82,6 +100,8 @@ def create_annotation(
     engine = get_project_engine(str(db_path))
     annotation_id = str(uuid.uuid4())
     with engine.begin() as conn:
+        if _has_overlapping_annotation(conn, document_id, label_id, start, end):
+            raise ValueError("Overlapping annotation span for the same label is not allowed")
         conn.execute(
             annotations_table.insert().values(
                 id=annotation_id,
@@ -109,6 +129,14 @@ def bulk_create_annotations(
     created_ids: List[str] = []
     with engine.begin() as conn:
         for item in items:
+            if _has_overlapping_annotation(
+                conn,
+                document_id,
+                item["label_id"],
+                item["start"],
+                item["end"],
+            ):
+                raise ValueError("Overlapping annotation span for the same label is not allowed")
             annotation_id = str(uuid.uuid4())
             conn.execute(
                 annotations_table.insert().values(
@@ -179,4 +207,3 @@ def delete_annotation(settings: Settings, project_id: str, document_id: str, ann
             )
         )
     return result.rowcount > 0
-

@@ -202,3 +202,115 @@ def test_import_allows_existing_label_reference(client: TestClient, auth_headers
     )
     assert detail_response.status_code == 200
     assert detail_response.json()["annotations"][0]["label_id"] == existing_label["id"]
+
+
+def test_import_rejects_same_label_overlap(client: TestClient, auth_headers: dict[str, str]) -> None:
+    target_project = client.post(
+        "/projects", json={"name": "Project Overlap Reject", "description": "desc"}, headers=auth_headers
+    ).json()
+
+    payload = {
+        "project": {"name": "Project Overlap Reject", "description": "desc", "meta": {}},
+        "labels": [
+            {
+                "name": "LabelOverlap",
+                "color": "#AA1122",
+                "description": "desc",
+                "shortcut": None,
+                "meta": {},
+            }
+        ],
+        "documents": [
+            {
+                "document_name": "DocOverlapReject",
+                "text": "Hello world",
+                "annotations": [
+                    {
+                        "label_name": "LabelOverlap",
+                        "start": 0,
+                        "end": 5,
+                        "span_text": "Hello",
+                        "comment": "",
+                        "status": "verified",
+                        "meta": {},
+                    },
+                    {
+                        "label_name": "LabelOverlap",
+                        "start": 3,
+                        "end": 8,
+                        "span_text": "lo wo",
+                        "comment": "",
+                        "status": "pending",
+                        "meta": {},
+                    },
+                ],
+                "meta": {},
+            }
+        ],
+        "meta": {"format": "layered-span-studio/export", "version": "1.0"},
+    }
+
+    response = client.post(
+        f"/projects/{target_project['id']}/import", json=payload, headers=auth_headers
+    )
+    assert response.status_code == 400
+
+
+def test_import_allows_different_label_overlap(client: TestClient, auth_headers: dict[str, str]) -> None:
+    target_project = client.post(
+        "/projects", json={"name": "Project Overlap Allow", "description": "desc"}, headers=auth_headers
+    ).json()
+
+    payload = {
+        "project": {"name": "Project Overlap Allow", "description": "desc", "meta": {}},
+        "labels": [
+            {
+                "name": "LabelA",
+                "color": "#AA1122",
+                "description": "desc",
+                "shortcut": None,
+                "meta": {},
+            },
+            {
+                "name": "LabelB",
+                "color": "#22AA11",
+                "description": "desc",
+                "shortcut": None,
+                "meta": {},
+            },
+        ],
+        "documents": [
+            {
+                "document_name": "DocOverlapAllow",
+                "text": "Hello world",
+                "annotations": [
+                    {
+                        "label_name": "LabelA",
+                        "start": 0,
+                        "end": 5,
+                        "span_text": "Hello",
+                        "comment": "",
+                        "status": "verified",
+                        "meta": {},
+                    },
+                    {
+                        "label_name": "LabelB",
+                        "start": 3,
+                        "end": 8,
+                        "span_text": "lo wo",
+                        "comment": "",
+                        "status": "pending",
+                        "meta": {},
+                    },
+                ],
+                "meta": {},
+            }
+        ],
+        "meta": {"format": "layered-span-studio/export", "version": "1.0"},
+    }
+
+    response = client.post(
+        f"/projects/{target_project['id']}/import", json=payload, headers=auth_headers
+    )
+    assert response.status_code == 200
+    assert response.json()["imported"] == {"labels": 2, "documents": 1, "annotations": 2}

@@ -11,6 +11,10 @@ from layered_span_studio_backend.repositories import projects as projects_repo
 EXPORT_META = {"format": "layered-span-studio/export", "version": "1.0"}
 
 
+def _has_overlap(existing_ranges: List[tuple[int, int]], start: int, end: int) -> bool:
+    return any(existing_start < end and existing_end > start for existing_start, existing_end in existing_ranges)
+
+
 def export_project(
     settings: Settings,
     project_id: str,
@@ -81,6 +85,7 @@ def import_project(settings: Settings, project_id: str, payload: Dict[str, Any])
     label_names_set = set(existing_label_by_name.keys()) | set(incoming_label_names)
     for doc in incoming_documents:
         text = doc.get("text", "")
+        ranges_by_label_name: Dict[str, List[tuple[int, int]]] = {}
         for ann in doc.get("annotations", []):
             label_name = ann.get("label_name")
             if label_name not in label_names_set:
@@ -95,6 +100,10 @@ def import_project(settings: Settings, project_id: str, payload: Dict[str, Any])
             status = ann.get("status")
             if status not in {"pending", "verified"}:
                 raise ValueError("Invalid annotation status")
+            label_ranges = ranges_by_label_name.setdefault(label_name, [])
+            if _has_overlap(label_ranges, start, end):
+                raise ValueError("Overlapping annotation span for the same label is not allowed")
+            label_ranges.append((start, end))
 
     # Update project metadata
     projects_repo.update_project(
