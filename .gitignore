@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+
+# Python cache/bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Tool/test caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Build/package artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Runtime data (SQLite etc.)
+data/
+backend/data/
+
+# Logs
+*.log
