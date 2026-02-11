@@ -617,12 +617,12 @@
         );
       }
 
-      const UNDERLINE_LANE_BASE = 6;
-      const UNDERLINE_LANE_PITCH = 10;
-      const UNDERLINE_HIT_HALF = 5;
+      const UNDERLINE_LANE_BASE = 3;
+      const UNDERLINE_LANE_PITCH = 5;
+      const UNDERLINE_HIT_HALF = 3;
       const UNDERLINE_IDLE_ALPHA = 0.82;
       const UNDERLINE_DIM_ALPHA = 0.42;
-      const UNDERLINE_PADDING_TAIL = 6;
+      const UNDERLINE_PADDING_TAIL = 3;
 
       function parseCsvIds(value) {
         return String(value || "")
@@ -997,6 +997,31 @@
         const labelById = Object.fromEntries(project.labels.map((label) => [label.id, label]));
         const labelOrderById = Object.fromEntries(project.labels.map((label, index) => [label.id, index]));
         const selectedAnnotation = doc.annotations.find((item) => item.id === state.selectedAnnotationId) || null;
+        const underlineLaneByAnnId = {};
+        let maxUnderlineLane = -1;
+        const laneEnds = [];
+        doc.annotations
+          .filter((item) => item.labelId !== state.focusedLabelId)
+          .sort((a, b) => {
+            if (a.start !== b.start) return a.start - b.start;
+            if (a.end !== b.end) return a.end - b.end;
+            const labelDiff = (labelOrderById[a.labelId] || 0) - (labelOrderById[b.labelId] || 0);
+            if (labelDiff !== 0) return labelDiff;
+            return a.id.localeCompare(b.id);
+          })
+          .forEach((item) => {
+            let laneIndex = 0;
+            while (laneIndex < laneEnds.length && laneEnds[laneIndex] > item.start) {
+              laneIndex += 1;
+            }
+            laneEnds[laneIndex] = item.end;
+            underlineLaneByAnnId[item.id] = laneIndex;
+            if (laneIndex > maxUnderlineLane) maxUnderlineLane = laneIndex;
+          });
+        const globalReserveBottom =
+          maxUnderlineLane >= 0
+            ? UNDERLINE_LANE_BASE + maxUnderlineLane * UNDERLINE_LANE_PITCH + UNDERLINE_PADDING_TAIL
+            : 0;
         const segments = buildSegments(doc.text, doc.annotations);
         return segments
           .map((segment) => {
@@ -1008,29 +1033,28 @@
             const underlineItems = segment.covers
               .filter((item) => !focused || item.id !== focused.id)
               .sort((a, b) => {
-                const labelDiff = (labelOrderById[a.labelId] || 0) - (labelOrderById[b.labelId] || 0);
-                if (labelDiff !== 0) return labelDiff;
+                const laneDiff = (underlineLaneByAnnId[a.id] || 0) - (underlineLaneByAnnId[b.id] || 0);
+                if (laneDiff !== 0) return laneDiff;
                 if (a.start !== b.start) return a.start - b.start;
                 return a.id.localeCompare(b.id);
               });
             const reserveBottom =
               underlineItems.length > 0
-                ? UNDERLINE_LANE_BASE +
-                  (underlineItems.length - 1) * UNDERLINE_LANE_PITCH +
-                  UNDERLINE_PADDING_TAIL
+                ? globalReserveBottom
                 : 0;
             const visibleOffsets = [];
             const underlineLayers = [];
             const underlineSizes = [];
             const underlinePositions = [];
-            underlineItems.forEach((item, index) => {
+            underlineItems.forEach((item) => {
               const color = (labelById[item.labelId] || {}).color || "#999999";
               const isHover = state.hoverLaneAnnId === item.id;
               const isSelectedLane = state.selectedAnnotationId === item.id;
               const alpha = isHover || isSelectedLane ? 1 : state.hoverLaneAnnId ? UNDERLINE_DIM_ALPHA : UNDERLINE_IDLE_ALPHA;
               const lineColor = hexToRgba(color, alpha);
               const thickness = isHover || isSelectedLane ? 3 : 2;
-              const distanceFromText = UNDERLINE_LANE_BASE + index * UNDERLINE_LANE_PITCH;
+              const laneIndex = underlineLaneByAnnId[item.id] || 0;
+              const distanceFromText = UNDERLINE_LANE_BASE + laneIndex * UNDERLINE_LANE_PITCH;
               const laneTopFromBottom = reserveBottom - distanceFromText;
               const laneCenterFromBottom = laneTopFromBottom - (thickness - 1) / 2;
               visibleOffsets.push(laneCenterFromBottom);
@@ -1648,6 +1672,23 @@
             state.hoverLaneAnnId = nextLaneAnnId;
             render();
           };
+
+          const clearAnnotationSelection = () => {
+            if (state.selectedAnnotationId === null) return;
+            state.selectedAnnotationId = null;
+            render();
+          };
+
+          const canvasWrap = docText.closest(".canvas-wrap");
+          if (canvasWrap) {
+            canvasWrap.addEventListener("click", (event) => {
+              const selection = window.getSelection();
+              if (selection && !selection.isCollapsed) return;
+              const segment = event.target.closest("[data-primary-ann-id]");
+              if (segment && docText.contains(segment)) return;
+              clearAnnotationSelection();
+            });
+          }
 
           docText.addEventListener("mousemove", (event) => {
             const selection = window.getSelection();
