@@ -1,0 +1,1745 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Layered Span Studio Mock</title>
+    <style>
+      :root {
+        --bg: #f6f4ef;
+        --panel: #f0eee9;
+        --panel-2: #ece9e3;
+        --surface: #ffffff;
+        --line: #d6d1c7;
+        --text: #1f2226;
+        --muted: #6b7380;
+        --accent: #12735f;
+        --accent-soft: #d8eee8;
+        --danger: #9f3131;
+        --danger-soft: #f9dada;
+        --ok: #256f3a;
+        --ok-soft: #def3e4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: radial-gradient(circle at 20% 10%, #fdfbf6 0%, var(--bg) 50%, #ebe8e0 100%);
+        color: var(--text);
+        font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+      }
+
+      .app-shell {
+        min-height: 100vh;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--line);
+        background: #f9f7f2;
+      }
+
+      .brand {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .small {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .btn {
+        border: 1px solid #b9c0c9;
+        background: #fff;
+        color: #24313f;
+        border-radius: 10px;
+        padding: 8px 12px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+
+      .btn:hover {
+        background: #f5f8fb;
+      }
+
+      .btn-primary {
+        border-color: #1f7f69;
+        background: #1f7f69;
+        color: #fff;
+      }
+
+      .btn-primary:hover {
+        background: #1a6f5b;
+      }
+
+      .btn-danger {
+        border-color: #b74242;
+        background: #b74242;
+        color: #fff;
+      }
+
+      .btn-danger:hover {
+        background: #9f3131;
+      }
+
+      .projects-wrap {
+        max-width: 1040px;
+        margin: 24px auto 0;
+        padding: 0 24px 32px;
+      }
+
+      .project-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+      }
+
+      .project-card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 170px;
+      }
+
+      .project-title {
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .project-desc {
+        color: #394250;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+
+      .project-meta {
+        margin-top: auto;
+        display: flex;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .workspace-wrap {
+        padding: 16px;
+        display: grid;
+        grid-template-columns: 320px minmax(520px, 1fr) 380px;
+        gap: 14px;
+        height: calc(100vh - 74px);
+      }
+
+      .panel {
+        background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .panel-head {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .doc-list {
+        overflow: auto;
+        padding: 8px 8px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .doc-item {
+        border: 1px solid transparent;
+        border-radius: 10px;
+        padding: 9px 10px;
+        background: #f7f4ef;
+        cursor: pointer;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+      }
+
+      .doc-item.active {
+        border-color: #7e8ea2;
+        background: #e7edf3;
+      }
+
+      .doc-name {
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .doc-sub {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid transparent;
+      }
+
+      .pill.pending {
+        background: var(--danger-soft);
+        color: var(--danger);
+        border-color: #f1b3b3;
+      }
+
+      .pill.verified {
+        background: var(--ok-soft);
+        color: var(--ok);
+        border-color: #a8dfb6;
+      }
+
+      .center-panel {
+        padding: 10px 12px 12px;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .label-strip {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 8px;
+        margin-bottom: 8px;
+      }
+
+      .label-btn {
+        border: 1px solid var(--btn-border, var(--line));
+        background: var(--btn-bg, #fff);
+        color: var(--btn-text, #24313f);
+        border-radius: 999px;
+        padding: 7px 12px;
+        white-space: nowrap;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .label-btn.active {
+        border-color: var(--btn-active-border, #314356);
+        background: var(--btn-active-bg, #dfe6ee);
+        font-weight: 700;
+      }
+
+      .canvas-wrap {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+      }
+
+      .center-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .canvas-help {
+        margin-bottom: 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .doc-text {
+        line-height: 2.2;
+        font-size: 17px;
+        white-space: pre-wrap;
+        user-select: text;
+        word-break: break-word;
+      }
+
+      .annotation-segment {
+        border-radius: 0;
+        cursor: text;
+        position: relative;
+        transition: box-shadow 120ms ease, background 120ms ease;
+      }
+
+      .annotation-segment.has-underline {
+        cursor: pointer;
+      }
+
+      .annotation-segment.has-marker {
+        cursor: pointer;
+      }
+
+      .annotation-segment.selected {
+        border-top: 2px solid #243243;
+        border-bottom: 2px solid #243243;
+      }
+
+      .annotation-segment.selected.start {
+        border-left: 2px solid #243243;
+      }
+
+      .annotation-segment.selected.end {
+        border-right: 2px solid #243243;
+      }
+
+      .lane-hover-tooltip {
+        position: fixed;
+        display: none;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid #b5c0cd;
+        background: rgba(255, 255, 255, 0.96);
+        color: #223347;
+        font-size: 11px;
+        line-height: 1.3;
+        z-index: 36;
+        pointer-events: none;
+        box-shadow: 0 4px 12px rgba(23, 32, 47, 0.18);
+      }
+
+      .lane-hover-tooltip.show {
+        display: inline-flex;
+      }
+
+      .lane-hover-tooltip-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+
+      .right-panel {
+        min-height: 0;
+        overflow: auto;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .card {
+        background: #f8f6f1;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px;
+      }
+
+      .card h4 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+
+      .card p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .field label {
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .field textarea,
+      .field select,
+      .field input {
+        width: 100%;
+        border: 1px solid #bdc4cc;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 13px;
+        font-family: inherit;
+        background: #fff;
+      }
+
+      .field textarea {
+        min-height: 84px;
+        resize: vertical;
+      }
+
+      .anno-groups {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .anno-group {
+        border: 1px solid var(--group-border, #cbc4b7);
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--group-bg, #fbfaf6);
+      }
+
+      .anno-group-head {
+        width: 100%;
+        border: none;
+        background: var(--group-head-bg, #efeade);
+        color: var(--group-head-text, #2f3540);
+        padding: 9px 10px;
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .anno-list {
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .anno-item {
+        border: 1px solid var(--anno-border, #d4cec2);
+        border-left: 4px solid var(--anno-accent, #8b94a0);
+        border-radius: 8px;
+        background: #fff;
+        padding: 8px;
+        cursor: pointer;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .anno-item.active {
+        border-color: var(--anno-active-border, #3c4d64);
+        background: var(--anno-active-bg, #e6edf5);
+      }
+
+      .anno-context {
+        font-size: 12px;
+        color: #2f3540;
+      }
+
+      .anno-context-muted {
+        color: #8b94a0;
+      }
+
+      .anno-context-focus {
+        color: #1f2430;
+        font-weight: 700;
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(10, 14, 18, 0.48);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 20;
+      }
+
+      .modal {
+        width: min(520px, 92vw);
+        background: #fff;
+        border-radius: 14px;
+        border: 1px solid #bfc7cf;
+        padding: 16px;
+      }
+
+      .modal h3 {
+        margin: 0 0 10px;
+      }
+
+      .modal .actions {
+        margin-top: 12px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .flash {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        background: #1e2e41;
+        color: #fff;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 12px;
+        z-index: 30;
+      }
+
+      @media (max-width: 1400px) {
+        .workspace-wrap {
+          grid-template-columns: 280px minmax(400px, 1fr) 330px;
+        }
+
+        .doc-text {
+          font-size: 15px;
+        }
+      }
+
+      @media (max-width: 1080px) {
+        .workspace-wrap {
+          grid-template-columns: 1fr;
+          height: auto;
+        }
+
+        .panel {
+          min-height: 320px;
+        }
+
+        .doc-text {
+          font-size: 13px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="app-shell"></div>
+    <div id="lane-hover-tooltip" class="lane-hover-tooltip" aria-hidden="true">
+      <span class="lane-hover-tooltip-dot" id="lane-hover-tooltip-dot"></span>
+      <span id="lane-hover-tooltip-text"></span>
+    </div>
+    <script>
+      function deepClone(value) {
+        if (typeof structuredClone === "function") return structuredClone(value);
+        return JSON.parse(JSON.stringify(value));
+      }
+
+      function makeId(prefix) {
+        return prefix + "-" + Math.random().toString(36).slice(2, 9);
+      }
+
+      function escapeHtml(input) {
+        return input
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+
+      function formatDate(ts) {
+        const d = new Date(ts);
+        return (
+          d.getFullYear() +
+          "-" +
+          String(d.getMonth() + 1).padStart(2, "0") +
+          "-" +
+          String(d.getDate()).padStart(2, "0")
+        );
+      }
+
+      function hexToRgba(hex, alpha) {
+        const value = hex.replace("#", "");
+        const r = parseInt(value.slice(0, 2), 16);
+        const g = parseInt(value.slice(2, 4), 16);
+        const b = parseInt(value.slice(4, 6), 16);
+        return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
+      }
+
+      function getLabelButtonStyle(label, isActive) {
+        const color = label.color || "#8b94a0";
+        if (isActive) {
+          return (
+            "--btn-border:" +
+            color +
+            ";--btn-bg:" +
+            hexToRgba(color, 0.24) +
+            ";--btn-text:#1f2732;--btn-active-border:" +
+            color +
+            ";--btn-active-bg:" +
+            hexToRgba(color, 0.24) +
+            ";"
+          );
+        }
+        return (
+          "--btn-border:" +
+          hexToRgba(color, 0.45) +
+          ";--btn-bg:" +
+          hexToRgba(color, 0.11) +
+          ";--btn-text:#2d3744;"
+        );
+      }
+
+      function getGroupStyle(label) {
+        const color = label.color || "#8b94a0";
+        return (
+          "--group-border:" +
+          hexToRgba(color, 0.5) +
+          ";--group-bg:" +
+          hexToRgba(color, 0.1) +
+          ";--group-head-bg:" +
+          hexToRgba(color, 0.22) +
+          ";--group-head-text:#1f2732;"
+        );
+      }
+
+      function getAnnoItemStyle(label) {
+        const color = label.color || "#8b94a0";
+        return (
+          "--anno-accent:" +
+          color +
+          ";--anno-border:" +
+          hexToRgba(color, 0.45) +
+          ";--anno-active-border:" +
+          color +
+          ";--anno-active-bg:" +
+          hexToRgba(color, 0.2) +
+          ";"
+        );
+      }
+
+      const UNDERLINE_LANE_BASE = 6;
+      const UNDERLINE_LANE_PITCH = 10;
+      const UNDERLINE_HIT_HALF = 5;
+      const UNDERLINE_IDLE_ALPHA = 0.82;
+      const UNDERLINE_DIM_ALPHA = 0.42;
+      const UNDERLINE_PADDING_TAIL = 6;
+
+      function parseCsvIds(value) {
+        return String(value || "")
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean);
+      }
+
+      function parseCsvNumbers(value) {
+        return String(value || "")
+          .split(",")
+          .map((raw) => Number(raw))
+          .filter((num) => Number.isFinite(num));
+      }
+
+      function pickUnderlineAnnId(ids, offsets, yFromBottom) {
+        if (ids.length === 0 || offsets.length === 0) return null;
+        let nearestIndex = -1;
+        let nearestDistance = Infinity;
+        offsets.forEach((offset, index) => {
+          const distance = Math.abs(yFromBottom - offset);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestIndex = index;
+          }
+        });
+        if (nearestIndex < 0 || nearestDistance > UNDERLINE_HIT_HALF) return null;
+        return ids[nearestIndex] || null;
+      }
+
+      const baseText =
+        "58歳男性。3日前から続く発熱（最高38.6℃）、乾いた咳、全身倦怠感を主訴に受診した。来院時バイタルは体温38.2℃、血圧146/88 mmHg、脈拍102/分、SpO2 95%（室内気）で、聴診では右下肺野に軽度の湿性ラ音を認めた。血液検査では白血球11,200/μL、CRP 8.4 mg/dL、HbA1c 7.1%で、胸部X線では右下葉に浸潤影を認め、市中肺炎と診断した。既往歴として2型糖尿病、高血圧症、脂質異常症があり、内服はメトホルミン500mg 1日2回、アムロジピン5mg 1日1回、ロスバスタチン2.5mg 就寝前。治療としてレボフロキサシン500mg 1日1回を5日分処方し、解熱時のみアセトアミノフェン500mgを頓用とした。水分摂取と安静を指導し、呼吸苦の増悪、39℃以上の発熱持続、経口摂取困難があれば時間外でも再受診するよう説明した。3日後の再診では体温36.9℃、咳嗽は軽減、CRPは2.1 mg/dLまで改善しており、抗菌薬は予定通り終了、糖尿病と高血圧の定期フォローを継続する方針とした。";
+
+      function ann(text, labelId, phrase, count) {
+        let idx = -1;
+        let from = 0;
+        for (let i = 0; i <= count; i += 1) {
+          idx = text.indexOf(phrase, from);
+          from = idx + phrase.length;
+        }
+        return {
+          id: makeId("ann"),
+          labelId,
+          start: idx,
+          end: idx + phrase.length,
+          spanText: phrase,
+          comment: "",
+          status: "pending",
+          meta: {},
+        };
+      }
+
+      function annWith(text, labelId, phrase, count, overrides) {
+        return { ...ann(text, labelId, phrase, count), ...(overrides || {}) };
+      }
+
+      const followupText =
+        "再診時に発熱は解熱し、咳は軽快した。CRP 2.1 mg/dLへ改善。内服は継続せず、生活指導を中心にフォローする。";
+
+      const seedProjects = [
+        {
+          id: "medical-001",
+          name: "医療NER: 呼吸器",
+          description: "肺炎症例を中心に多ラベルアノテーションを行う。",
+          labels: [
+            {
+              id: "label-disease",
+              name: "疾患名",
+              color: "#E06464",
+              description: "診断名・既往症を付与する。例: 市中肺炎、2型糖尿病。",
+            },
+            {
+              id: "label-drug",
+              name: "薬剤名",
+              color: "#4A8BD6",
+              description: "処方薬と投与予定薬を付与する。",
+            },
+            {
+              id: "label-lab",
+              name: "検査値",
+              color: "#5AA35A",
+              description: "数値を伴う検査項目を付与する。例: CRP 8.4 mg/dL。",
+            },
+            {
+              id: "label-unit",
+              name: "単位",
+              color: "#8F6A47",
+              description: "測定単位や濃度単位を付与する。例: mmHg、mg/dL。",
+            },
+            {
+              id: "label-symptom",
+              name: "症状",
+              color: "#D08A3E",
+              description: "主訴や身体所見を付与する。例: 乾いた咳。",
+            },
+            {
+              id: "label-plan",
+              name: "治療計画",
+              color: "#7A63C8",
+              description: "指導内容や今後のフォロー方針を付与する。",
+            },
+          ],
+          documents: [
+            {
+              id: "doc-001",
+              documentName: "初診_58歳男性_救急外来",
+              text: baseText,
+              status: "pending",
+              createdAt: Date.now() - 1000 * 60 * 60 * 72,
+              updatedAt: Date.now() - 1000 * 60 * 18,
+              meta: { publish_date: "2026-02-11" },
+              annotations: [
+                ann(baseText, "label-disease", "市中肺炎", 0),
+                ann(baseText, "label-disease", "2型糖尿病", 0),
+                ann(baseText, "label-disease", "高血圧症", 0),
+                ann(baseText, "label-disease", "脂質異常症", 0),
+                ann(baseText, "label-drug", "レボフロキサシン500mg", 0),
+                ann(baseText, "label-drug", "アセトアミノフェン500mg", 0),
+                ann(baseText, "label-lab", "血圧146/88 mmHg", 0),
+                ann(baseText, "label-lab", "CRP 8.4 mg/dL", 0),
+                ann(baseText, "label-lab", "HbA1c 7.1%", 0),
+                ann(baseText, "label-lab", "CRPは2.1 mg/dL", 0),
+                ann(baseText, "label-unit", "mmHg", 0),
+                ann(baseText, "label-unit", "mg/dL", 0),
+                ann(baseText, "label-unit", "mg/dL", 1),
+                ann(baseText, "label-plan", "CRPは2.1 mg/dL", 0),
+                ann(baseText, "label-symptom", "乾いた咳", 0),
+                ann(baseText, "label-symptom", "全身倦怠感", 0),
+                ann(baseText, "label-plan", "再受診するよう説明した", 0),
+              ],
+            },
+            {
+              id: "doc-002",
+              documentName: "再診_3日後フォロー",
+              text: followupText,
+              status: "verified",
+              createdAt: Date.now() - 1000 * 60 * 60 * 48,
+              updatedAt: Date.now() - 1000 * 60 * 60 * 12,
+              meta: { publish_date: "2026-02-12" },
+              annotations: [
+                annWith(followupText, "label-lab", "CRP 2.1 mg/dL", 0, {
+                  comment: "改善指標として重要",
+                  status: "verified",
+                }),
+                annWith(followupText, "label-unit", "mg/dL", 0, {
+                  status: "verified",
+                }),
+              ],
+            },
+            {
+              id: "doc-003",
+              documentName: "病棟サマリ_退院前",
+              text:
+                "退院前評価では呼吸状態は安定。糖尿病は内科外来で継続管理し、薬剤調整は次回受診時に再評価する。",
+              status: "pending",
+              createdAt: Date.now() - 1000 * 60 * 60 * 24,
+              updatedAt: Date.now() - 1000 * 60 * 30,
+              meta: { publish_date: "2026-02-13" },
+              annotations: [],
+            },
+          ],
+        },
+        {
+          id: "medical-002",
+          name: "医療NER: 生活習慣病",
+          description: "糖尿病と高血圧の外来文章を対象にアノテーション。",
+          labels: [],
+          documents: [],
+        },
+      ];
+
+      const state = {
+        currentProjectId: null,
+        selectedDocId: null,
+        selectedAnnotationId: null,
+        focusedLabelId: null,
+        hoverLaneAnnId: null,
+        sortBy: "created",
+        dirty: false,
+        flash: "",
+        showCreateDocModal: false,
+        showUnsavedDialog: false,
+        pendingDocSwitchId: null,
+        accordionOpen: {},
+        projects: deepClone(seedProjects),
+      };
+
+      const savedSnapshots = {};
+      state.projects.forEach((project) => {
+        savedSnapshots[project.id] = deepClone(project);
+      });
+
+      function getCurrentProject() {
+        return state.projects.find((p) => p.id === state.currentProjectId) || null;
+      }
+
+      function getCurrentDocument() {
+        const project = getCurrentProject();
+        if (!project) return null;
+        return project.documents.find((d) => d.id === state.selectedDocId) || null;
+      }
+
+      function getSelectedAnnotation() {
+        const doc = getCurrentDocument();
+        if (!doc) return null;
+        return doc.annotations.find((a) => a.id === state.selectedAnnotationId) || null;
+      }
+
+      function getFocusedLabel() {
+        const project = getCurrentProject();
+        if (!project) return null;
+        return project.labels.find((l) => l.id === state.focusedLabelId) || null;
+      }
+
+      function showFlash(message) {
+        state.flash = message;
+        render();
+        window.setTimeout(() => {
+          if (state.flash === message) {
+            state.flash = "";
+            render();
+          }
+        }, 1600);
+      }
+
+      function touchDoc(doc) {
+        doc.updatedAt = Date.now();
+        doc.status = "pending";
+      }
+
+      function hasOverlap(annotations, labelId, start, end, excludeId) {
+        return annotations.some((a) => {
+          if (a.id === excludeId) return false;
+          if (a.labelId !== labelId) return false;
+          return a.start < end && a.end > start;
+        });
+      }
+
+      function saveCurrentProjectSnapshot() {
+        const project = getCurrentProject();
+        if (!project) return;
+        savedSnapshots[project.id] = deepClone(project);
+      }
+
+      function saveChanges() {
+        saveCurrentProjectSnapshot();
+        state.dirty = false;
+        showFlash("保存した");
+      }
+
+      function submitCurrentDocument() {
+        const project = getCurrentProject();
+        const doc = getCurrentDocument();
+        if (!project || !doc) return;
+        const sortedDocs = getSortedDocuments(project);
+        const currentIndex = sortedDocs.findIndex((item) => item.id === doc.id);
+
+        doc.status = "verified";
+        doc.updatedAt = Date.now();
+        doc.annotations.forEach((item) => {
+          item.status = "verified";
+        });
+
+        let nextPendingDoc = null;
+        for (let i = currentIndex + 1; i < sortedDocs.length; i += 1) {
+          if (sortedDocs[i].status === "pending") {
+            nextPendingDoc = sortedDocs[i];
+            break;
+          }
+        }
+        if (!nextPendingDoc) {
+          for (let i = 0; i < currentIndex; i += 1) {
+            if (sortedDocs[i].status === "pending") {
+              nextPendingDoc = sortedDocs[i];
+              break;
+            }
+          }
+        }
+        if (nextPendingDoc) {
+          state.selectedDocId = nextPendingDoc.id;
+          state.selectedAnnotationId = nextPendingDoc.annotations[0] ? nextPendingDoc.annotations[0].id : null;
+        } else {
+          state.selectedAnnotationId = doc.annotations[0] ? doc.annotations[0].id : null;
+        }
+        state.hoverLaneAnnId = null;
+
+        state.dirty = false;
+        saveCurrentProjectSnapshot();
+        showFlash(
+          nextPendingDoc
+            ? "Submit完了: verified更新後に次のpending docへ移動した"
+            : "Submit完了: Document/Annotationsをverifiedに更新した"
+        );
+      }
+
+      function restoreCurrentProject() {
+        const snapshot = savedSnapshots[state.currentProjectId];
+        if (!snapshot) return;
+        const idx = state.projects.findIndex((p) => p.id === state.currentProjectId);
+        if (idx >= 0) state.projects[idx] = deepClone(snapshot);
+      }
+
+      function setDirty() {
+        state.dirty = true;
+      }
+
+      function parseHash() {
+        const hash = location.hash.replace(/^#/, "");
+        if (hash === "" || hash === "/projects") return { view: "projects" };
+        const match = hash.match(/^\/projects\/([^/]+)$/);
+        if (match) return { view: "workspace", projectId: decodeURIComponent(match[1]) };
+        return { view: "projects" };
+      }
+
+      function ensureWorkspaceState(projectId) {
+        if (state.currentProjectId === projectId) return;
+        state.currentProjectId = projectId;
+        state.sortBy = "created";
+        state.hoverLaneAnnId = null;
+        state.dirty = false;
+        state.showCreateDocModal = false;
+        state.showUnsavedDialog = false;
+        state.pendingDocSwitchId = null;
+        state.accordionOpen = {};
+        const project = getCurrentProject();
+        if (!project) return;
+        state.selectedDocId = project.documents[0] ? project.documents[0].id : null;
+        state.focusedLabelId = project.labels[0] ? project.labels[0].id : null;
+        const doc = getCurrentDocument();
+        state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
+        project.labels.forEach((label) => {
+          state.accordionOpen[label.id] = true;
+        });
+      }
+
+      function getSortedDocuments(project) {
+        const docs = [...project.documents];
+        if (state.sortBy === "created") docs.sort((a, b) => a.createdAt - b.createdAt);
+        if (state.sortBy === "pendingFirst")
+          docs.sort((a, b) => {
+            if (a.status !== b.status) return a.status === "pending" ? -1 : 1;
+            return a.createdAt - b.createdAt;
+          });
+        if (state.sortBy === "updated") docs.sort((a, b) => b.updatedAt - a.updatedAt);
+        if (state.sortBy === "name")
+          docs.sort((a, b) => a.documentName.localeCompare(b.documentName, "ja"));
+        return docs;
+      }
+
+      function buildSegments(text, annotations) {
+        const points = new Set([0, text.length]);
+        annotations.forEach((item) => {
+          points.add(item.start);
+          points.add(item.end);
+        });
+        const sorted = [...points].sort((a, b) => a - b);
+        const segments = [];
+        for (let i = 0; i < sorted.length - 1; i += 1) {
+          const start = sorted[i];
+          const end = sorted[i + 1];
+          if (start === end) continue;
+          const covers = annotations.filter((item) => item.start < end && item.end > start);
+          segments.push({ start, end, text: text.slice(start, end), covers });
+        }
+        return segments;
+      }
+
+      function renderDocText(doc, project) {
+        if (!doc) {
+          return '<p class="small">Documentを選択すると本文が表示される。</p>';
+        }
+        const labelById = Object.fromEntries(project.labels.map((label) => [label.id, label]));
+        const labelOrderById = Object.fromEntries(project.labels.map((label, index) => [label.id, index]));
+        const selectedAnnotation = doc.annotations.find((item) => item.id === state.selectedAnnotationId) || null;
+        const segments = buildSegments(doc.text, doc.annotations);
+        return segments
+          .map((segment) => {
+            const raw = escapeHtml(segment.text);
+            if (segment.covers.length === 0) return raw;
+            const focused = segment.covers.find((item) => item.labelId === state.focusedLabelId) || null;
+            const primary = focused || segment.covers[0];
+            const markerColor = focused ? (labelById[focused.labelId] || {}).color || "#999999" : "";
+            const underlineItems = segment.covers
+              .filter((item) => !focused || item.id !== focused.id)
+              .sort((a, b) => {
+                const labelDiff = (labelOrderById[a.labelId] || 0) - (labelOrderById[b.labelId] || 0);
+                if (labelDiff !== 0) return labelDiff;
+                if (a.start !== b.start) return a.start - b.start;
+                return a.id.localeCompare(b.id);
+              });
+            const reserveBottom =
+              underlineItems.length > 0
+                ? UNDERLINE_LANE_BASE +
+                  (underlineItems.length - 1) * UNDERLINE_LANE_PITCH +
+                  UNDERLINE_PADDING_TAIL
+                : 0;
+            const visibleOffsets = [];
+            const underlineLayers = [];
+            const underlineSizes = [];
+            const underlinePositions = [];
+            underlineItems.forEach((item, index) => {
+              const color = (labelById[item.labelId] || {}).color || "#999999";
+              const isHover = state.hoverLaneAnnId === item.id;
+              const isSelectedLane = state.selectedAnnotationId === item.id;
+              const alpha = isHover || isSelectedLane ? 1 : state.hoverLaneAnnId ? UNDERLINE_DIM_ALPHA : UNDERLINE_IDLE_ALPHA;
+              const lineColor = hexToRgba(color, alpha);
+              const thickness = isHover || isSelectedLane ? 3 : 2;
+              const distanceFromText = UNDERLINE_LANE_BASE + index * UNDERLINE_LANE_PITCH;
+              const laneTopFromBottom = reserveBottom - distanceFromText;
+              const laneCenterFromBottom = laneTopFromBottom - (thickness - 1) / 2;
+              visibleOffsets.push(laneCenterFromBottom);
+              underlineLayers.push("linear-gradient(" + lineColor + ", " + lineColor + ")");
+              underlineSizes.push("100% " + String(thickness) + "px");
+              underlinePositions.push("0 calc(100% - " + String(laneTopFromBottom) + "px)");
+            });
+            const styleParts = [];
+            if (markerColor) {
+              styleParts.push("background-color:" + hexToRgba(markerColor, 0.34));
+            }
+            if (underlineLayers.length > 0) {
+              styleParts.push("background-image:" + underlineLayers.join(","));
+              styleParts.push("background-repeat:no-repeat");
+              styleParts.push("background-size:" + underlineSizes.join(","));
+              styleParts.push("background-position:" + underlinePositions.join(","));
+            }
+            if (reserveBottom > 0) {
+              styleParts.push("padding-bottom:" + String(reserveBottom + 2) + "px");
+            }
+            const isSelected = selectedAnnotation
+              ? segment.covers.some((item) => item.id === selectedAnnotation.id)
+              : false;
+            const selectedClass = isSelected ? " selected" : "";
+            const selectedStartClass = isSelected && selectedAnnotation && segment.start === selectedAnnotation.start ? " start" : "";
+            const selectedEndClass = isSelected && selectedAnnotation && segment.end === selectedAnnotation.end ? " end" : "";
+            const markerClass = markerColor ? " has-marker" : "";
+            const underlineClass = underlineItems.length > 0 ? " has-underline" : "";
+            const visibleUnderlineIds = underlineItems.map((item) => item.id);
+            const title = segment.covers
+              .map((item) => (labelById[item.labelId] ? labelById[item.labelId].name : "Unknown"))
+              .join(", ");
+            return (
+              '<span class="annotation-segment' +
+              selectedClass +
+              selectedStartClass +
+              selectedEndClass +
+              markerClass +
+              underlineClass +
+              '" data-primary-ann-id="' +
+              primary.id +
+              '" data-visible-underline-ann-ids="' +
+              visibleUnderlineIds.join(",") +
+              '" data-visible-underline-offsets="' +
+              visibleOffsets.join(",") +
+              '" style="' +
+              styleParts.join(";") +
+              '" title="' +
+              escapeHtml(title) +
+              '">' +
+              raw +
+              "</span>"
+            );
+          })
+          .join("");
+      }
+
+      function contextParts(text, start, end, size) {
+        const left = text.slice(Math.max(0, start - size), start);
+        const mid = text.slice(start, end);
+        const right = text.slice(end, Math.min(text.length, end + size));
+        return { left, mid, right };
+      }
+
+      function renderProjects() {
+        const cards = state.projects
+          .map((project) => {
+            return `
+              <article class="project-card">
+                <div class="project-title">${escapeHtml(project.name)}</div>
+                <p class="project-desc">${escapeHtml(project.description || "")}</p>
+                <div class="project-meta">
+                  <span>${project.documents.length} Docs</span>
+                  <span>${project.labels.length} Labels</span>
+                </div>
+                <button class="btn btn-primary" data-open-project="${project.id}">Open Workspace</button>
+              </article>
+            `;
+          })
+          .join("");
+
+        return `
+          <header class="topbar">
+            <div>
+              <div class="brand">Layered Span Studio Mock</div>
+              <div class="small">Project画面からWorkspaceへ遷移するモック</div>
+            </div>
+            <span class="small">API接続なし / 1ファイル構成</span>
+          </header>
+          <main class="projects-wrap">
+            <h2>Projects</h2>
+            <div class="project-grid">${cards}</div>
+          </main>
+        `;
+      }
+
+      function renderWorkspace(project) {
+        const docs = getSortedDocuments(project);
+        const doc = getCurrentDocument();
+        const selectedAnn = getSelectedAnnotation();
+        const focusedLabel = getFocusedLabel();
+        const pendingDocsCount = project.documents.filter((item) => item.status === "pending").length;
+
+        const docsHtml = docs
+          .map((item) => {
+            return `
+              <button class="doc-item ${item.id === state.selectedDocId ? "active" : ""}" data-doc-id="${item.id}">
+                <div>
+                  <div class="doc-name">${escapeHtml(item.documentName)}</div>
+                  <div class="doc-sub">更新: ${formatDate(item.updatedAt)}</div>
+                </div>
+                <span class="pill ${item.status}">${item.status}</span>
+              </button>
+            `;
+          })
+          .join("");
+
+        const labelsHtml = project.labels
+          .map((label) => {
+            const isActive = label.id === state.focusedLabelId;
+            return `
+              <button
+                class="label-btn ${isActive ? "active" : ""}"
+                data-label-id="${label.id}"
+                style="${getLabelButtonStyle(label, isActive)}"
+              >
+                ${escapeHtml(label.name)}
+              </button>
+            `;
+          })
+          .join("");
+
+        const annotationGroups = project.labels
+          .map((label) => {
+            const list = doc ? doc.annotations.filter((a) => a.labelId === label.id) : [];
+            const open = state.accordionOpen[label.id] !== false;
+            const listHtml = open
+              ? `
+              <div class="anno-list">
+                ${
+                  list.length === 0
+                      ? '<div class="small">該当アノテーションなし</div>'
+                    : list
+                        .map((item) => {
+                          const context = contextParts(doc.text, item.start, item.end, 10);
+                          return `
+                            <button
+                              class="anno-item ${item.id === state.selectedAnnotationId ? "active" : ""}"
+                              data-ann-id="${item.id}"
+                              style="${getAnnoItemStyle(label)}"
+                            >
+                              <span class="anno-context">
+                                <span class="anno-context-muted">${escapeHtml(context.left)}</span><span class="anno-context-focus">${escapeHtml(context.mid)}</span><span class="anno-context-muted">${escapeHtml(context.right)}</span>
+                              </span>
+                              <span class="pill ${item.status}">${item.status}</span>
+                            </button>
+                          `;
+                        })
+                        .join("")
+                }
+              </div>
+            `
+              : "";
+            return `
+              <section class="anno-group" style="${getGroupStyle(label)}">
+                <button class="anno-group-head" data-accordion-id="${label.id}">
+                  <span style="display:flex;align-items:center;gap:7px;">
+                    <span style="width:10px;height:10px;border-radius:999px;background:${escapeHtml(label.color || "#8b94a0")};display:inline-block;"></span>
+                    <span>${escapeHtml(label.name)} (${list.length})</span>
+                  </span>
+                  <span>${open ? "▼" : "▶"}</span>
+                </button>
+                ${listHtml}
+              </section>
+            `;
+          })
+          .join("");
+
+        const metaText = selectedAnn ? JSON.stringify(selectedAnn.meta || {}, null, 2) : "";
+
+        return `
+          <header class="topbar">
+            <div>
+              <button class="btn" data-back-projects>← Projectsへ戻る</button>
+              <span style="margin-left:10px;font-weight:700;">${escapeHtml(project.name)}</span>
+              ${state.dirty ? '<span class="pill pending" style="margin-left:8px;">未保存</span>' : ""}
+            </div>
+            <span class="small">URL: /projects/${project.id}</span>
+          </header>
+          <main class="workspace-wrap">
+            <section class="panel">
+              <div class="panel-head">
+                <span class="small">${pendingDocsCount} pending / ${project.documents.length} docs</span>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <select id="doc-sort" class="btn">
+                    <option value="created" ${state.sortBy === "created" ? "selected" : ""}>作成順</option>
+                    <option value="pendingFirst" ${state.sortBy === "pendingFirst" ? "selected" : ""}>未完了優先</option>
+                    <option value="updated" ${state.sortBy === "updated" ? "selected" : ""}>最終更新順</option>
+                    <option value="name" ${state.sortBy === "name" ? "selected" : ""}>document_name順</option>
+                  </select>
+                  <button class="btn" id="create-doc-open">+ Doc</button>
+                </div>
+              </div>
+              <div class="doc-list">${docsHtml}</div>
+            </section>
+
+            <section class="panel center-panel">
+              <div class="label-strip">${labelsHtml}</div>
+              <div class="canvas-wrap">
+                <div class="canvas-help">ドラッグ選択すると、選択中Labelに即時でAnnotationを作成する。</div>
+                <div id="doc-text" class="doc-text">${renderDocText(doc, project)}</div>
+              </div>
+              <div class="center-actions">
+                <button class="btn" id="save-btn">Save</button>
+                <button class="btn btn-primary" id="submit-btn">Submit</button>
+              </div>
+            </section>
+
+            <aside class="right-panel">
+              <section class="card">
+                <h4>アノテーション基準</h4>
+                <p>${escapeHtml(focusedLabel ? focusedLabel.description : "Labelを選択すると基準を表示する。")}</p>
+              </section>
+
+              <section class="card field">
+                <h4>Comment / Meta</h4>
+                <div class="small">Doc: ${doc ? escapeHtml(doc.documentName) : "Document未選択"}</div>
+                <div class="small">Span: ${selectedAnn ? `${selectedAnn.start}-${selectedAnn.end}` : "未選択"}</div>
+                <label for="ann-status">status</label>
+                <select id="ann-status" ${selectedAnn ? "" : "disabled"}>
+                  <option value="pending" ${selectedAnn && selectedAnn.status === "pending" ? "selected" : ""}>pending</option>
+                  <option value="verified" ${selectedAnn && selectedAnn.status === "verified" ? "selected" : ""}>verified</option>
+                </select>
+                <label for="ann-comment">comment</label>
+                <textarea id="ann-comment" ${selectedAnn ? "" : "disabled"}>${escapeHtml(
+        selectedAnn ? selectedAnn.comment || "" : ""
+      )}</textarea>
+                <label for="ann-meta">meta</label>
+                <textarea id="ann-meta" ${selectedAnn ? "" : "disabled"}>${escapeHtml(metaText)}</textarea>
+              </section>
+
+              <section class="card">
+                <h4>Docアノテーション一覧</h4>
+                <div class="anno-groups">${annotationGroups}</div>
+              </section>
+            </aside>
+          </main>
+        `;
+      }
+
+      function renderOverlay() {
+        const overlays = [];
+        if (state.showCreateDocModal) {
+          overlays.push(`
+            <div class="overlay">
+              <div class="modal">
+                <h3>Create Document</h3>
+                <div class="field">
+                  <label for="new-doc-name">document_name</label>
+                  <input id="new-doc-name" placeholder="例: 新規ドキュメント_001" />
+                </div>
+                <div class="field" style="margin-top:8px;">
+                  <label for="new-doc-text">text</label>
+                  <textarea id="new-doc-text" placeholder="アノテーション対象の本文"></textarea>
+                </div>
+                <div class="actions">
+                  <button class="btn" id="create-doc-cancel">キャンセル</button>
+                  <button class="btn btn-primary" id="create-doc-submit">作成</button>
+                </div>
+              </div>
+            </div>
+          `);
+        }
+        if (state.showUnsavedDialog) {
+          overlays.push(`
+            <div class="overlay">
+              <div class="modal">
+                <h3>未保存の変更がある</h3>
+                <p class="small">Documentを切り替える前に処理を選択する。</p>
+                <div class="actions">
+                  <button class="btn" data-unsaved-action="cancel">キャンセル</button>
+                  <button class="btn btn-danger" data-unsaved-action="discard">破棄して移動</button>
+                  <button class="btn btn-primary" data-unsaved-action="save">保存して移動</button>
+                </div>
+              </div>
+            </div>
+          `);
+        }
+        if (state.flash) overlays.push(`<div class="flash">${escapeHtml(state.flash)}</div>`);
+        return overlays.join("");
+      }
+
+      function render() {
+        const route = parseHash();
+        const app = document.getElementById("app");
+        if (!app) return;
+        const laneTooltip = document.getElementById("lane-hover-tooltip");
+        if (laneTooltip) {
+          laneTooltip.classList.remove("show");
+          laneTooltip.setAttribute("aria-hidden", "true");
+        }
+        if (route.view === "projects") {
+          state.currentProjectId = null;
+          state.hoverLaneAnnId = null;
+          app.innerHTML = renderProjects() + renderOverlay();
+          bindCommonEvents();
+          return;
+        }
+        ensureWorkspaceState(route.projectId);
+        const project = getCurrentProject();
+        if (!project) {
+          location.hash = "#/projects";
+          return;
+        }
+        app.innerHTML = renderWorkspace(project) + renderOverlay();
+        bindCommonEvents();
+      }
+
+      function requestDocSwitch(nextDocId) {
+        if (nextDocId === state.selectedDocId) return;
+        if (state.dirty) {
+          state.pendingDocSwitchId = nextDocId;
+          state.showUnsavedDialog = true;
+          render();
+          return;
+        }
+        applyDocSwitch(nextDocId);
+      }
+
+      function applyDocSwitch(nextDocId) {
+        state.selectedDocId = nextDocId;
+        state.hoverLaneAnnId = null;
+        state.showUnsavedDialog = false;
+        state.pendingDocSwitchId = null;
+        const doc = getCurrentDocument();
+        state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
+        render();
+      }
+
+      function getTextOffset(container, node, offset) {
+        const range = document.createRange();
+        range.setStart(container, 0);
+        range.setEnd(node, offset);
+        return range.toString().length;
+      }
+
+      function bindCommonEvents() {
+        document.querySelectorAll("[data-open-project]").forEach((button) => {
+          button.addEventListener("click", () => {
+            location.hash = "#/projects/" + encodeURIComponent(button.getAttribute("data-open-project"));
+          });
+        });
+
+        const back = document.querySelector("[data-back-projects]");
+        if (back) {
+          back.addEventListener("click", () => {
+            location.hash = "#/projects";
+          });
+        }
+
+        document.querySelectorAll("[data-doc-id]").forEach((button) => {
+          button.addEventListener("click", () => {
+            requestDocSwitch(button.getAttribute("data-doc-id"));
+          });
+        });
+
+        const sort = document.getElementById("doc-sort");
+        if (sort) {
+          sort.addEventListener("change", () => {
+            state.sortBy = sort.value;
+            render();
+          });
+        }
+
+        const createDocOpen = document.getElementById("create-doc-open");
+        if (createDocOpen) {
+          createDocOpen.addEventListener("click", () => {
+            state.showCreateDocModal = true;
+            render();
+          });
+        }
+
+        const createDocCancel = document.getElementById("create-doc-cancel");
+        if (createDocCancel) {
+          createDocCancel.addEventListener("click", () => {
+            state.showCreateDocModal = false;
+            render();
+          });
+        }
+
+        const createDocSubmit = document.getElementById("create-doc-submit");
+        if (createDocSubmit) {
+          createDocSubmit.addEventListener("click", () => {
+            const nameInput = document.getElementById("new-doc-name");
+            const textInput = document.getElementById("new-doc-text");
+            const name = nameInput ? nameInput.value.trim() : "";
+            const text = textInput ? textInput.value.trim() : "";
+            if (!name || !text) {
+              alert("document_name と text の両方を入力する必要がある。");
+              return;
+            }
+            const project = getCurrentProject();
+            if (!project) return;
+            if (project.documents.some((item) => item.documentName === name)) {
+              alert("同名のdocument_nameは使えない。");
+              return;
+            }
+            const doc = {
+              id: makeId("doc"),
+              documentName: name,
+              text,
+              status: "pending",
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              meta: { publish_date: formatDate(Date.now()) },
+              annotations: [],
+            };
+            project.documents.push(doc);
+            state.selectedDocId = doc.id;
+            state.selectedAnnotationId = null;
+            touchDoc(doc);
+            setDirty();
+            state.showCreateDocModal = false;
+            render();
+          });
+        }
+
+        document.querySelectorAll("[data-label-id]").forEach((button) => {
+          button.addEventListener("click", () => {
+            state.focusedLabelId = button.getAttribute("data-label-id");
+            render();
+          });
+        });
+
+        document.querySelectorAll("[data-accordion-id]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const labelId = button.getAttribute("data-accordion-id");
+            state.accordionOpen[labelId] = state.accordionOpen[labelId] === false;
+            render();
+          });
+        });
+
+        document.querySelectorAll("[data-primary-ann-id]").forEach((button) => {
+          button.addEventListener("click", (event) => {
+            const selection = window.getSelection();
+            if (selection && !selection.isCollapsed) return;
+            const doc = getCurrentDocument();
+            if (!doc) return;
+            const visibleAnnIds = parseCsvIds(button.getAttribute("data-visible-underline-ann-ids"));
+            const visibleOffsets = parseCsvNumbers(button.getAttribute("data-visible-underline-offsets"));
+            const rect = button.getBoundingClientRect();
+            const yFromBottom = rect.bottom - event.clientY;
+            const underlineAnnId = pickUnderlineAnnId(visibleAnnIds, visibleOffsets, yFromBottom);
+            let annId = underlineAnnId;
+            if (!annId) {
+              const primaryAnnId = button.getAttribute("data-primary-ann-id");
+              const primaryAnn = doc.annotations.find((item) => item.id === primaryAnnId);
+              if (!primaryAnn || primaryAnn.labelId !== state.focusedLabelId) return;
+              annId = primaryAnn.id;
+            }
+            const ann = doc.annotations.find((item) => item.id === annId);
+            if (!ann) return;
+            state.selectedAnnotationId = ann.id;
+            if (underlineAnnId) state.focusedLabelId = ann.labelId;
+            render();
+          });
+        });
+
+        document.querySelectorAll("[data-ann-id]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const annId = button.getAttribute("data-ann-id");
+            const doc = getCurrentDocument();
+            if (!doc) return;
+            const ann = doc.annotations.find((item) => item.id === annId);
+            if (!ann) return;
+            state.selectedAnnotationId = ann.id;
+            state.focusedLabelId = ann.labelId;
+            render();
+          });
+        });
+
+        const comment = document.getElementById("ann-comment");
+        if (comment) {
+          comment.addEventListener("input", () => {
+            const ann = getSelectedAnnotation();
+            const doc = getCurrentDocument();
+            if (!ann || !doc) return;
+            ann.comment = comment.value;
+            touchDoc(doc);
+            setDirty();
+          });
+        }
+
+        const status = document.getElementById("ann-status");
+        if (status) {
+          status.addEventListener("change", () => {
+            const ann = getSelectedAnnotation();
+            const doc = getCurrentDocument();
+            if (!ann || !doc) return;
+            ann.status = status.value;
+            touchDoc(doc);
+            setDirty();
+            render();
+          });
+        }
+
+        const meta = document.getElementById("ann-meta");
+        if (meta) {
+          meta.addEventListener("blur", () => {
+            const ann = getSelectedAnnotation();
+            const doc = getCurrentDocument();
+            if (!ann || !doc) return;
+            try {
+              ann.meta = meta.value.trim() ? JSON.parse(meta.value) : {};
+            } catch (_err) {
+              alert("meta はJSON形式で入力する必要がある。");
+              meta.focus();
+              return;
+            }
+            touchDoc(doc);
+            setDirty();
+          });
+        }
+
+        const saveBtn = document.getElementById("save-btn");
+        if (saveBtn) saveBtn.addEventListener("click", saveChanges);
+
+        const submitBtn = document.getElementById("submit-btn");
+        if (submitBtn) submitBtn.addEventListener("click", submitCurrentDocument);
+
+        const unsavedButtons = document.querySelectorAll("[data-unsaved-action]");
+        if (unsavedButtons.length > 0) {
+          unsavedButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+              const action = button.getAttribute("data-unsaved-action");
+              const pendingId = state.pendingDocSwitchId;
+              if (action === "cancel") {
+                state.showUnsavedDialog = false;
+                state.pendingDocSwitchId = null;
+                render();
+                return;
+              }
+              if (action === "discard") {
+                restoreCurrentProject();
+                state.dirty = false;
+                state.showUnsavedDialog = false;
+                state.pendingDocSwitchId = null;
+                if (pendingId) {
+                  state.selectedDocId = pendingId;
+                  const nextDoc = getCurrentDocument();
+                  state.selectedAnnotationId = nextDoc && nextDoc.annotations[0] ? nextDoc.annotations[0].id : null;
+                }
+                render();
+                return;
+              }
+              if (action === "save") {
+                saveCurrentProjectSnapshot();
+                state.dirty = false;
+                state.showUnsavedDialog = false;
+                state.pendingDocSwitchId = null;
+                if (pendingId) {
+                  state.selectedDocId = pendingId;
+                  const nextDoc = getCurrentDocument();
+                  state.selectedAnnotationId = nextDoc && nextDoc.annotations[0] ? nextDoc.annotations[0].id : null;
+                }
+                render();
+              }
+            });
+          });
+        }
+
+        const docText = document.getElementById("doc-text");
+        if (docText) {
+          const laneTooltip = document.getElementById("lane-hover-tooltip");
+          const laneTooltipDot = document.getElementById("lane-hover-tooltip-dot");
+          const laneTooltipText = document.getElementById("lane-hover-tooltip-text");
+
+          const hideLaneTooltip = () => {
+            if (!laneTooltip) return;
+            laneTooltip.classList.remove("show");
+            laneTooltip.setAttribute("aria-hidden", "true");
+          };
+
+          const showLaneTooltip = (annId, clientX, clientY) => {
+            if (!laneTooltip || !laneTooltipDot || !laneTooltipText) return;
+            const project = getCurrentProject();
+            const doc = getCurrentDocument();
+            if (!project || !doc) {
+              hideLaneTooltip();
+              return;
+            }
+            const ann = doc.annotations.find((item) => item.id === annId);
+            if (!ann) {
+              hideLaneTooltip();
+              return;
+            }
+            const label = project.labels.find((item) => item.id === ann.labelId) || null;
+            laneTooltipDot.style.background = label ? label.color || "#8b94a0" : "#8b94a0";
+            laneTooltipText.textContent = label ? label.name : "Unknown";
+            laneTooltip.classList.add("show");
+            laneTooltip.setAttribute("aria-hidden", "false");
+            const rect = laneTooltip.getBoundingClientRect();
+            let left = clientX + 14;
+            let top = clientY + 16;
+            if (left + rect.width > window.innerWidth - 8) left = window.innerWidth - rect.width - 8;
+            if (top + rect.height > window.innerHeight - 8) top = window.innerHeight - rect.height - 8;
+            if (left < 8) left = 8;
+            if (top < 8) top = 8;
+            laneTooltip.style.left = String(left) + "px";
+            laneTooltip.style.top = String(top) + "px";
+          };
+
+          const syncUnderlineHover = (nextLaneAnnId) => {
+            if (state.hoverLaneAnnId === nextLaneAnnId) return;
+            state.hoverLaneAnnId = nextLaneAnnId;
+            render();
+          };
+
+          docText.addEventListener("mousemove", (event) => {
+            const selection = window.getSelection();
+            if (selection && !selection.isCollapsed) {
+              syncUnderlineHover(null);
+              hideLaneTooltip();
+              return;
+            }
+            const segment = event.target.closest("[data-primary-ann-id]");
+            if (!segment || !docText.contains(segment)) {
+              syncUnderlineHover(null);
+              hideLaneTooltip();
+              return;
+            }
+            const visibleAnnIds = parseCsvIds(segment.getAttribute("data-visible-underline-ann-ids"));
+            const visibleOffsets = parseCsvNumbers(segment.getAttribute("data-visible-underline-offsets"));
+            const rect = segment.getBoundingClientRect();
+            const yFromBottom = rect.bottom - event.clientY;
+            const underlineAnnId = pickUnderlineAnnId(visibleAnnIds, visibleOffsets, yFromBottom);
+            syncUnderlineHover(underlineAnnId);
+            if (underlineAnnId) {
+              showLaneTooltip(underlineAnnId, event.clientX, event.clientY);
+              return;
+            }
+            const doc = getCurrentDocument();
+            if (!doc) {
+              hideLaneTooltip();
+              return;
+            }
+            const primaryAnnId = segment.getAttribute("data-primary-ann-id");
+            const primaryAnn = doc.annotations.find((item) => item.id === primaryAnnId);
+            if (!primaryAnn || primaryAnn.labelId !== state.focusedLabelId) {
+              hideLaneTooltip();
+              return;
+            }
+            showLaneTooltip(primaryAnn.id, event.clientX, event.clientY);
+          });
+
+          docText.addEventListener("mouseleave", () => {
+            syncUnderlineHover(null);
+            hideLaneTooltip();
+          });
+
+          docText.addEventListener("mouseup", () => {
+            const selection = window.getSelection();
+            if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+            const range = selection.getRangeAt(0);
+            if (!docText.contains(range.startContainer) || !docText.contains(range.endContainer)) return;
+            const doc = getCurrentDocument();
+            const label = getFocusedLabel();
+            if (!doc || !label) return;
+            let start = getTextOffset(docText, range.startContainer, range.startOffset);
+            let end = getTextOffset(docText, range.endContainer, range.endOffset);
+            if (start > end) {
+              const temp = start;
+              start = end;
+              end = temp;
+            }
+            if (start === end) return;
+            const spanText = doc.text.slice(start, end);
+            if (!spanText.trim()) {
+              selection.removeAllRanges();
+              return;
+            }
+            if (hasOverlap(doc.annotations, label.id, start, end)) {
+              selection.removeAllRanges();
+              showFlash("同一ラベルの重複範囲は作成できない");
+              return;
+            }
+            const newAnnotation = {
+              id: makeId("ann"),
+              labelId: label.id,
+              start,
+              end,
+              spanText,
+              comment: "",
+              status: "pending",
+              meta: {},
+            };
+            doc.annotations.push(newAnnotation);
+            touchDoc(doc);
+            setDirty();
+            state.selectedAnnotationId = newAnnotation.id;
+            selection.removeAllRanges();
+            render();
+          });
+        }
+      }
+
+      window.addEventListener("hashchange", render);
+      if (!location.hash) location.hash = "#/projects";
+      render();
+    </script>
+  </body>
+</html>
