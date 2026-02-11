@@ -277,6 +277,12 @@
         white-space: pre-wrap;
         user-select: text;
         word-break: break-word;
+        position: relative;
+        z-index: 1;
+      }
+
+      .doc-stage {
+        position: relative;
       }
 
       .annotation-segment {
@@ -295,16 +301,39 @@
       }
 
       .annotation-segment.selected {
-        border-top: 2px solid #243243;
-        border-bottom: 2px solid #243243;
       }
 
-      .annotation-segment.selected.start {
-        border-left: 2px solid #243243;
+      .doc-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        pointer-events: none;
       }
 
-      .annotation-segment.selected.end {
-        border-right: 2px solid #243243;
+      .overlay-underline {
+        position: absolute;
+        pointer-events: auto;
+        background: transparent;
+      }
+
+      .overlay-underline::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        height: var(--line-thickness, 3px);
+        background: var(--line-color, rgba(153, 153, 153, 1));
+        border-radius: 2px;
+        pointer-events: none;
+      }
+
+      .overlay-selection {
+        position: absolute;
+        border: 1px solid rgba(36, 50, 67, 0.5);
+        pointer-events: none;
+        box-sizing: border-box;
       }
 
       .lane-hover-tooltip {
@@ -631,28 +660,6 @@
           .filter(Boolean);
       }
 
-      function parseCsvNumbers(value) {
-        return String(value || "")
-          .split(",")
-          .map((raw) => Number(raw))
-          .filter((num) => Number.isFinite(num));
-      }
-
-      function pickUnderlineAnnId(ids, offsets, yFromBottom) {
-        if (ids.length === 0 || offsets.length === 0) return null;
-        let nearestIndex = -1;
-        let nearestDistance = Infinity;
-        offsets.forEach((offset, index) => {
-          const distance = Math.abs(yFromBottom - offset);
-          if (distance < nearestDistance) {
-            nearestDistance = distance;
-            nearestIndex = index;
-          }
-        });
-        if (nearestIndex < 0 || nearestDistance > UNDERLINE_HIT_HALF) return null;
-        return ids[nearestIndex] || null;
-      }
-
       const baseText =
         "58歳男性。3日前から続く発熱（最高38.6℃）、乾いた咳、全身倦怠感を主訴に受診した。来院時バイタルは体温38.2℃、血圧146/88 mmHg、脈拍102/分、SpO2 95%（室内気）で、聴診では右下肺野に軽度の湿性ラ音を認めた。血液検査では白血球11,200/μL、CRP 8.4 mg/dL、HbA1c 7.1%で、胸部X線では右下葉に浸潤影を認め、市中肺炎と診断した。既往歴として2型糖尿病、高血圧症、脂質異常症があり、内服はメトホルミン500mg 1日2回、アムロジピン5mg 1日1回、ロスバスタチン2.5mg 就寝前。治療としてレボフロキサシン500mg 1日1回を5日分処方し、解熱時のみアセトアミノフェン500mgを頓用とした。水分摂取と安静を指導し、呼吸苦の増悪、39℃以上の発熱持続、経口摂取困難があれば時間外でも再受診するよう説明した。3日後の再診では体温36.9℃、咳嗽は軽減、CRPは2.1 mg/dLまで改善しており、抗菌薬は予定通り終了、糖尿病と高血圧の定期フォローを継続する方針とした。";
 
@@ -807,6 +814,8 @@
         showUnsavedDialog: false,
         pendingDocSwitchId: null,
         accordionOpen: {},
+        underlineLaneByAnnId: {},
+        globalUnderlineReserve: 0,
         projects: deepClone(seedProjects),
       };
 
@@ -992,6 +1001,8 @@
 
       function renderDocText(doc, project) {
         if (!doc) {
+          state.underlineLaneByAnnId = {};
+          state.globalUnderlineReserve = 0;
           return '<p class="small">Documentを選択すると本文が表示される。</p>';
         }
         const labelById = Object.fromEntries(project.labels.map((label) => [label.id, label]));
@@ -1022,6 +1033,8 @@
           maxUnderlineLane >= 0
             ? UNDERLINE_LANE_BASE + maxUnderlineLane * UNDERLINE_LANE_PITCH + UNDERLINE_PADDING_TAIL
             : 0;
+        state.underlineLaneByAnnId = underlineLaneByAnnId;
+        state.globalUnderlineReserve = globalReserveBottom;
         const segments = buildSegments(doc.text, doc.annotations);
         return segments
           .map((segment) => {
@@ -1038,42 +1051,9 @@
                 if (a.start !== b.start) return a.start - b.start;
                 return a.id.localeCompare(b.id);
               });
-            const reserveBottom =
-              underlineItems.length > 0
-                ? globalReserveBottom
-                : 0;
-            const visibleOffsets = [];
-            const underlineLayers = [];
-            const underlineSizes = [];
-            const underlinePositions = [];
-            underlineItems.forEach((item) => {
-              const color = (labelById[item.labelId] || {}).color || "#999999";
-              const isHover = state.hoverLaneAnnId === item.id;
-              const isSelectedLane = state.selectedAnnotationId === item.id;
-              const alpha = isHover || isSelectedLane ? 1 : state.hoverLaneAnnId ? UNDERLINE_DIM_ALPHA : UNDERLINE_IDLE_ALPHA;
-              const lineColor = hexToRgba(color, alpha);
-              const thickness = isHover || isSelectedLane ? 3 : 2;
-              const laneIndex = underlineLaneByAnnId[item.id] || 0;
-              const distanceFromText = UNDERLINE_LANE_BASE + laneIndex * UNDERLINE_LANE_PITCH;
-              const laneTopFromBottom = reserveBottom - distanceFromText;
-              const laneCenterFromBottom = laneTopFromBottom - (thickness - 1) / 2;
-              visibleOffsets.push(laneCenterFromBottom);
-              underlineLayers.push("linear-gradient(" + lineColor + ", " + lineColor + ")");
-              underlineSizes.push("100% " + String(thickness) + "px");
-              underlinePositions.push("0 calc(100% - " + String(laneTopFromBottom) + "px)");
-            });
             const styleParts = [];
             if (markerColor) {
               styleParts.push("background-color:" + hexToRgba(markerColor, 0.34));
-            }
-            if (underlineLayers.length > 0) {
-              styleParts.push("background-image:" + underlineLayers.join(","));
-              styleParts.push("background-repeat:no-repeat");
-              styleParts.push("background-size:" + underlineSizes.join(","));
-              styleParts.push("background-position:" + underlinePositions.join(","));
-            }
-            if (reserveBottom > 0) {
-              styleParts.push("padding-bottom:" + String(reserveBottom + 2) + "px");
             }
             const isSelected = selectedAnnotation
               ? segment.covers.some((item) => item.id === selectedAnnotation.id)
@@ -1083,7 +1063,8 @@
             const selectedEndClass = isSelected && selectedAnnotation && segment.end === selectedAnnotation.end ? " end" : "";
             const markerClass = markerColor ? " has-marker" : "";
             const underlineClass = underlineItems.length > 0 ? " has-underline" : "";
-            const visibleUnderlineIds = underlineItems.map((item) => item.id);
+            const underlineAnnIds = underlineItems.map((item) => item.id);
+            const coverAnnIds = segment.covers.map((item) => item.id);
             const title = segment.covers
               .map((item) => (labelById[item.labelId] ? labelById[item.labelId].name : "Unknown"))
               .join(", ");
@@ -1096,10 +1077,10 @@
               underlineClass +
               '" data-primary-ann-id="' +
               primary.id +
-              '" data-visible-underline-ann-ids="' +
-              visibleUnderlineIds.join(",") +
-              '" data-visible-underline-offsets="' +
-              visibleOffsets.join(",") +
+              '" data-under-ann-ids="' +
+              underlineAnnIds.join(",") +
+              '" data-cover-ann-ids="' +
+              coverAnnIds.join(",") +
               '" style="' +
               styleParts.join(";") +
               '" title="' +
@@ -1233,6 +1214,8 @@
           })
           .join("");
 
+        const docTextHtml = renderDocText(doc, project);
+        const docTextBottomPadding = state.globalUnderlineReserve > 0 ? state.globalUnderlineReserve + 2 : 0;
         const metaText = selectedAnn ? JSON.stringify(selectedAnn.meta || {}, null, 2) : "";
 
         return `
@@ -1265,7 +1248,10 @@
               <div class="label-strip">${labelsHtml}</div>
               <div class="canvas-wrap">
                 <div class="canvas-help">ドラッグ選択すると、選択中Labelに即時でAnnotationを作成する。</div>
-                <div id="doc-text" class="doc-text">${renderDocText(doc, project)}</div>
+                <div class="doc-stage" id="doc-stage">
+                  <div id="doc-text" class="doc-text" style="padding-bottom:${docTextBottomPadding}px;">${docTextHtml}</div>
+                  <div id="doc-overlay" class="doc-overlay" aria-hidden="true"></div>
+                </div>
               </div>
               <div class="center-actions">
                 <button class="btn" id="save-btn">Save</button>
@@ -1401,6 +1387,134 @@
         return range.toString().length;
       }
 
+      function mergeInlineRects(rects) {
+        const sorted = [...rects]
+          .filter((rect) => rect.width > 0 && rect.height > 0)
+          .sort((a, b) => (a.top !== b.top ? a.top - b.top : a.left - b.left));
+        const merged = [];
+        sorted.forEach((rect) => {
+          const last = merged[merged.length - 1];
+          const isSameLine =
+            last &&
+            Math.abs(last.top - rect.top) <= 1 &&
+            Math.abs(last.bottom - rect.bottom) <= 1 &&
+            rect.left <= last.right + 2;
+          if (isSameLine) {
+            last.right = Math.max(last.right, rect.right);
+            return;
+          }
+          merged.push({
+            left: rect.left,
+            right: rect.right,
+            top: rect.top,
+            bottom: rect.bottom,
+          });
+        });
+        return merged;
+      }
+
+      function renderDocOverlay(docText) {
+        const overlay = document.getElementById("doc-overlay");
+        const doc = getCurrentDocument();
+        const project = getCurrentProject();
+        if (!overlay || !docText || !doc || !project) {
+          if (overlay) overlay.innerHTML = "";
+          return;
+        }
+
+        const baseRect = docText.getBoundingClientRect();
+        const rectsByAnnId = {};
+        docText.querySelectorAll("[data-cover-ann-ids]").forEach((segment) => {
+          const coverIds = parseCsvIds(segment.getAttribute("data-cover-ann-ids"));
+          if (coverIds.length === 0) return;
+          const rects = Array.from(segment.getClientRects()).map((rect) => ({
+            left: rect.left - baseRect.left,
+            right: rect.right - baseRect.left,
+            top: rect.top - baseRect.top,
+            bottom: rect.bottom - baseRect.top,
+            width: rect.width,
+            height: rect.height,
+          }));
+          coverIds.forEach((annId) => {
+            if (!rectsByAnnId[annId]) rectsByAnnId[annId] = [];
+            rectsByAnnId[annId].push(...rects);
+          });
+        });
+
+        const annById = Object.fromEntries(doc.annotations.map((ann) => [ann.id, ann]));
+        const labelById = Object.fromEntries(project.labels.map((label) => [label.id, label]));
+        const laneByAnnId = state.underlineLaneByAnnId || {};
+        const hitHeight = UNDERLINE_HIT_HALF * 2;
+
+        const underlineHtml = Object.keys(laneByAnnId)
+          .map((annId) => {
+            const ann = annById[annId];
+            if (!ann) return "";
+            const label = labelById[ann.labelId];
+            if (!label) return "";
+            const mergedRects = mergeInlineRects(rectsByAnnId[annId] || []);
+            if (mergedRects.length === 0) return "";
+            const laneIndex = laneByAnnId[annId] || 0;
+            const distanceFromText = UNDERLINE_LANE_BASE + laneIndex * UNDERLINE_LANE_PITCH;
+            const topOffset = distanceFromText - hitHeight / 2;
+            const isHover = state.hoverLaneAnnId === annId;
+            const isSelectedLane = state.selectedAnnotationId === annId;
+            const alpha = isHover || isSelectedLane ? 1 : state.hoverLaneAnnId ? UNDERLINE_DIM_ALPHA : UNDERLINE_IDLE_ALPHA;
+            const thickness = isHover || isSelectedLane ? 4 : 3;
+            const color = hexToRgba(label.color || "#999999", alpha);
+            return mergedRects
+              .map((rect) => {
+                const width = rect.right - rect.left;
+                if (width <= 0) return "";
+                const top = rect.bottom + topOffset;
+                return (
+                  '<span class="overlay-underline" data-overlay-ann-id="' +
+                  annId +
+                  '" style="left:' +
+                  String(rect.left) +
+                  "px;top:" +
+                  String(top) +
+                  "px;width:" +
+                  String(width) +
+                  "px;height:" +
+                  String(hitHeight) +
+                  "px;--line-thickness:" +
+                  String(thickness) +
+                  "px;--line-color:" +
+                  color +
+                  ';"></span>'
+                );
+              })
+              .join("");
+          })
+          .join("");
+
+        let selectionHtml = "";
+        if (state.selectedAnnotationId) {
+          const selectedRects = mergeInlineRects(rectsByAnnId[state.selectedAnnotationId] || []);
+          selectionHtml = selectedRects
+            .map((rect) => {
+              const width = rect.right - rect.left;
+              const height = rect.bottom - rect.top;
+              if (width <= 0 || height <= 0) return "";
+              return (
+                '<span class="overlay-selection" style="left:' +
+                String(rect.left) +
+                "px;top:" +
+                String(rect.top) +
+                "px;width:" +
+                String(width) +
+                "px;height:" +
+                String(height) +
+                'px;"></span>'
+              );
+            })
+            .join("");
+        }
+
+        overlay.innerHTML = underlineHtml + selectionHtml;
+      }
+
       function bindCommonEvents() {
         document.querySelectorAll("[data-open-project]").forEach((button) => {
           button.addEventListener("click", () => {
@@ -1498,27 +1612,15 @@
         });
 
         document.querySelectorAll("[data-primary-ann-id]").forEach((button) => {
-          button.addEventListener("click", (event) => {
+          button.addEventListener("click", () => {
             const selection = window.getSelection();
             if (selection && !selection.isCollapsed) return;
             const doc = getCurrentDocument();
             if (!doc) return;
-            const visibleAnnIds = parseCsvIds(button.getAttribute("data-visible-underline-ann-ids"));
-            const visibleOffsets = parseCsvNumbers(button.getAttribute("data-visible-underline-offsets"));
-            const rect = button.getBoundingClientRect();
-            const yFromBottom = rect.bottom - event.clientY;
-            const underlineAnnId = pickUnderlineAnnId(visibleAnnIds, visibleOffsets, yFromBottom);
-            let annId = underlineAnnId;
-            if (!annId) {
-              const primaryAnnId = button.getAttribute("data-primary-ann-id");
-              const primaryAnn = doc.annotations.find((item) => item.id === primaryAnnId);
-              if (!primaryAnn || primaryAnn.labelId !== state.focusedLabelId) return;
-              annId = primaryAnn.id;
-            }
-            const ann = doc.annotations.find((item) => item.id === annId);
-            if (!ann) return;
+            const primaryAnnId = button.getAttribute("data-primary-ann-id");
+            const ann = doc.annotations.find((item) => item.id === primaryAnnId);
+            if (!ann || ann.labelId !== state.focusedLabelId) return;
             state.selectedAnnotationId = ann.id;
-            if (underlineAnnId) state.focusedLabelId = ann.labelId;
             render();
           });
         });
@@ -1628,6 +1730,8 @@
 
         const docText = document.getElementById("doc-text");
         if (docText) {
+          renderDocOverlay(docText);
+          const overlay = document.getElementById("doc-overlay");
           const laneTooltip = document.getElementById("lane-hover-tooltip");
           const laneTooltipDot = document.getElementById("lane-hover-tooltip-dot");
           const laneTooltipText = document.getElementById("lane-hover-tooltip-text");
@@ -1673,6 +1777,39 @@
             render();
           };
 
+          const bindOverlayUnderlineEvents = () => {
+            if (!overlay) return;
+            overlay.querySelectorAll("[data-overlay-ann-id]").forEach((line) => {
+              line.addEventListener("mouseenter", (event) => {
+                const annId = line.getAttribute("data-overlay-ann-id");
+                syncUnderlineHover(annId);
+                showLaneTooltip(annId, event.clientX, event.clientY);
+              });
+              line.addEventListener("mousemove", (event) => {
+                const annId = line.getAttribute("data-overlay-ann-id");
+                showLaneTooltip(annId, event.clientX, event.clientY);
+              });
+              line.addEventListener("mouseleave", () => {
+                syncUnderlineHover(null);
+                hideLaneTooltip();
+              });
+              line.addEventListener("click", (event) => {
+                event.stopPropagation();
+                const selection = window.getSelection();
+                if (selection && !selection.isCollapsed) return;
+                const annId = line.getAttribute("data-overlay-ann-id");
+                const doc = getCurrentDocument();
+                if (!doc) return;
+                const ann = doc.annotations.find((item) => item.id === annId);
+                if (!ann) return;
+                state.selectedAnnotationId = ann.id;
+                state.focusedLabelId = ann.labelId;
+                render();
+              });
+            });
+          };
+          bindOverlayUnderlineEvents();
+
           const clearAnnotationSelection = () => {
             if (state.selectedAnnotationId === null) return;
             state.selectedAnnotationId = null;
@@ -1684,6 +1821,8 @@
             canvasWrap.addEventListener("click", (event) => {
               const selection = window.getSelection();
               if (selection && !selection.isCollapsed) return;
+              const underline = event.target.closest("[data-overlay-ann-id]");
+              if (underline && canvasWrap.contains(underline)) return;
               const segment = event.target.closest("[data-primary-ann-id]");
               if (segment && docText.contains(segment)) return;
               clearAnnotationSelection();
@@ -1703,16 +1842,7 @@
               hideLaneTooltip();
               return;
             }
-            const visibleAnnIds = parseCsvIds(segment.getAttribute("data-visible-underline-ann-ids"));
-            const visibleOffsets = parseCsvNumbers(segment.getAttribute("data-visible-underline-offsets"));
-            const rect = segment.getBoundingClientRect();
-            const yFromBottom = rect.bottom - event.clientY;
-            const underlineAnnId = pickUnderlineAnnId(visibleAnnIds, visibleOffsets, yFromBottom);
-            syncUnderlineHover(underlineAnnId);
-            if (underlineAnnId) {
-              showLaneTooltip(underlineAnnId, event.clientX, event.clientY);
-              return;
-            }
+            syncUnderlineHover(null);
             const doc = getCurrentDocument();
             if (!doc) {
               hideLaneTooltip();
