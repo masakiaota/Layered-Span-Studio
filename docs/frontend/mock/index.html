@@ -331,7 +331,7 @@
 
       .overlay-selection {
         position: absolute;
-        border: 1px solid rgba(36, 50, 67, 0.5);
+        border: 1.5px solid rgba(36, 50, 67, 0.6);
         pointer-events: none;
         box-sizing: border-box;
       }
@@ -512,6 +512,34 @@
         display: flex;
         justify-content: flex-end;
         gap: 8px;
+      }
+
+      .shortcut-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .shortcut-item {
+        display: grid;
+        grid-template-columns: 160px 1fr;
+        gap: 10px;
+        align-items: center;
+        font-size: 13px;
+      }
+
+      .shortcut-keys {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        color: #223347;
+        background: #eef2f7;
+        border: 1px solid #c5ccd5;
+        border-radius: 6px;
+        padding: 4px 6px;
+        white-space: nowrap;
       }
 
       .flash {
@@ -812,12 +840,15 @@
         flash: "",
         showCreateDocModal: false,
         showUnsavedDialog: false,
+        showShortcutModal: false,
         pendingDocSwitchId: null,
         accordionOpen: {},
         underlineLaneByAnnId: {},
         globalUnderlineReserve: 0,
         projects: deepClone(seedProjects),
       };
+
+      let keyboardShortcutsBound = false;
 
       const savedSnapshots = {};
       state.projects.forEach((project) => {
@@ -844,6 +875,25 @@
         const project = getCurrentProject();
         if (!project) return null;
         return project.labels.find((l) => l.id === state.focusedLabelId) || null;
+      }
+
+      function getAnnotationsInPanelOrder(doc, project) {
+        if (!doc || !project) return [];
+        const groups = Object.fromEntries(project.labels.map((label) => [label.id, []]));
+        const fallback = [];
+        doc.annotations.forEach((ann) => {
+          if (groups[ann.labelId]) {
+            groups[ann.labelId].push(ann);
+          } else {
+            fallback.push(ann);
+          }
+        });
+        const ordered = [];
+        project.labels.forEach((label) => {
+          ordered.push(...groups[label.id]);
+        });
+        ordered.push(...fallback);
+        return ordered;
       }
 
       function showFlash(message) {
@@ -954,6 +1004,7 @@
         state.dirty = false;
         state.showCreateDocModal = false;
         state.showUnsavedDialog = false;
+        state.showShortcutModal = false;
         state.pendingDocSwitchId = null;
         state.accordionOpen = {};
         const project = getCurrentProject();
@@ -1329,6 +1380,29 @@
             </div>
           `);
         }
+        if (state.showShortcutModal) {
+          overlays.push(`
+            <div class="overlay">
+              <div class="modal">
+                <h3>Keyboard Shortcuts</h3>
+                <ul class="shortcut-list">
+                  <li class="shortcut-item"><span class="shortcut-keys">Cmd+S</span><span>Save</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">Cmd+Enter</span><span>Submit（doc + annotations を verified、次pendingへ）</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">J / K</span><span>次のDoc / 前のDoc</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">Shift+J / Shift+K</span><span>次のpending Doc / 前のpending Doc</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">[ / ] / ← / →</span><span>前Label / 次Label</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">N / P / ↓ / ↑</span><span>現在Label内で次 / 前を選択（未選択時は先頭 / 末尾）</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">Esc</span><span>選択中Annotationを解除</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">Delete / Backspace</span><span>選択中Annotationを削除</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">?</span><span>この一覧を開く / 閉じる</span></li>
+                </ul>
+                <div class="actions">
+                  <button class="btn btn-primary" id="shortcut-close">閉じる</button>
+                </div>
+              </div>
+            </div>
+          `);
+        }
         if (state.flash) overlays.push(`<div class="flash">${escapeHtml(state.flash)}</div>`);
         return overlays.join("");
       }
@@ -1337,6 +1411,7 @@
         const route = parseHash();
         const app = document.getElementById("app");
         if (!app) return;
+        bindKeyboardShortcuts();
         const laneTooltip = document.getElementById("lane-hover-tooltip");
         if (laneTooltip) {
           laneTooltip.classList.remove("show");
@@ -1378,6 +1453,186 @@
         const doc = getCurrentDocument();
         state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
         render();
+      }
+
+      function moveDocumentByDirection(direction, pendingOnly) {
+        const project = getCurrentProject();
+        const currentDoc = getCurrentDocument();
+        if (!project || !currentDoc) return;
+        const sortedDocs = getSortedDocuments(project);
+        const currentIndex = sortedDocs.findIndex((item) => item.id === currentDoc.id);
+        if (currentIndex < 0) return;
+        let idx = currentIndex + direction;
+        while (idx >= 0 && idx < sortedDocs.length) {
+          const candidate = sortedDocs[idx];
+          if (!pendingOnly || candidate.status === "pending") {
+            requestDocSwitch(candidate.id);
+            return;
+          }
+          idx += direction;
+        }
+        showFlash(pendingOnly ? "移動先のpending docがない" : "移動先のdocがない");
+      }
+
+      function moveLabelByDirection(direction) {
+        const project = getCurrentProject();
+        if (!project || project.labels.length === 0) return;
+        const currentIndex = project.labels.findIndex((label) => label.id === state.focusedLabelId);
+        const base = currentIndex >= 0 ? currentIndex : 0;
+        const nextIndex = base + direction;
+        if (nextIndex < 0 || nextIndex >= project.labels.length) return;
+        state.focusedLabelId = project.labels[nextIndex].id;
+        state.selectedAnnotationId = null;
+        state.hoverLaneAnnId = null;
+        render();
+      }
+
+      function moveAnnotationByDirection(direction) {
+        const project = getCurrentProject();
+        const doc = getCurrentDocument();
+        if (!project || !doc || doc.annotations.length === 0) return;
+        const focusedLabelId = state.focusedLabelId;
+        const ordered = getAnnotationsInPanelOrder(doc, project).filter((item) => item.labelId === focusedLabelId);
+        if (ordered.length === 0) {
+          showFlash("現在LabelにAnnotationがない");
+          return;
+        }
+        const current = doc.annotations.find((item) => item.id === state.selectedAnnotationId) || null;
+        const hasSameLabelSelection = !!(current && current.labelId === focusedLabelId);
+        const currentIndex = hasSameLabelSelection ? ordered.findIndex((item) => item.id === current.id) : -1;
+        let nextIndex = currentIndex + direction;
+        if (currentIndex < 0) {
+          nextIndex = direction > 0 ? 0 : ordered.length - 1;
+        }
+        if (nextIndex < 0 || nextIndex >= ordered.length) return;
+        const next = ordered[nextIndex];
+        if (!next) return;
+        state.selectedAnnotationId = next.id;
+        state.focusedLabelId = next.labelId;
+        render();
+      }
+
+      function deleteSelectedAnnotation() {
+        const project = getCurrentProject();
+        const doc = getCurrentDocument();
+        if (!project || !doc || !state.selectedAnnotationId) return;
+        const deleteTargetId = state.selectedAnnotationId;
+        const listBefore = getAnnotationsInPanelOrder(doc, project);
+        const selectedOrderIndex = listBefore.findIndex((item) => item.id === deleteTargetId);
+        const removeIndex = doc.annotations.findIndex((item) => item.id === deleteTargetId);
+        if (removeIndex < 0) return;
+        doc.annotations.splice(removeIndex, 1);
+        touchDoc(doc);
+        setDirty();
+        const listAfter = listBefore.filter((item) => item.id !== deleteTargetId);
+        if (listAfter.length === 0) {
+          state.selectedAnnotationId = null;
+        } else {
+          const nextIndex = Math.min(Math.max(selectedOrderIndex, 0), listAfter.length - 1);
+          const next = listAfter[nextIndex];
+          state.selectedAnnotationId = next.id;
+          state.focusedLabelId = next.labelId;
+        }
+        state.hoverLaneAnnId = null;
+        showFlash("選択中Annotationを削除した");
+      }
+
+      function isEditingElement(target) {
+        if (!target || !(target instanceof HTMLElement)) return false;
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+        return target.isContentEditable;
+      }
+
+      function isShortcutHelpKey(event) {
+        return event.key === "?" || (event.key === "/" && event.shiftKey);
+      }
+
+      function bindKeyboardShortcuts() {
+        if (keyboardShortcutsBound) return;
+        keyboardShortcutsBound = true;
+        window.addEventListener("keydown", (event) => {
+          const route = parseHash();
+          if (route.view !== "workspace") return;
+
+          if (state.showShortcutModal) {
+            if (event.key === "Escape" || isShortcutHelpKey(event)) {
+              event.preventDefault();
+              state.showShortcutModal = false;
+              render();
+            }
+            return;
+          }
+
+          if (isShortcutHelpKey(event)) {
+            event.preventDefault();
+            state.showShortcutModal = true;
+            render();
+            return;
+          }
+
+          if (state.showCreateDocModal || state.showUnsavedDialog) return;
+          if (isEditingElement(document.activeElement)) return;
+
+          const keyLower = String(event.key || "").toLowerCase();
+          if ((event.metaKey || event.ctrlKey) && keyLower === "s") {
+            event.preventDefault();
+            saveChanges();
+            return;
+          }
+          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+            event.preventDefault();
+            submitCurrentDocument();
+            return;
+          }
+
+          if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+          if (event.key === "Escape") {
+            if (state.selectedAnnotationId !== null) {
+              event.preventDefault();
+              state.selectedAnnotationId = null;
+              render();
+            }
+            return;
+          }
+          if (event.key === "Delete" || event.key === "Backspace") {
+            if (state.selectedAnnotationId !== null) {
+              event.preventDefault();
+              deleteSelectedAnnotation();
+            }
+            return;
+          }
+          if (keyLower === "j") {
+            event.preventDefault();
+            moveDocumentByDirection(1, event.shiftKey);
+            return;
+          }
+          if (keyLower === "k") {
+            event.preventDefault();
+            moveDocumentByDirection(-1, event.shiftKey);
+            return;
+          }
+          if (event.key === "[" || event.key === "ArrowLeft") {
+            event.preventDefault();
+            moveLabelByDirection(-1);
+            return;
+          }
+          if (event.key === "]" || event.key === "ArrowRight") {
+            event.preventDefault();
+            moveLabelByDirection(1);
+            return;
+          }
+          if (keyLower === "n" || event.key === "ArrowDown") {
+            event.preventDefault();
+            moveAnnotationByDirection(1);
+            return;
+          }
+          if (keyLower === "p" || event.key === "ArrowUp") {
+            event.preventDefault();
+            moveAnnotationByDirection(-1);
+          }
+        });
       }
 
       function getTextOffset(container, node, offset) {
@@ -1725,6 +1980,14 @@
                 render();
               }
             });
+          });
+        }
+
+        const shortcutClose = document.getElementById("shortcut-close");
+        if (shortcutClose) {
+          shortcutClose.addEventListener("click", () => {
+            state.showShortcutModal = false;
+            render();
           });
         }
 

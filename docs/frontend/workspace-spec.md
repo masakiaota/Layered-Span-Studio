@@ -91,5 +91,29 @@
 
 ## 7. キーボードショートカット
 
-- ショートカット仕様は現時点では未確定とする。
-- 先に画面レイアウトと基本操作を確定し、その後に定義する。
+- Save / Submit
+  - `Cmd+S`: Save
+  - `Cmd+Enter`: Submit（Document + 配下Annotationを`verified`化し、次の`pending` Docへ移動）
+- Doc移動
+  - `J`: 次のDoc
+  - `K`: 前のDoc
+  - `Shift+J`: 次の`pending` Doc
+  - `Shift+K`: 前の`pending` Doc
+- Label移動
+  - `[`: 前Label
+  - `]`: 次Label
+  - `←`: 前Label
+  - `→`: 次Label
+- Annotation操作
+  - `N`: 現在選択中Label内で次のAnnotationを選択
+  - `P`: 現在選択中Label内で前のAnnotationを選択
+  - `↓`: 現在選択中Label内で次のAnnotationを選択
+  - `↑`: 現在選択中Label内で前のAnnotationを選択
+  - `Esc`: 選択中Annotationを解除
+  - `Delete` / `Backspace`: 選択中Annotationを削除
+- 補助
+  - `?`: ショートカット一覧モーダルを開閉
+- 適用ルール
+  - `input` / `textarea` / `select` フォーカス中はショートカットを無効化する。
+  - `[ / ]` によるLabel切り替え時は、Annotation選択をリセットする。
+  - `N/P` は現在選択中Label内のみを対象とし、未選択状態では先頭（`N`）/末尾（`P`）から開始する。
