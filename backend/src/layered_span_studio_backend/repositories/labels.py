@@ -8,6 +8,8 @@ from sqlalchemy import select
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.projects import project_db_path
 from layered_span_studio_backend.storage.project_db import (
+    annotations_table,
+    documents_table,
     get_project_engine,
     labels_table,
     project_table,
@@ -196,3 +198,56 @@ def delete_label(settings: Settings, project_id: str, label_id: str) -> bool:
             )
         )
     return result.rowcount > 0
+
+
+def list_label_examples(
+    settings: Settings, project_id: str, label_id: str, statuses: List[str]
+) -> List[Dict[str, Any]]:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    with engine.connect() as conn:
+        rows = (
+            conn.execute(
+                select(
+                    annotations_table.c.id.label("annotation_id"),
+                    annotations_table.c.document_id,
+                    documents_table.c.document_name,
+                    documents_table.c.text.label("document_text"),
+                    annotations_table.c.span_text,
+                    annotations_table.c.start,
+                    annotations_table.c.end,
+                    annotations_table.c.status,
+                )
+                .select_from(
+                    annotations_table.join(
+                        documents_table, annotations_table.c.document_id == documents_table.c.id
+                    )
+                )
+                .where(
+                    documents_table.c.project_id == project_id,
+                    annotations_table.c.label_id == label_id,
+                    annotations_table.c.status.in_(statuses),
+                )
+                .order_by(
+                    documents_table.c.document_name.asc(),
+                    annotations_table.c.start.asc(),
+                    annotations_table.c.id.asc(),
+                )
+            )
+            .mappings()
+            .all()
+        )
+
+    return [
+        {
+            "annotation_id": row["annotation_id"],
+            "document_id": row["document_id"],
+            "document_name": row["document_name"],
+            "document_text": row["document_text"],
+            "span_text": row["span_text"],
+            "start": row["start"],
+            "end": row["end"],
+            "status": row["status"],
+        }
+        for row in rows
+    ]

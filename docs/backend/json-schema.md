@@ -44,6 +44,42 @@
 
 ---
 
+### Label Example（ラベル横断参照）
+
+```json
+{
+  "annotation_id": "uuid",
+  "document_id": "uuid",
+  "document_name": "患者記録_001",
+  "span_text": "糖尿病",
+  "start": 24,
+  "end": 27,
+  "status": "verified",
+  "context_before": "既往歴に",
+  "context_after": "あり。"
+}
+```
+
+- **必須**:
+  - `annotation_id`
+  - `document_id`, `document_name`
+  - `span_text`
+  - `start`, `end`
+  - `status`
+  - `context_before`, `context_after`
+
+#### Label Example API のクエリ仕様
+
+- `status`: `pending` / `verified` / `all`
+  - 未指定時の既定値は `verified`
+  - `all` のときに両方を対象とする
+- `sample`: `sequential` / `random`
+  - `random` は重複なし抽出
+- `seed`: `sample=random` のときの再現性制御
+- `context_window`: 前後文脈の文字数
+
+---
+
 ### Project
 
 ```json

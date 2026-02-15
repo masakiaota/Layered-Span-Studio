@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from enum import Enum
 import re
 from typing import Optional
 
 from pydantic import Field, field_validator
 
-from layered_span_studio_backend.models.common import APIModel, Meta
+from layered_span_studio_backend.models.common import APIModel, AnnotationStatus, Meta
 
 HEX_COLOR_RE = re.compile(r"^#([0-9a-fA-F]{6})$")
 
@@ -55,3 +56,37 @@ class LabelOut(APIModel):
 
 class LabelListResponse(APIModel):
     labels: list[LabelOut]
+
+
+class LabelExamplesStatusFilter(str, Enum):
+    pending = "pending"
+    verified = "verified"
+    all = "all"
+
+
+class LabelExamplesSampleMode(str, Enum):
+    sequential = "sequential"
+    random = "random"
+
+
+class LabelExampleOut(APIModel):
+    annotation_id: str
+    document_id: str
+    document_name: str
+    span_text: str
+    start: int
+    end: int
+    status: AnnotationStatus
+    context_before: str
+    context_after: str
+
+
+class LabelExamplesResponse(APIModel):
+    examples: list[LabelExampleOut]
+    total_matched: int
+    offset_applied: int
+    limit: int
+    status: LabelExamplesStatusFilter
+    sample: LabelExamplesSampleMode
+    seed: Optional[int] = None
+    context_window: int

@@ -33,6 +33,7 @@
 - `GET /projects/{project_id}/labels` - ラベル一覧を取得
 - `POST /projects/{project_id}/labels` - ラベルを作成
 - `GET /projects/{project_id}/labels/{label_id}` - ラベル詳細を取得
+- `GET /projects/{project_id}/labels/{label_id}/examples` - ラベルの使用例をドキュメント横断で取得
 - `PATCH /projects/{project_id}/labels/{label_id}` - ラベルを更新（色/説明/ショートカット等）
 - `DELETE /projects/{project_id}/labels/{label_id}` - ラベルを削除（関連アノテも連動削除）
 
@@ -374,6 +375,73 @@ Authorization: Bearer <token>
   "meta": {}
 }
 ```
+
+---
+
+### GET /projects/{project_id}/labels/{label_id}/examples
+
+指定ラベルのアノテーション例を、同一プロジェクト内のドキュメントを横断して取得する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `offset` (integer, optional): `sample=sequential` 時にスキップする件数（デフォルト: 0）
+- `limit` (integer, optional): 取得上限（デフォルト: 50, 最小: 1, 最大: 100）
+- `status` (string, optional): `pending` / `verified` / `all`（デフォルト: `verified`）
+- `sample` (string, optional): `sequential` / `random`（デフォルト: `sequential`）
+- `seed` (integer, optional): `sample=random` のときの再現性制御
+- `context_window` (integer, optional): 前後文脈の文字数（デフォルト: 20, 最小: 0, 最大: 200）
+
+**Response (200 OK):**
+```json
+{
+  "examples": [
+    {
+      "annotation_id": "uuid",
+      "document_id": "uuid",
+      "document_name": "患者記録_001",
+      "span_text": "糖尿病",
+      "start": 24,
+      "end": 27,
+      "status": "verified",
+      "context_before": "既往歴に",
+      "context_after": "あり。"
+    }
+  ],
+  "total_matched": 18,
+  "offset_applied": 0,
+  "limit": 50,
+  "status": "verified",
+  "sample": "sequential",
+  "seed": null,
+  "context_window": 20
+}
+```
+
+**Error (404 Not Found):**
+```json
+{
+  "detail": "Label not found"
+}
+```
+
+**Error (422 Unprocessable Entity):**
+```json
+{
+  "detail": "validation error"
+}
+```
+
+**注記:**
+- `status` 未指定時は `verified` のみ返す
+- `status=all` のときに `pending` と `verified` の両方を返す
+- `sample=sequential` は `document_name ASC, start ASC, id ASC` の安定順で返す
+- `sample=random` は重複なし抽出で返す
+- `sample=random` の場合、`offset` は無効で `offset_applied` は常に `0`
+- `seed` を指定すると `sample=random` の結果を再現可能
 
 ---
 

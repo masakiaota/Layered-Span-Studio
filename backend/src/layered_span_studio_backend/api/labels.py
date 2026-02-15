@@ -1,9 +1,17 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from layered_span_studio_backend.core.dependencies import get_current_user, get_settings
-from layered_span_studio_backend.models.labels import LabelCreate, LabelListResponse, LabelOut, LabelUpdate
+from layered_span_studio_backend.models.labels import (
+    LabelCreate,
+    LabelExamplesResponse,
+    LabelExamplesSampleMode,
+    LabelExamplesStatusFilter,
+    LabelListResponse,
+    LabelOut,
+    LabelUpdate,
+)
 from layered_span_studio_backend.services import labels_service
 
 router = APIRouter(
@@ -51,6 +59,38 @@ def get_label(project_id: str, label_id: str, settings=Depends(get_settings)):
     if not label:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Label not found")
     return label
+
+
+@router.get("/{label_id}/examples", response_model=LabelExamplesResponse)
+def list_label_examples(
+    project_id: str,
+    label_id: str,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    status_filter: LabelExamplesStatusFilter = Query(LabelExamplesStatusFilter.verified, alias="status"),
+    sample: LabelExamplesSampleMode = Query(LabelExamplesSampleMode.sequential),
+    seed: int | None = Query(None),
+    context_window: int = Query(20, ge=0, le=200),
+    settings=Depends(get_settings),
+):
+    try:
+        return labels_service.list_label_examples(
+            settings,
+            project_id,
+            label_id,
+            offset,
+            limit,
+            status_filter.value,
+            sample.value,
+            seed,
+            context_window,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = status.HTTP_400_BAD_REQUEST
+        if message in {"Project not found", "Label not found"}:
+            status_code = status.HTTP_404_NOT_FOUND
+        raise HTTPException(status_code=status_code, detail=message)
 
 
 @router.patch("/{label_id}", response_model=LabelOut)
