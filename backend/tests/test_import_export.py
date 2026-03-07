@@ -358,6 +358,64 @@ def test_import_rejects_invalid_export_metadata(
     assert new_project_response.json()["detail"] == expected_detail
 
 
+@pytest.mark.parametrize(("field", "value"), [("start", True), ("start", False), ("end", True), ("end", False)])
+def test_import_rejects_boolean_annotation_offsets(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    field: str,
+    value: bool,
+) -> None:
+    target_project = client.post(
+        "/projects", json={"name": "Project Bool Offset", "description": "desc"}, headers=auth_headers
+    ).json()
+    payload = {
+        "project": {"name": "Project Bool Offset", "description": "desc", "meta": {}},
+        "labels": [
+            {
+                "name": "LabelBool",
+                "color": "#AA1122",
+                "description": "desc",
+                "shortcut": None,
+                "meta": {},
+            }
+        ],
+        "documents": [
+            {
+                "document_name": "DocBool",
+                "text": "Hello world",
+                "annotations": [
+                    {
+                        "label_name": "LabelBool",
+                        "start": 0,
+                        "end": 5,
+                        "span_text": "Hello",
+                        "comment": "",
+                        "status": "verified",
+                        "meta": {},
+                    }
+                ],
+                "meta": {},
+            }
+        ],
+        "meta": {"format": "layered-span-studio/export", "version": "1.0"},
+    }
+    payload["documents"][0]["annotations"][0][field] = value
+    expected_detail = f"Annotation {field} must be an integer"
+
+    with TestClient(client.app, raise_server_exceptions=False) as unsafe_client:
+        response = unsafe_client.post(
+            f"/projects/{target_project['id']}/import", json=payload, headers=auth_headers
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == expected_detail
+
+        new_project_response = unsafe_client.post(
+            "/projects/import", json=payload, headers=auth_headers
+        )
+        assert new_project_response.status_code == 400
+        assert new_project_response.json()["detail"] == expected_detail
+
+
 def test_import_rejects_unknown_label_reference(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:

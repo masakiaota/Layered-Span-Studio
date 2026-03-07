@@ -57,7 +57,7 @@ def _require_string(value: Any, message: str) -> str:
 
 
 def _require_integer(value: Any, message: str) -> int:
-    if not isinstance(value, int):
+    if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(message)
     return value
 
