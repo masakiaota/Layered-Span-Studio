@@ -2066,25 +2066,42 @@
         render();
       }
 
-      function moveAnnotationByDirection(direction) {
+      function moveAnnotationByDirection(direction, options) {
         const project = getCurrentProject();
         const doc = getCurrentDocument();
         if (!project || !doc || doc.annotations.length === 0) return;
+        const allowCrossGroup = !!(options && options.allowCrossGroup);
         const focusedLabelId = state.focusedLabelId;
-        const ordered = getAnnotationsInPanelOrder(doc, project).filter((item) => item.labelId === focusedLabelId);
-        if (ordered.length === 0) {
+        const orderedAll = getAnnotationsInPanelOrder(doc, project);
+        const ordered = orderedAll.filter((item) => item.labelId === focusedLabelId);
+        if (!allowCrossGroup && ordered.length === 0) {
           showFlash("現在LabelにAnnotationがない");
           return;
         }
         const current = doc.annotations.find((item) => item.id === state.selectedAnnotationId) || null;
-        const hasSameLabelSelection = !!(current && current.labelId === focusedLabelId);
-        const currentIndex = hasSameLabelSelection ? ordered.findIndex((item) => item.id === current.id) : -1;
-        let nextIndex = currentIndex + direction;
-        if (currentIndex < 0) {
-          nextIndex = direction > 0 ? 0 : ordered.length - 1;
+        let next = null;
+
+        if (allowCrossGroup) {
+          const currentIndex = current ? orderedAll.findIndex((item) => item.id === current.id) : -1;
+          if (currentIndex >= 0) {
+            const nextIndex = currentIndex + direction;
+            if (nextIndex < 0 || nextIndex >= orderedAll.length) return;
+            next = orderedAll[nextIndex] || null;
+          } else if (ordered.length > 0) {
+            next = direction > 0 ? ordered[0] : ordered[ordered.length - 1];
+          } else {
+            next = direction > 0 ? orderedAll[0] : orderedAll[orderedAll.length - 1];
+          }
+        } else {
+          const hasSameLabelSelection = !!(current && current.labelId === focusedLabelId);
+          const currentIndex = hasSameLabelSelection ? ordered.findIndex((item) => item.id === current.id) : -1;
+          let nextIndex = currentIndex + direction;
+          if (currentIndex < 0) {
+            nextIndex = direction > 0 ? 0 : ordered.length - 1;
+          }
+          if (nextIndex < 0 || nextIndex >= ordered.length) return;
+          next = ordered[nextIndex] || null;
         }
-        if (nextIndex < 0 || nextIndex >= ordered.length) return;
-        const next = ordered[nextIndex];
         if (!next) return;
         state.selectedAnnotationId = next.id;
         state.focusedLabelId = next.labelId;
@@ -2528,14 +2545,24 @@
             moveLabelByDirection(1);
             return;
           }
-          if (keyLower === "n" || event.key === "ArrowDown") {
+          if (keyLower === "n") {
             event.preventDefault();
             moveAnnotationByDirection(1);
             return;
           }
-          if (keyLower === "p" || event.key === "ArrowUp") {
+          if (keyLower === "p") {
             event.preventDefault();
             moveAnnotationByDirection(-1);
+            return;
+          }
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            moveAnnotationByDirection(1, { allowCrossGroup: true });
+            return;
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            moveAnnotationByDirection(-1, { allowCrossGroup: true });
           }
         });
       }

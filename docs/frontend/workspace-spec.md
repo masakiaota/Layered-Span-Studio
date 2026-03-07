@@ -147,8 +147,8 @@
 - Annotation操作
   - `N`: 現在選択中Label内で次のAnnotationを選択
   - `P`: 現在選択中Label内で前のAnnotationを選択
-  - `↓`: 現在選択中Label内で次のAnnotationを選択
-  - `↑`: 現在選択中Label内で前のAnnotationを選択
+  - `↓`: Doc アノテーション一覧順で次のAnnotationを選択する。現在グループ末尾なら次のLabelグループ先頭へ進む
+  - `↑`: Doc アノテーション一覧順で前のAnnotationを選択する。現在グループ先頭なら前のLabelグループ末尾へ進む
   - `Esc`: 選択中Annotationを解除
   - `Delete` / `Backspace`: 選択中Annotationを削除
 - 補助
@@ -157,5 +157,6 @@
   - `input` / `textarea` / `select` フォーカス中はショートカットを無効化する。
   - `[ / ]` によるLabel切り替え時は、Annotation選択をリセットする。
   - `N/P` は現在選択中Label内のみを対象とし、未選択状態では先頭（`N`）/末尾（`P`）から開始する。
+  - `↑/↓` は Doc アノテーション一覧の表示順に従って移動し、group 端では隣接 group へ継続する。
   - Undo/Redo 実行時は、現在選択中のDocを維持し、別Docへ自動切り替えしない。
   - `?` の表示可否は Project Settings の設定値に従う。

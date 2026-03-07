@@ -98,6 +98,7 @@ globalThis.__mock_exports = {
   bindCommonEvents,
   createProjectFromImportPayload,
   getAnnotationsInPanelOrder,
+  moveAnnotationByDirection,
   restoreCurrentProject,
   state,
   savedSnapshots,
@@ -179,4 +180,36 @@ test("doc annotation list order is grouped by label and sorted by span index", (
   const ordered = mockApp.getAnnotationsInPanelOrder(doc, project);
 
   assert.equal(ordered.map((ann) => ann.id).join(","), "ann-1,ann-3,ann-2,ann-5,ann-4");
+});
+
+test("arrow-style annotation move can continue into the next label group", () => {
+  const mockApp = loadMockApp(createDocument({}));
+  const project = {
+    id: "project-1",
+    labels: [
+      { id: "label-a", name: "A" },
+      { id: "label-b", name: "B" },
+    ],
+    documents: [
+      {
+        id: "doc-1",
+        annotations: [
+          { id: "ann-1", labelId: "label-a", start: 1, end: 3 },
+          { id: "ann-2", labelId: "label-a", start: 5, end: 8 },
+          { id: "ann-3", labelId: "label-b", start: 10, end: 12 },
+        ],
+      },
+    ],
+  };
+
+  mockApp.state.projects = [project];
+  mockApp.state.currentProjectId = "project-1";
+  mockApp.state.selectedDocId = "doc-1";
+  mockApp.state.focusedLabelId = "label-a";
+  mockApp.state.selectedAnnotationId = "ann-2";
+
+  mockApp.moveAnnotationByDirection(1, { allowCrossGroup: true });
+
+  assert.equal(mockApp.state.selectedAnnotationId, "ann-3");
+  assert.equal(mockApp.state.focusedLabelId, "label-b");
 });
