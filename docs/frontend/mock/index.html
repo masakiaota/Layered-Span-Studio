@@ -43,6 +43,63 @@
         padding: 18px 24px;
         border-bottom: 1px solid var(--line);
         background: #f9f7f2;
+        gap: 16px;
+      }
+
+      .topbar-left,
+      .topbar-center,
+      .topbar-right {
+        display: flex;
+        align-items: center;
+      }
+
+      .topbar-center {
+        flex: 1;
+        justify-content: center;
+      }
+
+      .topbar-right {
+        justify-content: flex-end;
+        min-width: 110px;
+      }
+
+      .segment-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px;
+        background: #ece6db;
+        border: 1px solid #d8d1c4;
+        border-radius: 14px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+      }
+
+      .segment-btn {
+        border: none;
+        background: transparent;
+        color: #5d6672;
+        border-radius: 10px;
+        padding: 9px 14px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+        transition:
+          background-color 120ms ease,
+          color 120ms ease,
+          box-shadow 120ms ease;
+      }
+
+      .segment-btn:hover {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.4);
+      }
+
+      .segment-btn.active {
+        background: #fffdf8;
+        color: #1b2a37;
+        box-shadow:
+          0 1px 2px rgba(33, 41, 52, 0.08),
+          inset 0 1px 0 rgba(255, 255, 255, 0.9);
       }
 
       .brand {
@@ -90,10 +147,74 @@
         background: #9f3131;
       }
 
+      .btn-quiet {
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        padding: 4px 2px;
+        border-radius: 6px;
+      }
+
+      .btn-quiet:hover {
+        background: transparent;
+        color: var(--text);
+      }
+
       .projects-wrap {
         max-width: 1040px;
         margin: 24px auto 0;
         padding: 0 24px 32px;
+      }
+
+      .projects-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .projects-title {
+        margin: 0;
+        font-size: 32px;
+        line-height: 1.1;
+      }
+
+      .projects-lead {
+        margin: 8px 0 0;
+        max-width: 620px;
+        color: #54606e;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .projects-empty {
+        margin-top: 24px;
+        padding: 40px 32px;
+        border: 1px dashed #cbbfae;
+        border-radius: 22px;
+        background:
+          radial-gradient(circle at top right, rgba(255, 248, 233, 0.9), transparent 36%),
+          linear-gradient(180deg, #fcfaf5 0%, #f4efe6 100%);
+        text-align: center;
+      }
+
+      .projects-empty h3 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .projects-empty p {
+        margin: 10px auto 0;
+        max-width: 520px;
+        color: #5b6470;
+        line-height: 1.6;
+      }
+
+      .projects-empty .actions {
+        margin-top: 18px;
+        display: flex;
+        justify-content: center;
       }
 
       .project-grid {
@@ -524,6 +645,65 @@
         gap: 8px;
       }
 
+      .import-dropzone {
+        margin-top: 14px;
+        padding: 28px 20px;
+        border: 1.5px dashed #cbbfae;
+        border-radius: 18px;
+        background:
+          radial-gradient(circle at top, rgba(252, 247, 238, 0.95), transparent 58%),
+          linear-gradient(180deg, #faf6ee 0%, #f3ede1 100%);
+        text-align: center;
+      }
+
+      .import-dropzone.is-dragover {
+        border-color: #12735f;
+        background:
+          radial-gradient(circle at top, rgba(220, 240, 234, 0.95), transparent 58%),
+          linear-gradient(180deg, #f6fbf8 0%, #ebf5f0 100%);
+      }
+
+      .import-dropzone-title {
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .import-dropzone-text {
+        margin-top: 8px;
+        color: #5b6470;
+        line-height: 1.6;
+      }
+
+      .import-dropzone-note {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .import-selected-file {
+        margin-top: 12px;
+        color: #24313f;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .btn-input {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
       .shortcut-list {
         margin: 0;
         padding: 0;
@@ -858,6 +1038,7 @@
         dirty: false,
         flash: "",
         showCreateDocModal: false,
+        showProjectImportModal: false,
         showUnsavedDialog: false,
         showShortcutModal: false,
         pendingDocSwitchId: null,
@@ -869,6 +1050,7 @@
         redoStack: [],
         exportIncludePending: true,
         exportIncludeVerified: true,
+        projectImportFile: null,
         projects: deepClone(seedProjects),
       };
 
@@ -1324,28 +1506,36 @@
             `;
           })
           .join("");
+        const projectsContent =
+          cards.length > 0
+            ? `<div class="project-grid">${cards}</div>`
+            : `
+              <section class="projects-empty">
+                <h3>まだ Project がない</h3>
+                <p>Layered Span Studio の export JSON を読み込むと、新しい project をここに追加できる。</p>
+                <div class="actions">
+                  <button class="btn btn-primary" id="open-project-import-empty">Import Project</button>
+                </div>
+              </section>
+            `;
 
         return `
           <header class="topbar">
             <div>
               <div class="brand">Layered Span Studio Mock</div>
-              <div class="small">Project一覧から新規ImportまたはWorkspaceへ遷移するモック</div>
+              <div class="small">Project を開いて Workspace / Settings を行き来する単体モック</div>
             </div>
             <span class="small">API接続なし / 1ファイル構成</span>
           </header>
           <main class="projects-wrap">
-            <h2>Projects</h2>
-            <section class="card field" style="max-width:720px;margin-bottom:18px;">
-              <h4>Import Project</h4>
-              <div class="small">backend の <code>POST /projects/import</code> 相当。Export JSON から新しい project を作成する。</div>
-              <div class="small">同名 project がある場合は <code>(imported)</code>, <code>(imported 2)</code> ... を付けて自動改名する。</div>
-              <label for="project-import-json-file">Import JSONファイル</label>
-              <input id="project-import-json-file" type="file" accept=".json,application/json" />
-              <div style="display:flex;justify-content:flex-end;">
-                <button class="btn btn-primary" id="run-project-import-btn">新規ProjectとしてImport</button>
+            <section class="projects-head">
+              <div>
+                <h2 class="projects-title">Projects</h2>
+                <p class="projects-lead">既存の project を開いて作業を続ける。新しい project は export JSON から import して追加する。</p>
               </div>
+              <button class="btn btn-primary" id="open-project-import">Import Project</button>
             </section>
-            <div class="project-grid">${cards}</div>
+            ${projectsContent}
           </main>
         `;
       }
@@ -1353,16 +1543,41 @@
       function renderProjectHeader(project, currentView) {
         const workspaceHash = "#/projects/" + project.id;
         const settingsHash = "#/projects/" + project.id + "/settings";
+        const shortcutHelpButton =
+          project.shortcutHelpEnabled !== false
+            ? '<button class="btn btn-quiet" id="shortcut-open" type="button" aria-haspopup="dialog">? Shortcuts</button>'
+            : "";
         return `
           <header class="topbar">
-            <div>
+            <div class="topbar-left">
               <button class="btn" data-nav-hash="#/projects">← Projectsへ戻る</button>
               <span style="margin-left:10px;font-weight:700;">${escapeHtml(project.name)}</span>
               ${state.dirty ? '<span class="pill pending" style="margin-left:8px;">未保存</span>' : ""}
             </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <button class="btn ${currentView === "workspace" ? "btn-primary" : ""}" data-nav-hash="${workspaceHash}">Workspace</button>
-              <button class="btn ${currentView === "settings" ? "btn-primary" : ""}" data-nav-hash="${settingsHash}">Project Settings</button>
+            <div class="topbar-center">
+              <div class="segment-control" role="tablist" aria-label="Project view">
+                <button
+                  class="segment-btn ${currentView === "workspace" ? "active" : ""}"
+                  data-nav-hash="${workspaceHash}"
+                  role="tab"
+                  aria-selected="${currentView === "workspace" ? "true" : "false"}"
+                  type="button"
+                >
+                  Workspace
+                </button>
+                <button
+                  class="segment-btn ${currentView === "settings" ? "active" : ""}"
+                  data-nav-hash="${settingsHash}"
+                  role="tab"
+                  aria-selected="${currentView === "settings" ? "true" : "false"}"
+                  type="button"
+                >
+                  Project Settings
+                </button>
+              </div>
+            </div>
+            <div class="topbar-right">
+              ${shortcutHelpButton}
             </div>
           </header>
         `;
@@ -1568,13 +1783,6 @@
                 <textarea id="project-guideline">${escapeHtml(project.guideline || "")}</textarea>
               </section>
               <section class="card field">
-                <h4>表示設定</h4>
-                <label style="display:flex;align-items:center;gap:8px;">
-                  <input id="shortcut-help-enabled" type="checkbox" ${project.shortcutHelpEnabled ? "checked" : ""} />
-                  <span>? でショートカット一覧を表示する</span>
-                </label>
-              </section>
-              <section class="card field">
                 <h4>Import / Export（project単位）</h4>
                 <div class="small">ここでの Import は backend の <code>POST /projects/{project_id}/import</code> 相当で、現在の project に追記する。</div>
                 <div class="small"><code>payload.project.*</code> は既存 project の名前や設定を更新しない。新規 project import は Projects 画面で行う。</div>
@@ -1636,6 +1844,30 @@
                 <div class="actions">
                   <button class="btn" id="create-doc-cancel">キャンセル</button>
                   <button class="btn btn-primary" id="create-doc-submit">作成</button>
+                </div>
+              </div>
+            </div>
+          `);
+        }
+        if (state.showProjectImportModal) {
+          overlays.push(`
+            <div class="overlay">
+              <div class="modal">
+                <h3>Import Project</h3>
+                <p class="small">Layered Span Studio の export JSON から新しい project を作成する。既存 project は変更しない。</p>
+                <div class="import-dropzone" id="project-import-dropzone">
+                  <div class="import-dropzone-title">Drop JSON here</div>
+                  <div class="import-dropzone-text">ドラッグ&ドロップするか、下のボタンから JSON ファイルを選択する。</div>
+                  <div class="actions" style="justify-content:center;margin-top:16px;">
+                    <label class="btn btn-primary btn-input" for="project-import-json-file">ファイルを選択</label>
+                    <input class="sr-only" id="project-import-json-file" type="file" accept=".json,application/json" />
+                  </div>
+                  <div class="import-selected-file" id="project-import-selected-file">${state.projectImportFile ? escapeHtml(state.projectImportFile.name) : "ファイル未選択"}</div>
+                  <div class="import-dropzone-note">同名の project がある場合は自動で名前を調整する。</div>
+                </div>
+                <div class="actions">
+                  <button class="btn" id="project-import-cancel">キャンセル</button>
+                  <button class="btn btn-primary" id="run-project-import-btn">Import Project</button>
                 </div>
               </div>
             </div>
@@ -2396,12 +2628,74 @@
       }
 
       function bindCommonEvents() {
+        const openProjectImport = document.getElementById("open-project-import");
+        if (openProjectImport) {
+          openProjectImport.addEventListener("click", () => {
+            state.projectImportFile = null;
+            state.showProjectImportModal = true;
+            render();
+          });
+        }
+
+        const openProjectImportEmpty = document.getElementById("open-project-import-empty");
+        if (openProjectImportEmpty) {
+          openProjectImportEmpty.addEventListener("click", () => {
+            state.projectImportFile = null;
+            state.showProjectImportModal = true;
+            render();
+          });
+        }
+
+        const projectImportCancel = document.getElementById("project-import-cancel");
+        if (projectImportCancel) {
+          projectImportCancel.addEventListener("click", () => {
+            state.projectImportFile = null;
+            state.showProjectImportModal = false;
+            render();
+          });
+        }
+
+        const projectImportFileInput = document.getElementById("project-import-json-file");
+        const projectImportSelectedFile = document.getElementById("project-import-selected-file");
+        if (projectImportFileInput && projectImportSelectedFile) {
+          projectImportFileInput.addEventListener("change", () => {
+            const file =
+              projectImportFileInput.files && projectImportFileInput.files[0] ? projectImportFileInput.files[0] : null;
+            state.projectImportFile = file;
+            projectImportSelectedFile.textContent = file ? file.name : "ファイル未選択";
+          });
+        }
+
+        const projectImportDropzone = document.getElementById("project-import-dropzone");
+        if (projectImportDropzone && projectImportFileInput && projectImportSelectedFile) {
+          ["dragenter", "dragover"].forEach((type) => {
+            projectImportDropzone.addEventListener(type, (event) => {
+              event.preventDefault();
+              projectImportDropzone.classList.add("is-dragover");
+            });
+          });
+          ["dragleave", "dragend", "drop"].forEach((type) => {
+            projectImportDropzone.addEventListener(type, (event) => {
+              event.preventDefault();
+              projectImportDropzone.classList.remove("is-dragover");
+            });
+          });
+          projectImportDropzone.addEventListener("drop", (event) => {
+            const files = event.dataTransfer && event.dataTransfer.files ? event.dataTransfer.files : null;
+            const file = files && files[0] ? files[0] : null;
+            if (!file) return;
+            state.projectImportFile = file;
+            projectImportSelectedFile.textContent = file.name;
+          });
+        }
+
         const runProjectImportBtn = document.getElementById("run-project-import-btn");
         if (runProjectImportBtn) {
           runProjectImportBtn.addEventListener("click", async () => {
             const importFileInput = document.getElementById("project-import-json-file");
             const file =
-              importFileInput && importFileInput.files && importFileInput.files[0] ? importFileInput.files[0] : null;
+              state.projectImportFile ||
+              (importFileInput && importFileInput.files && importFileInput.files[0] ? importFileInput.files[0] : null);
             if (!file) {
               showFlash("ImportするJSONファイルを選択する");
               return;
@@ -2412,6 +2706,8 @@
               state.projects.push(result.project);
               savedSnapshots[result.project.id] = deepClone(result.project);
               if (importFileInput) importFileInput.value = "";
+              state.projectImportFile = null;
+              state.showProjectImportModal = false;
               location.hash = "#/projects/" + encodeURIComponent(result.project.id);
               showFlash(
                 "新規Project Import完了: labels " +
@@ -2628,19 +2924,6 @@
             const project = getCurrentProject();
             if (!project) return;
             pushWorkspaceHistory();
-          });
-        }
-
-        const shortcutHelpEnabled = document.getElementById("shortcut-help-enabled");
-        if (shortcutHelpEnabled) {
-          shortcutHelpEnabled.addEventListener("change", () => {
-            const project = getCurrentProject();
-            if (!project) return;
-            project.shortcutHelpEnabled = !!shortcutHelpEnabled.checked;
-            setDirty();
-            pushWorkspaceHistory();
-            if (!project.shortcutHelpEnabled) state.showShortcutModal = false;
-            render();
           });
         }
 
@@ -2881,6 +3164,14 @@
         if (shortcutClose) {
           shortcutClose.addEventListener("click", () => {
             state.showShortcutModal = false;
+            render();
+          });
+        }
+
+        const shortcutOpen = document.getElementById("shortcut-open");
+        if (shortcutOpen) {
+          shortcutOpen.addEventListener("click", () => {
+            state.showShortcutModal = true;
             render();
           });
         }
