@@ -2410,6 +2410,7 @@
               const payload = await readJsonFile(file);
               const result = createProjectFromImportPayload(payload);
               state.projects.push(result.project);
+              savedSnapshots[result.project.id] = deepClone(result.project);
               if (importFileInput) importFileInput.value = "";
               location.hash = "#/projects/" + encodeURIComponent(result.project.id);
               showFlash(

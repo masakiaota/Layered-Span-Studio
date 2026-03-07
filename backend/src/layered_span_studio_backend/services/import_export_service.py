@@ -32,6 +32,58 @@ def _validate_import_meta(incoming_meta: Dict[str, Any]) -> None:
         raise ValueError("Unsupported import version")
 
 
+def _require_import_dict(value: Any, message: str) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(message)
+    return value
+
+
+def _require_import_list(value: Any, message: str) -> List[Dict[str, Any]]:
+    if not isinstance(value, list):
+        raise ValueError(message)
+    return value
+
+
+def _require_non_empty_string(value: Any, message: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(message)
+    return value
+
+
+def _require_string(value: Any, message: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(message)
+    return value
+
+
+def _require_integer(value: Any, message: str) -> int:
+    if not isinstance(value, int):
+        raise ValueError(message)
+    return value
+
+
+def _validate_import_labels(incoming_labels: List[Dict[str, Any]]) -> None:
+    for label in incoming_labels:
+        label_payload = _require_import_dict(label, "Each label must be an object")
+        _require_non_empty_string(label_payload.get("name"), "Label name is required")
+        _require_non_empty_string(label_payload.get("color"), "Label color is required")
+        _require_string(label_payload.get("description"), "Label description is required")
+
+
+def _validate_import_documents(incoming_documents: List[Dict[str, Any]]) -> None:
+    for doc in incoming_documents:
+        doc_payload = _require_import_dict(doc, "Each document must be an object")
+        _require_non_empty_string(doc_payload.get("document_name"), "Document name is required")
+        _require_string(doc_payload.get("text"), "Document text is required")
+        annotations = doc_payload.get("annotations", [])
+        for ann in _require_import_list(annotations, "Document annotations must be an array"):
+            ann_payload = _require_import_dict(ann, "Each annotation must be an object")
+            _require_non_empty_string(ann_payload.get("label_name"), "Annotation label_name is required")
+            _require_integer(ann_payload.get("start"), "Annotation start must be an integer")
+            _require_integer(ann_payload.get("end"), "Annotation end must be an integer")
+            _require_string(ann_payload.get("span_text"), "Annotation span_text is required")
+
+
 def _validate_name_conflicts(
     incoming_names: List[str],
     existing_names: set[str],
@@ -79,6 +131,8 @@ def _validate_import_payload(
     incoming_meta: Dict[str, Any],
 ) -> None:
     _validate_import_meta(incoming_meta)
+    _validate_import_labels(incoming_labels)
+    _validate_import_documents(incoming_documents)
 
     incoming_label_names = [label["name"] for label in incoming_labels]
     _validate_name_conflicts(
@@ -241,5 +295,9 @@ def import_project_as_new(settings: Settings, payload: Dict[str, Any]) -> Dict[s
         incoming_project.get("description"),
         incoming_project.get("meta"),
     )
-    counts = _import_entities(settings, project["id"], {}, incoming_labels, incoming_documents)
+    try:
+        counts = _import_entities(settings, project["id"], {}, incoming_labels, incoming_documents)
+    except Exception:
+        projects_repo.delete_project(settings, project["id"])
+        raise
     return {"project": project, "imported": counts, "errors": []}

@@ -116,6 +116,27 @@ def test_import_creates_new_project_with_auto_renamed_name(
     assert second_response.json()["project"]["name"] == "Project Rename (imported 2)"
 
 
+def test_new_import_rejects_incomplete_label_without_creating_project(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    source_project = _setup_project_with_data(client, auth_headers, "Project Invalid Import")
+    payload = _export_project_payload(client, auth_headers, source_project["id"])
+    del payload["labels"][0]["description"]
+
+    before_projects = client.get("/projects", headers=auth_headers)
+    assert before_projects.status_code == 200
+
+    with TestClient(client.app, raise_server_exceptions=False) as unsafe_client:
+        response = unsafe_client.post("/projects/import", json=payload, headers=auth_headers)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Label description is required"
+
+    after_projects = client.get("/projects", headers=auth_headers)
+    assert after_projects.status_code == 200
+    assert len(after_projects.json()["projects"]) == len(before_projects.json()["projects"])
+
+
 def test_existing_import_rejects_conflicting_label_names(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
@@ -329,6 +350,12 @@ def test_import_rejects_invalid_export_metadata(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == expected_detail
+
+    new_project_response = client.post(
+        "/projects/import", json=payload, headers=auth_headers
+    )
+    assert new_project_response.status_code == 400
+    assert new_project_response.json()["detail"] == expected_detail
 
 
 def test_import_rejects_unknown_label_reference(
