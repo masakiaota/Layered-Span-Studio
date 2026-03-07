@@ -97,6 +97,7 @@ render = () => {};
 globalThis.__mock_exports = {
   bindCommonEvents,
   createProjectFromImportPayload,
+  getAnnotationsInPanelOrder,
   restoreCurrentProject,
   state,
   savedSnapshots,
@@ -155,4 +156,27 @@ test("project list import keeps a discard snapshot for the created project", asy
   mockApp.restoreCurrentProject();
 
   assert.equal(mockApp.state.projects.at(-1).name, originalName);
+});
+
+test("doc annotation list order is grouped by label and sorted by span index", () => {
+  const mockApp = loadMockApp(createDocument({}));
+  const project = {
+    labels: [
+      { id: "label-a", name: "A" },
+      { id: "label-b", name: "B" },
+    ],
+  };
+  const doc = {
+    annotations: [
+      { id: "ann-4", labelId: "label-b", start: 12, end: 16 },
+      { id: "ann-2", labelId: "label-a", start: 8, end: 11 },
+      { id: "ann-3", labelId: "label-a", start: 8, end: 9 },
+      { id: "ann-1", labelId: "label-a", start: 2, end: 6 },
+      { id: "ann-5", labelId: "label-b", start: 4, end: 7 },
+    ],
+  };
+
+  const ordered = mockApp.getAnnotationsInPanelOrder(doc, project);
+
+  assert.equal(ordered.map((ann) => ann.id).join(","), "ann-1,ann-3,ann-2,ann-5,ann-4");
 });

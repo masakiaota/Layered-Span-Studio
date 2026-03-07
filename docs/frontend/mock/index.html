@@ -1055,11 +1055,50 @@
       };
 
       let keyboardShortcutsBound = false;
+      let docOverlayResizeBound = false;
+      let docOverlayObservedElement = null;
+      let docOverlayResizeObserver = null;
+      let docOverlayFrameToken = 0;
 
       const savedSnapshots = {};
       state.projects.forEach((project) => {
         savedSnapshots[project.id] = deepClone(project);
       });
+
+      function scheduleDocOverlayRender() {
+        if (docOverlayFrameToken) return;
+        const run = () => {
+          docOverlayFrameToken = 0;
+          const docText = document.getElementById("doc-text");
+          if (!docText) return;
+          renderDocOverlay(docText);
+        };
+        if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+          docOverlayFrameToken = window.requestAnimationFrame(run);
+          return;
+        }
+        run();
+      }
+
+      function syncDocOverlayTracking(docText) {
+        if (!docOverlayResizeBound && typeof window !== "undefined" && typeof window.addEventListener === "function") {
+          window.addEventListener("resize", scheduleDocOverlayRender);
+          docOverlayResizeBound = true;
+        }
+        if (typeof ResizeObserver !== "function") {
+          docOverlayObservedElement = docText || null;
+          return;
+        }
+        if (!docOverlayResizeObserver) {
+          docOverlayResizeObserver = new ResizeObserver(() => {
+            scheduleDocOverlayRender();
+          });
+        }
+        if (docOverlayObservedElement === docText) return;
+        docOverlayResizeObserver.disconnect();
+        docOverlayObservedElement = docText || null;
+        if (docText) docOverlayResizeObserver.observe(docText);
+      }
 
       function getCurrentProject() {
         return state.projects.find((p) => p.id === state.currentProjectId) || null;
@@ -1092,6 +1131,11 @@
 
       function getAnnotationsInPanelOrder(doc, project) {
         if (!doc || !project) return [];
+        const sortBySpanIndex = (left, right) => {
+          if (left.start !== right.start) return left.start - right.start;
+          if (left.end !== right.end) return left.end - right.end;
+          return String(left.id || "").localeCompare(String(right.id || ""));
+        };
         const groups = Object.fromEntries(project.labels.map((label) => [label.id, []]));
         const fallback = [];
         doc.annotations.forEach((ann) => {
@@ -1103,8 +1147,10 @@
         });
         const ordered = [];
         project.labels.forEach((label) => {
+          groups[label.id].sort(sortBySpanIndex);
           ordered.push(...groups[label.id]);
         });
+        fallback.sort(sortBySpanIndex);
         ordered.push(...fallback);
         return ordered;
       }
@@ -1621,7 +1667,7 @@
 
         const annotationGroups = project.labels
           .map((label) => {
-            const list = doc ? doc.annotations.filter((a) => a.labelId === label.id) : [];
+            const list = doc ? getAnnotationsInPanelOrder(doc, project).filter((a) => a.labelId === label.id) : [];
             const open = state.accordionOpen[label.id] !== false;
             const listHtml = open
               ? `
@@ -1930,6 +1976,7 @@
         if (route.view === "projects") {
           state.currentProjectId = null;
           state.hoverLaneAnnId = null;
+          syncDocOverlayTracking(null);
           app.innerHTML = renderProjects() + renderOverlay();
           bindCommonEvents();
           return;
@@ -1943,6 +1990,7 @@
         if (route.view === "workspace") {
           app.innerHTML = renderWorkspace(project) + renderOverlay();
         } else if (route.view === "settings") {
+          syncDocOverlayTracking(null);
           app.innerHTML = renderSettings(project) + renderOverlay();
         } else {
           location.hash = "#/projects/" + encodeURIComponent(project.id);
@@ -3178,6 +3226,7 @@
 
         const docText = document.getElementById("doc-text");
         if (docText) {
+          syncDocOverlayTracking(docText);
           renderDocOverlay(docText);
           const overlay = document.getElementById("doc-overlay");
           const laneTooltip = document.getElementById("lane-hover-tooltip");
@@ -3354,6 +3403,8 @@
             pushWorkspaceHistory();
             render();
           });
+        } else {
+          syncDocOverlayTracking(null);
         }
       }
 
