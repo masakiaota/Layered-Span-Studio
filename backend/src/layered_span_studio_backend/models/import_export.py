@@ -27,3 +27,9 @@ class ImportRequest(APIModel):
 class ImportResponse(APIModel):
     imported: Dict[str, int]
     errors: List[Dict[str, Any]]
+
+
+class ProjectImportResponse(APIModel):
+    project: Dict[str, Any]
+    imported: Dict[str, int]
+    errors: List[Dict[str, Any]]

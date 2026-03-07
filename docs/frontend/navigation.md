@@ -1,26 +1,32 @@
 # Frontend 画面遷移仕様（初版）
 
-最終更新: 2026-02-11
+最終更新: 2026-02-14
 
 ## 1. 遷移方針
 
 - Project 一覧の導線は Label Studio の構成を踏襲する。
-- Project 選択後は 1 画面構成の Workspace に遷移する。
-- URL は `"/projects/:projectId"` 固定とする。
+- Project 選択後は Project スコープ画面（Workspace / Project Settings）へ遷移する。
+- URL は以下を持つ。
+  - `"/projects/:projectId"`（Workspace）
+  - `"/projects/:projectId/settings"`（Project Settings）
 - Document 切り替えは画面内状態で行い、Document ごとの URL は持たない。
 
 ## 2. 画面一覧
 
 1. Project List
-2. Workspace（単一画面）
+2. Workspace
+3. Project Settings（Import / Export を内包）
 
 ## 3. 遷移フロー
 
-1. Project List で Project を選択する。
-2. `"/projects/:projectId"` の Workspace を開く。
-3. 左ペインで Document を選ぶ。
-4. 中央ペインで Annotation を編集する。
-5. 右ペインで Annotation の詳細確認・編集を行う。
+1. Project List で既存 Project を選択する、または Import Project を実行して新規 Project を作成する。
+2. 既存 Project を選んだ場合は `"/projects/:projectId"` の Workspace を開く。
+3. 新規 Project Import 完了時も、作成された `"/projects/:projectId"` の Workspace を開く。
+4. 上部ナビゲーションで以下を切り替える。
+  - Workspace
+  - Project Settings
+5. Workspace では左ペインで Document を選び、中央で Annotation 編集、右ペインで詳細編集を行う。
+6. Project Settings では Label 定義 / ガイドライン / ショートカット表示設定 / Import・Export を管理する。
 
 ## 4. Document 切り替え時の扱い
 
@@ -31,7 +37,28 @@
   - 破棄して移動
   - キャンセル
 
-## 5. Submit の定義
+## 5. Project 一覧へ戻る時の扱い
+
+- Workspace / Settings の各画面から Project 一覧へ戻る導線には未保存確認を出す。
+- 未保存確認ダイアログは以下 3 アクションを持つ。
+  - 保存して移動
+  - 破棄して移動
+  - キャンセル
+- URL 直打ちやブラウザ履歴遷移時のガードは実装対象外とする（データロスト許容）。
+
+## 5.1 Import / Export の扱い
+
+- Project List では、新規 project 作成のための Import Project 導線を提供する。
+- Project List の Import は backend の `POST /projects/import` と同じ意味を持ち、export JSON から新規 project を作る。
+- Project List の Import で `project.name` が既存と重複した場合は、backend 仕様に合わせて `"(imported)"`, `"(imported 2)"` ... を付けて自動改名する。
+- Project Settings では、現在 project に対する追記 Import と Export を提供する。
+- 入出力はファイル（`.json`）で扱う。
+- JSON 形式は backend の `POST /projects/import` / `POST /projects/{project_id}/export` / `POST /projects/{project_id}/import` と同一の構造を前提にする。
+- 単位は project 単位とする（Document 単位では提供しない）。
+- Project Settings の Import は backend の `POST /projects/{project_id}/import` と同じく append 専用とし、`payload.project.*` で既存 project 本体は更新しない。
+- Project Settings の Import で既存データと同名の label / document がある場合は、backend 仕様に合わせて全体失敗とする。
+
+## 6. Submit の定義
 
 - Submit ボタンは中央ペインの右下（操作列の右端）に配置する。
 - Submit 実行時は、対象 Document の確定処理を行う。
@@ -41,7 +68,7 @@
 - Submit 完了後は、次の `pending` Document を自動選択して同一 Workspace 内で遷移する。
 - 次の `pending` が存在しない場合は現在 Document のままとする。
 
-## 6. ステータス仕様
+## 7. ステータス仕様
 
 - Annotation は `pending | verified` を持つ。
 - Document も `pending | verified` を持つ（新規追加要件）。
