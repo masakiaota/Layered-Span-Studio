@@ -97,6 +97,7 @@ render = () => {};
 globalThis.__mock_exports = {
   bindCommonEvents,
   createProjectFromImportPayload,
+  ensureWorkspaceState,
   getAnnotationsInPanelOrder,
   moveAnnotationByDirection,
   restoreCurrentProject,
@@ -212,4 +213,26 @@ test("arrow-style annotation move can continue into the next label group", () =>
 
   assert.equal(mockApp.state.selectedAnnotationId, "ann-3");
   assert.equal(mockApp.state.focusedLabelId, "label-b");
+});
+
+test("workspace starts with no annotation selected", () => {
+  const mockApp = loadMockApp(createDocument({}));
+  const project = {
+    id: "project-1",
+    labels: [{ id: "label-a", name: "A" }],
+    documents: [
+      {
+        id: "doc-1",
+        annotations: [{ id: "ann-1", labelId: "label-a", start: 1, end: 3 }],
+      },
+    ],
+  };
+
+  mockApp.state.projects = [project];
+
+  mockApp.ensureWorkspaceState("project-1");
+
+  assert.equal(mockApp.state.selectedDocId, "doc-1");
+  assert.equal(mockApp.state.focusedLabelId, "label-a");
+  assert.equal(mockApp.state.selectedAnnotationId, null);
 });

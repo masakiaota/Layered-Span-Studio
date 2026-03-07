@@ -64,6 +64,7 @@
 - ラベル切り替えは下線クリックで行う。下線区間の文字本体をクリックしてもラベルは切り替えない。
 - 注目 Label の塗り区間クリックは、ラベル切り替えは行わず、対象 Annotation を選択する。
 - Annotation Canvas の非アノテーション領域（空白）クリックで、選択中 Annotation を解除する。
+- Workspace 初期表示時は Annotation 未選択状態で開始する。
 - 既存 Annotation の編集可能範囲は以下に限定する。
   - `comment`
   - `status`

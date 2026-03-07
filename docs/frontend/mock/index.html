@@ -347,27 +347,47 @@
 
       .label-strip {
         display: flex;
-        gap: 8px;
+        align-items: center;
+        gap: 4px;
         overflow-x: auto;
-        padding-bottom: 8px;
+        padding: 4px;
         margin-bottom: 8px;
+        background: #ece6db;
+        border: 1px solid #d8d1c4;
+        border-radius: 16px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
       }
 
       .label-btn {
-        border: 1px solid var(--btn-border, var(--line));
-        background: var(--btn-bg, #fff);
+        border: none;
+        background: transparent;
         color: var(--btn-text, #24313f);
-        border-radius: 999px;
-        padding: 7px 12px;
+        border-radius: 12px;
+        padding: 9px 14px;
         white-space: nowrap;
-        font-size: 13px;
+        font-size: 14px;
+        font-weight: 700;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        flex: 0 0 auto;
+        transition:
+          background-color 120ms ease,
+          color 120ms ease,
+          box-shadow 120ms ease;
+      }
+
+      .label-btn:hover {
+        background: rgba(255, 255, 255, 0.45);
       }
 
       .label-btn.active {
-        border-color: var(--btn-active-border, #314356);
-        background: var(--btn-active-bg, #dfe6ee);
-        font-weight: 700;
+        background: #fffdf8;
+        color: var(--btn-active-text, #1f2732);
+        box-shadow:
+          0 1px 2px rgba(33, 41, 52, 0.08),
+          inset 0 0 0 3px var(--btn-active-border, #314356),
+          inset 0 1px 0 rgba(255, 255, 255, 0.9);
       }
 
       .canvas-wrap {
@@ -815,24 +835,16 @@
         const color = label.color || "#8b94a0";
         if (isActive) {
           return (
-            "--btn-border:" +
-            color +
-            ";--btn-bg:" +
-            hexToRgba(color, 0.24) +
-            ";--btn-text:#1f2732;--btn-active-border:" +
-            color +
-            ";--btn-active-bg:" +
-            hexToRgba(color, 0.24) +
+            "--btn-text:" +
+            hexToRgba(color, 0.98) +
+            ";--btn-active-text:" +
+            hexToRgba(color, 0.98) +
+            ";--btn-active-border:" +
+            hexToRgba(color, 0.58) +
             ";"
           );
         }
-        return (
-          "--btn-border:" +
-          hexToRgba(color, 0.45) +
-          ";--btn-bg:" +
-          hexToRgba(color, 0.11) +
-          ";--btn-text:#2d3744;"
-        );
+        return "--btn-text:" + hexToRgba(color, 0.95) + ";";
       }
 
       function getGroupStyle(label) {
@@ -1395,8 +1407,7 @@
         ensureProjectConfig(project);
         state.selectedDocId = project.documents[0] ? project.documents[0].id : null;
         state.focusedLabelId = project.labels[0] ? project.labels[0].id : null;
-        const doc = getCurrentDocument();
-        state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
+        state.selectedAnnotationId = null;
         project.labels.forEach((label) => {
           state.accordionOpen[label.id] = true;
         });
@@ -1658,6 +1669,9 @@
                 class="label-btn ${isActive ? "active" : ""}"
                 data-label-id="${label.id}"
                 style="${getLabelButtonStyle(label, isActive)}"
+                role="tab"
+                aria-selected="${isActive ? "true" : "false"}"
+                type="button"
               >
                 ${escapeHtml(label.name)}
               </button>
@@ -1735,7 +1749,7 @@
             </section>
 
             <section class="panel center-panel">
-              <div class="label-strip">${labelsHtml}</div>
+              <div class="label-strip" role="tablist" aria-label="Focused label">${labelsHtml}</div>
               <div class="canvas-wrap">
                 <div class="canvas-help">ドラッグ選択すると、選択中Labelに即時でAnnotationを作成する。</div>
                 <div class="doc-stage" id="doc-stage">
