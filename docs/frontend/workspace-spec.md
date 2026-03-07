@@ -1,6 +1,6 @@
 # Workspace UI/UX 仕様（初版）
 
-最終更新: 2026-02-11
+最終更新: 2026-02-14
 
 ## 1. 目的
 
@@ -15,6 +15,9 @@
 3. 右ペイン: 作業カードエリア
 
 - 画面上にはペイン名をそのまま示す見出しテキストを表示しない。
+- Project スコープ画面は以下 2 画面で構成する。
+  - Workspace
+  - Project Settings
 
 ## 3. 左ペイン仕様（Document 一覧）
 
@@ -89,11 +92,47 @@
 - Submit 完了後は次の `pending` Document へ自動で移動する。
 - 次の `pending` が存在しない場合は現在 Document に留まる。
 
+## 6.1 Project 一覧へ戻る時のガード
+
+- Workspace / Settings から Project 一覧へ戻る操作には未保存確認を表示する。
+- 確認ダイアログの選択肢は以下とする。
+  - 保存して移動
+  - 破棄して移動
+  - キャンセル
+- URL 直打ち・ブラウザ履歴遷移時のガードは実装対象外とする。
+
+## 6.2 Import / Export（Project List / Project Settings）
+
+- Project List では `.json` ファイルから新規 project import を行う。
+- Project List の Import は backend の `POST /projects/import` の request body と同一形式（`project` / `labels` / `documents` / `meta`）を使う。
+- Project List の Import 完了後は、作成された project の Workspace へ遷移する。
+- Project List の Import で `project.name` が既存と重複した場合は、backend と同じく `"(imported)"`, `"(imported 2)"` ... を付けて自動改名する。
+- Project Settings では、現在 project への追記 Import を `.json` ファイル選択で行う。
+- Project Settings の Import は backend の `POST /projects/{project_id}/import` の payload 形式（`project` / `labels` / `documents` / `meta`）と同一にする。
+- Project Settings の Import は append 専用であり、`payload.project.*` によって既存 project 本体は更新しない。
+- Export は Project Settings から `.json` ファイルとしてダウンロードする。
+- Export JSON は backend の `POST /projects/{project_id}/export` の response 形式（`project` / `labels` / `documents` / `meta`）と同一にする。
+- Export には annotation status フィルタを持たせる（`include_pending` / `include_verified`）。
+- Import / Export の単位は project 単位とする。
+- Project Settings の Import は backend 検証ルールに合わせ、既存と同名の label / document が含まれる場合は失敗扱いとする。
+- Import は部分成功しない（不整合が1件でもあれば全体失敗）。
+
+## 6.3 Project Settings 画面
+
+- Label定義管理を行う（追加 / 編集 / 削除）。
+- Label削除時は対応するAnnotationも同時に除去する。
+- プロジェクトガイドライン文言を編集可能にする。
+- ショートカット一覧（`?`）表示の有効/無効を切り替え可能にする。
+- Import / Export カードを同画面内に配置する。
+- Import カード内では「現在 project への追記 import」であることを明示する。
+
 ## 7. キーボードショートカット
 
 - Save / Submit
   - `Cmd+S`: Save
   - `Cmd+Enter`: Submit（Document + 配下Annotationを`verified`化し、次の`pending` Docへ移動）
+  - `Cmd+Z`: Undo（直前操作を取り消す）
+  - `Cmd+Y` / `Cmd+Shift+Z`: Redo（取り消しをやり直す）
 - Doc移動
   - `J`: 次のDoc
   - `K`: 前のDoc
@@ -117,3 +156,5 @@
   - `input` / `textarea` / `select` フォーカス中はショートカットを無効化する。
   - `[ / ]` によるLabel切り替え時は、Annotation選択をリセットする。
   - `N/P` は現在選択中Label内のみを対象とし、未選択状態では先頭（`N`）/末尾（`P`）から開始する。
+  - Undo/Redo 実行時は、現在選択中のDocを維持し、別Docへ自動切り替えしない。
+  - `?` の表示可否は Project Settings の設定値に従う。

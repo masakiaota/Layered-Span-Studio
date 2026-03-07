@@ -419,6 +419,16 @@
         resize: vertical;
       }
 
+      .field input[type="checkbox"] {
+        width: auto;
+      }
+
+      .field input[type="color"] {
+        width: 56px;
+        height: 32px;
+        padding: 0;
+      }
+
       .anno-groups {
         display: flex;
         flex-direction: column;
@@ -680,6 +690,8 @@
       const UNDERLINE_IDLE_ALPHA = 0.82;
       const UNDERLINE_DIM_ALPHA = 0.42;
       const UNDERLINE_PADDING_TAIL = 3;
+      const EXPORT_FORMAT = "layered-span-studio/export";
+      const EXPORT_VERSION = "1.0";
 
       function parseCsvIds(value) {
         return String(value || "")
@@ -722,6 +734,10 @@
           id: "medical-001",
           name: "医療NER: 呼吸器",
           description: "肺炎症例を中心に多ラベルアノテーションを行う。",
+          meta: {},
+          guideline:
+            "診断確定語を優先して疾患名を付与する。検査値は項目名+数値を基本単位とし、単位ラベルと重複を許容する。",
+          shortcutHelpEnabled: true,
           labels: [
             {
               id: "label-disease",
@@ -824,6 +840,9 @@
           id: "medical-002",
           name: "医療NER: 生活習慣病",
           description: "糖尿病と高血圧の外来文章を対象にアノテーション。",
+          meta: {},
+          guideline: "",
+          shortcutHelpEnabled: true,
           labels: [],
           documents: [],
         },
@@ -842,9 +861,14 @@
         showUnsavedDialog: false,
         showShortcutModal: false,
         pendingDocSwitchId: null,
+        pendingNavigationHash: null,
         accordionOpen: {},
         underlineLaneByAnnId: {},
         globalUnderlineReserve: 0,
+        undoStack: [],
+        redoStack: [],
+        exportIncludePending: true,
+        exportIncludeVerified: true,
         projects: deepClone(seedProjects),
       };
 
@@ -857,6 +881,13 @@
 
       function getCurrentProject() {
         return state.projects.find((p) => p.id === state.currentProjectId) || null;
+      }
+
+      function ensureProjectConfig(project) {
+        if (!project) return;
+        if (typeof project.guideline !== "string") project.guideline = "";
+        if (typeof project.shortcutHelpEnabled !== "boolean") project.shortcutHelpEnabled = true;
+        if (!project.meta || typeof project.meta !== "object" || Array.isArray(project.meta)) project.meta = {};
       }
 
       function getCurrentDocument() {
@@ -929,6 +960,7 @@
       function saveChanges() {
         saveCurrentProjectSnapshot();
         state.dirty = false;
+        pushWorkspaceHistory();
         showFlash("保存した");
       }
 
@@ -970,6 +1002,7 @@
 
         state.dirty = false;
         saveCurrentProjectSnapshot();
+        pushWorkspaceHistory();
         showFlash(
           nextPendingDoc
             ? "Submit完了: verified更新後に次のpending docへ移動した"
@@ -988,9 +1021,128 @@
         state.dirty = true;
       }
 
+      function createWorkspaceHistoryEntry() {
+        const project = getCurrentProject();
+        if (!project) return null;
+        return {
+          project: deepClone(project),
+          selectedDocId: state.selectedDocId,
+          selectedAnnotationId: state.selectedAnnotationId,
+          focusedLabelId: state.focusedLabelId,
+          sortBy: state.sortBy,
+          accordionOpen: deepClone(state.accordionOpen),
+          dirty: state.dirty,
+        };
+      }
+
+      function historyEntriesEqual(a, b) {
+        return JSON.stringify(a) === JSON.stringify(b);
+      }
+
+      function resetWorkspaceHistory() {
+        state.undoStack = [];
+        state.redoStack = [];
+        const initialEntry = createWorkspaceHistoryEntry();
+        if (!initialEntry) return;
+        state.undoStack.push(initialEntry);
+      }
+
+      function pushWorkspaceHistory() {
+        const currentEntry = createWorkspaceHistoryEntry();
+        if (!currentEntry) return;
+        const lastEntry = state.undoStack[state.undoStack.length - 1];
+        if (lastEntry && historyEntriesEqual(lastEntry, currentEntry)) return;
+        state.undoStack.push(currentEntry);
+        if (state.undoStack.length > 100) {
+          state.undoStack.splice(0, state.undoStack.length - 100);
+        }
+        state.redoStack = [];
+      }
+
+      function applyWorkspaceHistoryEntry(entry, options) {
+        const preserveDocSelection = !!(options && options.preserveDocSelection);
+        const currentDocId = state.selectedDocId;
+        const projectIndex = state.projects.findIndex((item) => item.id === state.currentProjectId);
+        if (projectIndex < 0) return false;
+        state.projects[projectIndex] = deepClone(entry.project);
+        state.sortBy = entry.sortBy || "created";
+        state.selectedDocId = preserveDocSelection ? currentDocId || null : entry.selectedDocId || null;
+        state.selectedAnnotationId = entry.selectedAnnotationId || null;
+        state.focusedLabelId = entry.focusedLabelId || null;
+        state.dirty = !!entry.dirty;
+        state.hoverLaneAnnId = null;
+        state.showCreateDocModal = false;
+        state.showUnsavedDialog = false;
+        state.showShortcutModal = false;
+        state.pendingDocSwitchId = null;
+        state.pendingNavigationHash = null;
+
+        const project = getCurrentProject();
+        if (!project) return false;
+        const entryDocIdExists = !!(entry.selectedDocId && project.documents.some((doc) => doc.id === entry.selectedDocId));
+        if (!project.documents.some((doc) => doc.id === state.selectedDocId)) {
+          state.selectedDocId = entryDocIdExists
+            ? entry.selectedDocId
+            : project.documents[0]
+              ? project.documents[0].id
+              : null;
+        }
+        const doc = getCurrentDocument();
+        if (!doc || !doc.annotations.some((ann) => ann.id === state.selectedAnnotationId)) {
+          state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
+        }
+        if (!project.labels.some((label) => label.id === state.focusedLabelId)) {
+          state.focusedLabelId = project.labels[0] ? project.labels[0].id : null;
+        }
+        const nextAccordionOpen = {};
+        project.labels.forEach((label) => {
+          const savedOpen = entry.accordionOpen ? entry.accordionOpen[label.id] : undefined;
+          nextAccordionOpen[label.id] = typeof savedOpen === "boolean" ? savedOpen : true;
+        });
+        state.accordionOpen = nextAccordionOpen;
+        return true;
+      }
+
+      function undoWorkspace() {
+        if (state.undoStack.length <= 1) {
+          showFlash("これ以上Undoできない");
+          return;
+        }
+        const currentEntry = state.undoStack.pop();
+        if (currentEntry) state.redoStack.push(currentEntry);
+        const previousEntry = state.undoStack[state.undoStack.length - 1];
+        if (!previousEntry || !applyWorkspaceHistoryEntry(previousEntry, { preserveDocSelection: true })) {
+          showFlash("Undoに失敗した");
+          return;
+        }
+        showFlash("Undoした");
+      }
+
+      function redoWorkspace() {
+        if (state.redoStack.length === 0) {
+          showFlash("これ以上Redoできない");
+          return;
+        }
+        const nextEntry = state.redoStack.pop();
+        if (!nextEntry) {
+          showFlash("Redoに失敗した");
+          return;
+        }
+        state.undoStack.push(nextEntry);
+        if (!applyWorkspaceHistoryEntry(nextEntry, { preserveDocSelection: true })) {
+          showFlash("Redoに失敗した");
+          return;
+        }
+        showFlash("Redoした");
+      }
+
       function parseHash() {
         const hash = location.hash.replace(/^#/, "");
         if (hash === "" || hash === "/projects") return { view: "projects" };
+        const settingsMatch = hash.match(/^\/projects\/([^/]+)\/settings$/);
+        if (settingsMatch) return { view: "settings", projectId: decodeURIComponent(settingsMatch[1]) };
+        const dataIoMatch = hash.match(/^\/projects\/([^/]+)\/data-io$/);
+        if (dataIoMatch) return { view: "settings", projectId: decodeURIComponent(dataIoMatch[1]) };
         const match = hash.match(/^\/projects\/([^/]+)$/);
         if (match) return { view: "workspace", projectId: decodeURIComponent(match[1]) };
         return { view: "projects" };
@@ -1006,9 +1158,13 @@
         state.showUnsavedDialog = false;
         state.showShortcutModal = false;
         state.pendingDocSwitchId = null;
+        state.pendingNavigationHash = null;
+        state.exportIncludePending = true;
+        state.exportIncludeVerified = true;
         state.accordionOpen = {};
         const project = getCurrentProject();
         if (!project) return;
+        ensureProjectConfig(project);
         state.selectedDocId = project.documents[0] ? project.documents[0].id : null;
         state.focusedLabelId = project.labels[0] ? project.labels[0].id : null;
         const doc = getCurrentDocument();
@@ -1016,6 +1172,7 @@
         project.labels.forEach((label) => {
           state.accordionOpen[label.id] = true;
         });
+        resetWorkspaceHistory();
       }
 
       function getSortedDocuments(project) {
@@ -1172,14 +1329,42 @@
           <header class="topbar">
             <div>
               <div class="brand">Layered Span Studio Mock</div>
-              <div class="small">Project画面からWorkspaceへ遷移するモック</div>
+              <div class="small">Project一覧から新規ImportまたはWorkspaceへ遷移するモック</div>
             </div>
             <span class="small">API接続なし / 1ファイル構成</span>
           </header>
           <main class="projects-wrap">
             <h2>Projects</h2>
+            <section class="card field" style="max-width:720px;margin-bottom:18px;">
+              <h4>Import Project</h4>
+              <div class="small">backend の <code>POST /projects/import</code> 相当。Export JSON から新しい project を作成する。</div>
+              <div class="small">同名 project がある場合は <code>(imported)</code>, <code>(imported 2)</code> ... を付けて自動改名する。</div>
+              <label for="project-import-json-file">Import JSONファイル</label>
+              <input id="project-import-json-file" type="file" accept=".json,application/json" />
+              <div style="display:flex;justify-content:flex-end;">
+                <button class="btn btn-primary" id="run-project-import-btn">新規ProjectとしてImport</button>
+              </div>
+            </section>
             <div class="project-grid">${cards}</div>
           </main>
+        `;
+      }
+
+      function renderProjectHeader(project, currentView) {
+        const workspaceHash = "#/projects/" + project.id;
+        const settingsHash = "#/projects/" + project.id + "/settings";
+        return `
+          <header class="topbar">
+            <div>
+              <button class="btn" data-nav-hash="#/projects">← Projectsへ戻る</button>
+              <span style="margin-left:10px;font-weight:700;">${escapeHtml(project.name)}</span>
+              ${state.dirty ? '<span class="pill pending" style="margin-left:8px;">未保存</span>' : ""}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button class="btn ${currentView === "workspace" ? "btn-primary" : ""}" data-nav-hash="${workspaceHash}">Workspace</button>
+              <button class="btn ${currentView === "settings" ? "btn-primary" : ""}" data-nav-hash="${settingsHash}">Project Settings</button>
+            </div>
+          </header>
         `;
       }
 
@@ -1270,14 +1455,7 @@
         const metaText = selectedAnn ? JSON.stringify(selectedAnn.meta || {}, null, 2) : "";
 
         return `
-          <header class="topbar">
-            <div>
-              <button class="btn" data-back-projects>← Projectsへ戻る</button>
-              <span style="margin-left:10px;font-weight:700;">${escapeHtml(project.name)}</span>
-              ${state.dirty ? '<span class="pill pending" style="margin-left:8px;">未保存</span>' : ""}
-            </div>
-            <span class="small">URL: /projects/${project.id}</span>
-          </header>
+          ${renderProjectHeader(project, "workspace")}
           <main class="workspace-wrap">
             <section class="panel">
               <div class="panel-head">
@@ -1342,8 +1520,106 @@
         `;
       }
 
+      function renderSettings(project) {
+        const labelsHtml = project.labels
+          .map((label) => {
+            return `
+              <div class="card" style="margin-bottom:8px;">
+                <div class="field">
+                  <label>ラベル名</label>
+                  <input data-label-name-id="${label.id}" value="${escapeHtml(label.name)}" />
+                  <label>色</label>
+                  <input type="color" data-label-color-id="${label.id}" value="${escapeHtml(label.color || "#8b94a0")}" />
+                  <label>判定基準</label>
+                  <textarea data-label-desc-id="${label.id}">${escapeHtml(label.description || "")}</textarea>
+                </div>
+                <div style="margin-top:8px;display:flex;justify-content:flex-end;">
+                  <button class="btn btn-danger" data-label-delete-id="${label.id}">このラベルを削除</button>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+
+        return `
+          ${renderProjectHeader(project, "settings")}
+          <main class="workspace-wrap" style="grid-template-columns:minmax(620px, 1fr) 420px;">
+            <section class="panel center-panel" style="overflow:auto;">
+              <div class="card">
+                <h4>Label定義</h4>
+                ${labelsHtml || '<div class="small">ラベルが未定義である。</div>'}
+              </div>
+              <div class="card field">
+                <h4>ラベル追加</h4>
+                <label for="new-label-name">ラベル名</label>
+                <input id="new-label-name" placeholder="例: 所見" />
+                <label for="new-label-color">色</label>
+                <input id="new-label-color" type="color" value="#8b94a0" />
+                <label for="new-label-desc">判定基準</label>
+                <textarea id="new-label-desc" placeholder="このラベルに付与する判断基準"></textarea>
+                <div style="display:flex;justify-content:flex-end;">
+                  <button class="btn btn-primary" id="add-label-btn">ラベルを追加</button>
+                </div>
+              </div>
+            </section>
+            <aside class="right-panel">
+              <section class="card field">
+                <h4>プロジェクトガイドライン</h4>
+                <textarea id="project-guideline">${escapeHtml(project.guideline || "")}</textarea>
+              </section>
+              <section class="card field">
+                <h4>表示設定</h4>
+                <label style="display:flex;align-items:center;gap:8px;">
+                  <input id="shortcut-help-enabled" type="checkbox" ${project.shortcutHelpEnabled ? "checked" : ""} />
+                  <span>? でショートカット一覧を表示する</span>
+                </label>
+              </section>
+              <section class="card field">
+                <h4>Import / Export（project単位）</h4>
+                <div class="small">ここでの Import は backend の <code>POST /projects/{project_id}/import</code> 相当で、現在の project に追記する。</div>
+                <div class="small"><code>payload.project.*</code> は既存 project の名前や設定を更新しない。新規 project import は Projects 画面で行う。</div>
+                <div style="border-top:1px solid var(--line);margin:2px 0 4px;"></div>
+                <label for="import-json-file">Import JSONファイル</label>
+                <input id="import-json-file" type="file" accept=".json,application/json" />
+                <div style="display:flex;justify-content:flex-end;">
+                  <button class="btn btn-primary" id="run-import-json-btn">現在Projectへ追記Import</button>
+                </div>
+                <div style="border-top:1px solid var(--line);margin:6px 0 4px;"></div>
+                <label style="display:flex;align-items:center;gap:8px;">
+                  <input
+                    id="export-include-pending"
+                    type="checkbox"
+                    ${state.exportIncludePending ? "checked" : ""}
+                  />
+                  <span>pending を含める</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;">
+                  <input
+                    id="export-include-verified"
+                    type="checkbox"
+                    ${state.exportIncludeVerified ? "checked" : ""}
+                  />
+                  <span>verified を含める</span>
+                </label>
+                <div style="display:flex;justify-content:flex-end;">
+                  <button class="btn" id="download-export-json-btn">Export JSONをダウンロード</button>
+                </div>
+              </section>
+              <section class="card">
+                <div style="display:flex;justify-content:flex-end;">
+                  <button class="btn btn-primary" id="settings-save-btn">Save</button>
+                </div>
+              </section>
+            </aside>
+          </main>
+        `;
+      }
+
       function renderOverlay() {
         const overlays = [];
+        const unsavedMessage = state.pendingNavigationHash
+          ? "Project一覧へ戻る前に処理を選択する。"
+          : "Documentを切り替える前に処理を選択する。";
         if (state.showCreateDocModal) {
           overlays.push(`
             <div class="overlay">
@@ -1370,7 +1646,7 @@
             <div class="overlay">
               <div class="modal">
                 <h3>未保存の変更がある</h3>
-                <p class="small">Documentを切り替える前に処理を選択する。</p>
+                <p class="small">${unsavedMessage}</p>
                 <div class="actions">
                   <button class="btn" data-unsaved-action="cancel">キャンセル</button>
                   <button class="btn btn-danger" data-unsaved-action="discard">破棄して移動</button>
@@ -1388,6 +1664,8 @@
                 <ul class="shortcut-list">
                   <li class="shortcut-item"><span class="shortcut-keys">Cmd+S</span><span>Save</span></li>
                   <li class="shortcut-item"><span class="shortcut-keys">Cmd+Enter</span><span>Submit（doc + annotations を verified、次pendingへ）</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">Cmd+Z</span><span>Undo</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">Cmd+Y / Cmd+Shift+Z</span><span>Redo</span></li>
                   <li class="shortcut-item"><span class="shortcut-keys">J / K</span><span>次のDoc / 前のDoc</span></li>
                   <li class="shortcut-item"><span class="shortcut-keys">Shift+J / Shift+K</span><span>次のpending Doc / 前のpending Doc</span></li>
                   <li class="shortcut-item"><span class="shortcut-keys">[ / ] / ← / →</span><span>前Label / 次Label</span></li>
@@ -1430,7 +1708,14 @@
           location.hash = "#/projects";
           return;
         }
-        app.innerHTML = renderWorkspace(project) + renderOverlay();
+        if (route.view === "workspace") {
+          app.innerHTML = renderWorkspace(project) + renderOverlay();
+        } else if (route.view === "settings") {
+          app.innerHTML = renderSettings(project) + renderOverlay();
+        } else {
+          location.hash = "#/projects/" + encodeURIComponent(project.id);
+          return;
+        }
         bindCommonEvents();
       }
 
@@ -1438,6 +1723,7 @@
         if (nextDocId === state.selectedDocId) return;
         if (state.dirty) {
           state.pendingDocSwitchId = nextDocId;
+          state.pendingNavigationHash = null;
           state.showUnsavedDialog = true;
           render();
           return;
@@ -1450,9 +1736,22 @@
         state.hoverLaneAnnId = null;
         state.showUnsavedDialog = false;
         state.pendingDocSwitchId = null;
+        state.pendingNavigationHash = null;
         const doc = getCurrentDocument();
         state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
         render();
+      }
+
+      function requestNavigation(nextHash) {
+        if (!nextHash || location.hash === nextHash) return;
+        if (nextHash === "#/projects" && state.dirty) {
+          state.pendingDocSwitchId = null;
+          state.pendingNavigationHash = nextHash;
+          state.showUnsavedDialog = true;
+          render();
+          return;
+        }
+        location.hash = nextHash;
       }
 
       function moveDocumentByDirection(direction, pendingOnly) {
@@ -1534,7 +1833,314 @@
           state.focusedLabelId = next.labelId;
         }
         state.hoverLaneAnnId = null;
+        pushWorkspaceHistory();
         showFlash("選択中Annotationを削除した");
+      }
+
+      function normalizeWorkspaceSelection(project) {
+        if (!project) return;
+        ensureProjectConfig(project);
+        if (!project.documents.some((item) => item.id === state.selectedDocId)) {
+          state.selectedDocId = project.documents[0] ? project.documents[0].id : null;
+        }
+        if (!project.labels.some((item) => item.id === state.focusedLabelId)) {
+          state.focusedLabelId = project.labels[0] ? project.labels[0].id : null;
+        }
+        const doc = getCurrentDocument();
+        if (!doc || !doc.annotations.some((item) => item.id === state.selectedAnnotationId)) {
+          state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
+        }
+        const nextAccordionOpen = {};
+        project.labels.forEach((label) => {
+          const savedOpen = state.accordionOpen[label.id];
+          nextAccordionOpen[label.id] = typeof savedOpen === "boolean" ? savedOpen : true;
+        });
+        state.accordionOpen = nextAccordionOpen;
+        state.hoverLaneAnnId = null;
+      }
+
+      function normalizeMeta(value) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+        return deepClone(value);
+      }
+
+      function hasRangeOverlap(ranges, start, end) {
+        return ranges.some(([existingStart, existingEnd]) => existingStart < end && existingEnd > start);
+      }
+
+      function buildProjectExportPayload(project, includePending, includeVerified) {
+        const allowedStatuses = new Set();
+        if (includePending) allowedStatuses.add("pending");
+        if (includeVerified) allowedStatuses.add("verified");
+        const labelById = Object.fromEntries(project.labels.map((label) => [label.id, label]));
+        const projectMeta = normalizeMeta(project.meta);
+        projectMeta.guideline = project.guideline || "";
+        projectMeta.shortcut_help_enabled = project.shortcutHelpEnabled !== false;
+
+        const labels = project.labels.map((label) => ({
+          id: label.id,
+          project_id: project.id,
+          project_name: project.name,
+          name: label.name,
+          color: label.color,
+          description: label.description || "",
+          shortcut: label.shortcut || null,
+          meta: normalizeMeta(label.meta),
+        }));
+
+        const documents = project.documents.map((doc) => ({
+          id: doc.id,
+          project_id: project.id,
+          project_name: project.name,
+          document_name: doc.documentName,
+          text: doc.text,
+          annotations: doc.annotations
+            .filter((ann) => allowedStatuses.size === 0 || allowedStatuses.has(ann.status))
+            .map((ann) => {
+              const label = labelById[ann.labelId];
+              return {
+                id: ann.id,
+                document_id: doc.id,
+                document_name: doc.documentName,
+                label_id: ann.labelId,
+                label_name: label ? label.name : "",
+                start: ann.start,
+                end: ann.end,
+                span_text: ann.spanText,
+                comment: ann.comment || "",
+                status: ann.status || "pending",
+                meta: normalizeMeta(ann.meta),
+              };
+            }),
+          meta: normalizeMeta(doc.meta),
+        }));
+
+        return {
+          project: {
+            id: project.id,
+            name: project.name,
+            description: project.description || "",
+            meta: projectMeta,
+          },
+          labels,
+          documents,
+          meta: { format: EXPORT_FORMAT, version: EXPORT_VERSION },
+        };
+      }
+
+      function validateImportPayload(project, payload) {
+        if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+          throw new Error("Invalid import payload");
+        }
+        const incomingProject = payload.project && typeof payload.project === "object" ? payload.project : {};
+        const incomingLabels = Array.isArray(payload.labels) ? payload.labels : [];
+        const incomingDocuments = Array.isArray(payload.documents) ? payload.documents : [];
+        const incomingMeta =
+          payload.meta && typeof payload.meta === "object" && !Array.isArray(payload.meta) ? payload.meta : {};
+
+        if (incomingMeta.format && incomingMeta.format !== EXPORT_FORMAT) {
+          throw new Error("Invalid import format");
+        }
+        if (incomingMeta.version && incomingMeta.version !== EXPORT_VERSION) {
+          throw new Error("Unsupported import version");
+        }
+
+        const existingLabels =
+          project && Array.isArray(project.labels) ? project.labels : [];
+        const existingDocuments =
+          project && Array.isArray(project.documents) ? project.documents : [];
+        const existingLabelByName = Object.fromEntries(existingLabels.map((label) => [label.name, label]));
+        const incomingLabelNames = incomingLabels.map((label) => String((label && label.name) || ""));
+        if (incomingLabelNames.some((name) => !name)) {
+          throw new Error("Label name is required");
+        }
+        if (new Set(incomingLabelNames).size !== incomingLabelNames.length) {
+          throw new Error("Duplicate label names in import payload");
+        }
+        if (incomingLabelNames.some((name) => !!existingLabelByName[name])) {
+          throw new Error("Label name already exists in this project");
+        }
+
+        const existingDocumentNames = new Set(existingDocuments.map((doc) => doc.documentName));
+        const incomingDocumentNames = incomingDocuments.map((doc) => String((doc && doc.document_name) || ""));
+        if (incomingDocumentNames.some((name) => !name)) {
+          throw new Error("Document name is required");
+        }
+        if (new Set(incomingDocumentNames).size !== incomingDocumentNames.length) {
+          throw new Error("Duplicate document names in import payload");
+        }
+        if (incomingDocumentNames.some((name) => existingDocumentNames.has(name))) {
+          throw new Error("Document name already exists in this project");
+        }
+
+        const labelNamesSet = new Set([...Object.keys(existingLabelByName), ...incomingLabelNames]);
+        incomingDocuments.forEach((doc) => {
+          const text = typeof doc.text === "string" ? doc.text : "";
+          const rangesByLabelName = {};
+          const annotations = Array.isArray(doc.annotations) ? doc.annotations : [];
+          annotations.forEach((ann) => {
+            const labelName = ann ? ann.label_name : null;
+            if (!labelNamesSet.has(labelName)) {
+              throw new Error("Annotation refers to unknown label_name");
+            }
+            if (!ann || ann.start == null || ann.end == null || ann.span_text == null) {
+              throw new Error("Annotation span is incomplete");
+            }
+            const start = Number(ann.start);
+            const end = Number(ann.end);
+            if (
+              !Number.isInteger(start) ||
+              !Number.isInteger(end) ||
+              start < 0 ||
+              end < start ||
+              end > text.length
+            ) {
+              throw new Error("Annotation span is incomplete");
+            }
+            if (text.slice(start, end) !== ann.span_text) {
+              throw new Error("span_text does not match the specified range");
+            }
+            if (ann.status !== "pending" && ann.status !== "verified") {
+              throw new Error("Invalid annotation status");
+            }
+            const labelRanges = rangesByLabelName[labelName] || [];
+            if (hasRangeOverlap(labelRanges, start, end)) {
+              throw new Error("Overlapping annotation span for the same label is not allowed");
+            }
+            labelRanges.push([start, end]);
+            rangesByLabelName[labelName] = labelRanges;
+          });
+        });
+
+        return {
+          incomingProject,
+          incomingLabels,
+          incomingDocuments,
+        };
+      }
+
+      function appendImportedEntities(project, incomingLabels, incomingDocuments) {
+        const labelIdByName = Object.fromEntries(project.labels.map((label) => [label.name, label.id]));
+        incomingLabels.forEach((label) => {
+          const created = {
+            id: makeId("label"),
+            name: label.name,
+            color: label.color || "#8b94a0",
+            description: label.description || "",
+            shortcut: label.shortcut || null,
+            meta: normalizeMeta(label.meta),
+          };
+          project.labels.push(created);
+          labelIdByName[created.name] = created.id;
+        });
+
+        const now = Date.now();
+        let importedAnnotations = 0;
+        incomingDocuments.forEach((doc, docIndex) => {
+          const createdDoc = {
+            id: makeId("doc"),
+            documentName: doc.document_name,
+            text: typeof doc.text === "string" ? doc.text : "",
+            status: "pending",
+            createdAt: now + docIndex,
+            updatedAt: now + docIndex,
+            meta: normalizeMeta(doc.meta),
+            annotations: [],
+          };
+          const annotations = Array.isArray(doc.annotations) ? doc.annotations : [];
+          annotations.forEach((ann) => {
+            const labelId = labelIdByName[ann.label_name];
+            if (!labelId) return;
+            createdDoc.annotations.push({
+              id: makeId("ann"),
+              labelId,
+              start: ann.start,
+              end: ann.end,
+              spanText: ann.span_text,
+              comment: ann.comment || "",
+              status: ann.status,
+              meta: normalizeMeta(ann.meta),
+            });
+            importedAnnotations += 1;
+          });
+          project.documents.push(createdDoc);
+        });
+
+        return {
+          labels: incomingLabels.length,
+          documents: incomingDocuments.length,
+          annotations: importedAnnotations,
+        };
+      }
+
+      function importProjectPayload(project, payload) {
+        const { incomingLabels, incomingDocuments } = validateImportPayload(project, payload);
+        return appendImportedEntities(project, incomingLabels, incomingDocuments);
+      }
+
+      function resolveImportedProjectName(baseName) {
+        const normalized = String(baseName || "").trim();
+        if (!normalized) {
+          throw new Error("Project name is required");
+        }
+        const existingNames = new Set(state.projects.map((project) => project.name));
+        if (!existingNames.has(normalized)) return normalized;
+        let candidate = normalized + " (imported)";
+        let suffix = 2;
+        while (existingNames.has(candidate)) {
+          candidate = normalized + " (imported " + suffix + ")";
+          suffix += 1;
+        }
+        return candidate;
+      }
+
+      function createProjectFromImportPayload(payload) {
+        const { incomingProject, incomingLabels, incomingDocuments } = validateImportPayload(null, payload);
+        const importedMeta = normalizeMeta(incomingProject.meta);
+        const project = {
+          id: makeId("project"),
+          name: resolveImportedProjectName(incomingProject.name),
+          description: incomingProject.description != null ? String(incomingProject.description) : "",
+          meta: importedMeta,
+          guideline: typeof importedMeta.guideline === "string" ? importedMeta.guideline : "",
+          shortcutHelpEnabled:
+            typeof importedMeta.shortcut_help_enabled === "boolean" ? importedMeta.shortcut_help_enabled : true,
+          labels: [],
+          documents: [],
+        };
+        const counts = appendImportedEntities(project, incomingLabels, incomingDocuments);
+        ensureProjectConfig(project);
+        return { project, counts };
+      }
+
+      function buildExportFilename(projectName) {
+        const rawName = String(projectName || "project").trim();
+        const safeName = rawName.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_").slice(0, 80) || "project";
+        const d = new Date();
+        const datePart =
+          String(d.getFullYear()) + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+        return safeName + "-export-" + datePart + ".json";
+      }
+
+      function downloadJsonFile(filename, payload) {
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      }
+
+      async function readJsonFile(file) {
+        const text = await file.text();
+        try {
+          return JSON.parse(text);
+        } catch (_err) {
+          throw new Error("JSONのパースに失敗した");
+        }
       }
 
       function isEditingElement(target) {
@@ -1553,7 +2159,10 @@
         keyboardShortcutsBound = true;
         window.addEventListener("keydown", (event) => {
           const route = parseHash();
-          if (route.view !== "workspace") return;
+          if (route.view === "projects") return;
+          const isWorkspaceView = route.view === "workspace";
+          const project = getCurrentProject();
+          const shortcutHelpEnabled = !project || project.shortcutHelpEnabled !== false;
 
           if (state.showShortcutModal) {
             if (event.key === "Escape" || isShortcutHelpKey(event)) {
@@ -1564,7 +2173,7 @@
             return;
           }
 
-          if (isShortcutHelpKey(event)) {
+          if (isShortcutHelpKey(event) && shortcutHelpEnabled) {
             event.preventDefault();
             state.showShortcutModal = true;
             render();
@@ -1574,19 +2183,35 @@
           if (state.showCreateDocModal || state.showUnsavedDialog) return;
           if (isEditingElement(document.activeElement)) return;
 
+          const hasPrimaryModifier = event.metaKey || event.ctrlKey;
           const keyLower = String(event.key || "").toLowerCase();
-          if ((event.metaKey || event.ctrlKey) && keyLower === "s") {
+          if (hasPrimaryModifier && keyLower === "z") {
+            event.preventDefault();
+            if (event.shiftKey) {
+              redoWorkspace();
+            } else {
+              undoWorkspace();
+            }
+            return;
+          }
+          if (hasPrimaryModifier && keyLower === "y") {
+            event.preventDefault();
+            redoWorkspace();
+            return;
+          }
+          if (hasPrimaryModifier && keyLower === "s") {
             event.preventDefault();
             saveChanges();
             return;
           }
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          if (hasPrimaryModifier && event.key === "Enter") {
             event.preventDefault();
             submitCurrentDocument();
             return;
           }
 
           if (event.metaKey || event.ctrlKey || event.altKey) return;
+          if (!isWorkspaceView) return;
 
           if (event.key === "Escape") {
             if (state.selectedAnnotationId !== null) {
@@ -1771,16 +2396,52 @@
       }
 
       function bindCommonEvents() {
+        const runProjectImportBtn = document.getElementById("run-project-import-btn");
+        if (runProjectImportBtn) {
+          runProjectImportBtn.addEventListener("click", async () => {
+            const importFileInput = document.getElementById("project-import-json-file");
+            const file =
+              importFileInput && importFileInput.files && importFileInput.files[0] ? importFileInput.files[0] : null;
+            if (!file) {
+              showFlash("ImportするJSONファイルを選択する");
+              return;
+            }
+            try {
+              const payload = await readJsonFile(file);
+              const result = createProjectFromImportPayload(payload);
+              state.projects.push(result.project);
+              if (importFileInput) importFileInput.value = "";
+              location.hash = "#/projects/" + encodeURIComponent(result.project.id);
+              showFlash(
+                "新規Project Import完了: labels " +
+                  result.counts.labels +
+                  " / documents " +
+                  result.counts.documents +
+                  " / annotations " +
+                  result.counts.annotations
+              );
+            } catch (err) {
+              alert(err instanceof Error ? err.message : "project importに失敗した");
+            }
+          });
+        }
+
         document.querySelectorAll("[data-open-project]").forEach((button) => {
           button.addEventListener("click", () => {
             location.hash = "#/projects/" + encodeURIComponent(button.getAttribute("data-open-project"));
           });
         });
 
+        document.querySelectorAll("[data-nav-hash]").forEach((button) => {
+          button.addEventListener("click", () => {
+            requestNavigation(button.getAttribute("data-nav-hash"));
+          });
+        });
+
         const back = document.querySelector("[data-back-projects]");
         if (back) {
           back.addEventListener("click", () => {
-            location.hash = "#/projects";
+            requestNavigation("#/projects");
           });
         }
 
@@ -1847,6 +2508,7 @@
             touchDoc(doc);
             setDirty();
             state.showCreateDocModal = false;
+            pushWorkspaceHistory();
             render();
           });
         }
@@ -1903,6 +2565,12 @@
             touchDoc(doc);
             setDirty();
           });
+          comment.addEventListener("blur", () => {
+            const ann = getSelectedAnnotation();
+            const doc = getCurrentDocument();
+            if (!ann || !doc) return;
+            pushWorkspaceHistory();
+          });
         }
 
         const status = document.getElementById("ann-status");
@@ -1914,6 +2582,7 @@
             ann.status = status.value;
             touchDoc(doc);
             setDirty();
+            pushWorkspaceHistory();
             render();
           });
         }
@@ -1933,6 +2602,7 @@
             }
             touchDoc(doc);
             setDirty();
+            pushWorkspaceHistory();
           });
         }
 
@@ -1942,15 +2612,220 @@
         const submitBtn = document.getElementById("submit-btn");
         if (submitBtn) submitBtn.addEventListener("click", submitCurrentDocument);
 
+        const settingsSaveBtn = document.getElementById("settings-save-btn");
+        if (settingsSaveBtn) settingsSaveBtn.addEventListener("click", saveChanges);
+
+        const guidelineInput = document.getElementById("project-guideline");
+        if (guidelineInput) {
+          guidelineInput.addEventListener("input", () => {
+            const project = getCurrentProject();
+            if (!project) return;
+            project.guideline = guidelineInput.value;
+            setDirty();
+          });
+          guidelineInput.addEventListener("blur", () => {
+            const project = getCurrentProject();
+            if (!project) return;
+            pushWorkspaceHistory();
+          });
+        }
+
+        const shortcutHelpEnabled = document.getElementById("shortcut-help-enabled");
+        if (shortcutHelpEnabled) {
+          shortcutHelpEnabled.addEventListener("change", () => {
+            const project = getCurrentProject();
+            if (!project) return;
+            project.shortcutHelpEnabled = !!shortcutHelpEnabled.checked;
+            setDirty();
+            pushWorkspaceHistory();
+            if (!project.shortcutHelpEnabled) state.showShortcutModal = false;
+            render();
+          });
+        }
+
+        document.querySelectorAll("[data-label-name-id]").forEach((input) => {
+          input.addEventListener("input", () => {
+            const project = getCurrentProject();
+            if (!project) return;
+            const labelId = input.getAttribute("data-label-name-id");
+            const label = project.labels.find((item) => item.id === labelId);
+            if (!label) return;
+            label.name = input.value;
+            setDirty();
+          });
+          input.addEventListener("blur", () => {
+            const project = getCurrentProject();
+            if (!project) return;
+            const labelId = input.getAttribute("data-label-name-id");
+            const label = project.labels.find((item) => item.id === labelId);
+            if (!label) return;
+            label.name = label.name.trim() || "新規ラベル";
+            pushWorkspaceHistory();
+            render();
+          });
+        });
+
+        document.querySelectorAll("[data-label-desc-id]").forEach((textarea) => {
+          textarea.addEventListener("input", () => {
+            const project = getCurrentProject();
+            if (!project) return;
+            const labelId = textarea.getAttribute("data-label-desc-id");
+            const label = project.labels.find((item) => item.id === labelId);
+            if (!label) return;
+            label.description = textarea.value;
+            setDirty();
+          });
+          textarea.addEventListener("blur", () => {
+            const project = getCurrentProject();
+            if (!project) return;
+            const labelId = textarea.getAttribute("data-label-desc-id");
+            const label = project.labels.find((item) => item.id === labelId);
+            if (!label) return;
+            pushWorkspaceHistory();
+          });
+        });
+
+        document.querySelectorAll("[data-label-color-id]").forEach((input) => {
+          input.addEventListener("change", () => {
+            const project = getCurrentProject();
+            if (!project) return;
+            const labelId = input.getAttribute("data-label-color-id");
+            const label = project.labels.find((item) => item.id === labelId);
+            if (!label) return;
+            label.color = input.value;
+            setDirty();
+            pushWorkspaceHistory();
+            render();
+          });
+        });
+
+        document.querySelectorAll("[data-label-delete-id]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const project = getCurrentProject();
+            if (!project) return;
+            const labelId = button.getAttribute("data-label-delete-id");
+            const idx = project.labels.findIndex((item) => item.id === labelId);
+            if (idx < 0) return;
+            project.labels.splice(idx, 1);
+            delete state.accordionOpen[labelId];
+            project.documents.forEach((doc) => {
+              doc.annotations = doc.annotations.filter((ann) => ann.labelId !== labelId);
+            });
+            const doc = getCurrentDocument();
+            if (!doc || !doc.annotations.some((ann) => ann.id === state.selectedAnnotationId)) {
+              state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
+            }
+            if (!project.labels.some((label) => label.id === state.focusedLabelId)) {
+              state.focusedLabelId = project.labels[0] ? project.labels[0].id : null;
+            }
+            setDirty();
+            pushWorkspaceHistory();
+            render();
+          });
+        });
+
+        const addLabelBtn = document.getElementById("add-label-btn");
+        if (addLabelBtn) {
+          addLabelBtn.addEventListener("click", () => {
+            const project = getCurrentProject();
+            const nameInput = document.getElementById("new-label-name");
+            const colorInput = document.getElementById("new-label-color");
+            const descInput = document.getElementById("new-label-desc");
+            if (!project || !nameInput || !colorInput || !descInput) return;
+            const name = nameInput.value.trim();
+            if (!name) {
+              alert("ラベル名は必須である。");
+              return;
+            }
+            const label = {
+              id: makeId("label"),
+              name,
+              color: colorInput.value || "#8b94a0",
+              description: descInput.value.trim(),
+              shortcut: null,
+              meta: {},
+            };
+            project.labels.push(label);
+            state.accordionOpen[label.id] = true;
+            if (!state.focusedLabelId) state.focusedLabelId = label.id;
+            nameInput.value = "";
+            descInput.value = "";
+            setDirty();
+            pushWorkspaceHistory();
+            render();
+          });
+        }
+
+        const exportIncludePending = document.getElementById("export-include-pending");
+        if (exportIncludePending) {
+          exportIncludePending.addEventListener("change", () => {
+            state.exportIncludePending = !!exportIncludePending.checked;
+          });
+        }
+
+        const exportIncludeVerified = document.getElementById("export-include-verified");
+        if (exportIncludeVerified) {
+          exportIncludeVerified.addEventListener("change", () => {
+            state.exportIncludeVerified = !!exportIncludeVerified.checked;
+          });
+        }
+
+        const downloadExportBtn = document.getElementById("download-export-json-btn");
+        if (downloadExportBtn) {
+          downloadExportBtn.addEventListener("click", () => {
+            const project = getCurrentProject();
+            if (!project) return;
+            const payload = buildProjectExportPayload(project, state.exportIncludePending, state.exportIncludeVerified);
+            downloadJsonFile(buildExportFilename(project.name), payload);
+            showFlash("Export JSONをダウンロードした");
+          });
+        }
+
+        const runImportJsonBtn = document.getElementById("run-import-json-btn");
+        if (runImportJsonBtn) {
+          runImportJsonBtn.addEventListener("click", async () => {
+            const project = getCurrentProject();
+            const importFileInput = document.getElementById("import-json-file");
+            const file =
+              importFileInput && importFileInput.files && importFileInput.files[0] ? importFileInput.files[0] : null;
+            if (!project) return;
+            if (!file) {
+              showFlash("ImportするJSONファイルを選択する");
+              return;
+            }
+            try {
+              const payload = await readJsonFile(file);
+              const counts = importProjectPayload(project, payload);
+              if (importFileInput) importFileInput.value = "";
+              normalizeWorkspaceSelection(project);
+              setDirty();
+              pushWorkspaceHistory();
+              render();
+              showFlash(
+                "追記Import完了: labels " +
+                  counts.labels +
+                  " / documents " +
+                  counts.documents +
+                  " / annotations " +
+                  counts.annotations
+              );
+            } catch (err) {
+              alert(err instanceof Error ? err.message : "importに失敗した");
+            }
+          });
+        }
+
         const unsavedButtons = document.querySelectorAll("[data-unsaved-action]");
         if (unsavedButtons.length > 0) {
           unsavedButtons.forEach((button) => {
             button.addEventListener("click", () => {
               const action = button.getAttribute("data-unsaved-action");
               const pendingId = state.pendingDocSwitchId;
+              const pendingHash = state.pendingNavigationHash;
               if (action === "cancel") {
                 state.showUnsavedDialog = false;
                 state.pendingDocSwitchId = null;
+                state.pendingNavigationHash = null;
                 render();
                 return;
               }
@@ -1959,11 +2834,20 @@
                 state.dirty = false;
                 state.showUnsavedDialog = false;
                 state.pendingDocSwitchId = null;
+                state.pendingNavigationHash = null;
                 if (pendingId) {
                   state.selectedDocId = pendingId;
                   const nextDoc = getCurrentDocument();
                   state.selectedAnnotationId = nextDoc && nextDoc.annotations[0] ? nextDoc.annotations[0].id : null;
+                  resetWorkspaceHistory();
+                  render();
+                  return;
                 }
+                if (pendingHash) {
+                  location.hash = pendingHash;
+                  return;
+                }
+                resetWorkspaceHistory();
                 render();
                 return;
               }
@@ -1972,11 +2856,20 @@
                 state.dirty = false;
                 state.showUnsavedDialog = false;
                 state.pendingDocSwitchId = null;
+                state.pendingNavigationHash = null;
                 if (pendingId) {
                   state.selectedDocId = pendingId;
                   const nextDoc = getCurrentDocument();
                   state.selectedAnnotationId = nextDoc && nextDoc.annotations[0] ? nextDoc.annotations[0].id : null;
+                  pushWorkspaceHistory();
+                  render();
+                  return;
                 }
+                if (pendingHash) {
+                  location.hash = pendingHash;
+                  return;
+                }
+                pushWorkspaceHistory();
                 render();
               }
             });
@@ -2166,6 +3059,7 @@
             setDirty();
             state.selectedAnnotationId = newAnnotation.id;
             selection.removeAllRanges();
+            pushWorkspaceHistory();
             render();
           });
         }
