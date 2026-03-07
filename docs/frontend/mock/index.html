@@ -1071,6 +1071,7 @@
           const docText = document.getElementById("doc-text");
           if (!docText) return;
           renderDocOverlay(docText);
+          applyOverlayUnderlineState(document.getElementById("doc-overlay"));
         };
         if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
           docOverlayFrameToken = window.requestAnimationFrame(run);
@@ -2599,6 +2600,20 @@
         return merged;
       }
 
+      function applyOverlayUnderlineState(overlay) {
+        if (!overlay) return;
+        overlay.querySelectorAll("[data-overlay-ann-id]").forEach((line) => {
+          const annId = line.getAttribute("data-overlay-ann-id");
+          const color = line.getAttribute("data-overlay-color") || "#999999";
+          const isHover = state.hoverLaneAnnId === annId;
+          const isSelectedLane = state.selectedAnnotationId === annId;
+          const alpha = isHover || isSelectedLane ? 1 : state.hoverLaneAnnId ? UNDERLINE_DIM_ALPHA : UNDERLINE_IDLE_ALPHA;
+          const thickness = isHover || isSelectedLane ? 4 : 3;
+          line.style.setProperty("--line-thickness", String(thickness) + "px");
+          line.style.setProperty("--line-color", hexToRgba(color, alpha));
+        });
+      }
+
       function renderDocOverlay(docText) {
         const overlay = document.getElementById("doc-overlay");
         const doc = getCurrentDocument();
@@ -2643,11 +2658,9 @@
             const laneIndex = laneByAnnId[annId] || 0;
             const distanceFromText = UNDERLINE_LANE_BASE + laneIndex * UNDERLINE_LANE_PITCH;
             const topOffset = distanceFromText - hitHeight / 2;
-            const isHover = state.hoverLaneAnnId === annId;
             const isSelectedLane = state.selectedAnnotationId === annId;
-            const alpha = isHover || isSelectedLane ? 1 : state.hoverLaneAnnId ? UNDERLINE_DIM_ALPHA : UNDERLINE_IDLE_ALPHA;
-            const thickness = isHover || isSelectedLane ? 4 : 3;
-            const color = hexToRgba(label.color || "#999999", alpha);
+            const thickness = isSelectedLane ? 4 : 3;
+            const color = hexToRgba(label.color || "#999999", isSelectedLane ? 1 : UNDERLINE_IDLE_ALPHA);
             return mergedRects
               .map((rect) => {
                 const width = rect.right - rect.left;
@@ -2656,6 +2669,8 @@
                 return (
                   '<span class="overlay-underline" data-overlay-ann-id="' +
                   annId +
+                  '" data-overlay-color="' +
+                  escapeHtml(label.color || "#999999") +
                   '" style="left:' +
                   String(rect.left) +
                   "px;top:" +
@@ -3255,6 +3270,7 @@
           syncDocOverlayTracking(docText);
           renderDocOverlay(docText);
           const overlay = document.getElementById("doc-overlay");
+          applyOverlayUnderlineState(overlay);
           const laneTooltip = document.getElementById("lane-hover-tooltip");
           const laneTooltipDot = document.getElementById("lane-hover-tooltip-dot");
           const laneTooltipText = document.getElementById("lane-hover-tooltip-text");
@@ -3297,41 +3313,43 @@
           const syncUnderlineHover = (nextLaneAnnId) => {
             if (state.hoverLaneAnnId === nextLaneAnnId) return;
             state.hoverLaneAnnId = nextLaneAnnId;
-            render();
+            applyOverlayUnderlineState(overlay);
           };
 
-          const bindOverlayUnderlineEvents = () => {
-            if (!overlay) return;
-            overlay.querySelectorAll("[data-overlay-ann-id]").forEach((line) => {
-              line.addEventListener("mouseenter", (event) => {
-                const annId = line.getAttribute("data-overlay-ann-id");
-                syncUnderlineHover(annId);
-                showLaneTooltip(annId, event.clientX, event.clientY);
-              });
-              line.addEventListener("mousemove", (event) => {
-                const annId = line.getAttribute("data-overlay-ann-id");
-                showLaneTooltip(annId, event.clientX, event.clientY);
-              });
-              line.addEventListener("mouseleave", () => {
+          if (overlay) {
+            overlay.addEventListener("mousemove", (event) => {
+              const line = event.target.closest("[data-overlay-ann-id]");
+              if (!line || !overlay.contains(line)) {
                 syncUnderlineHover(null);
                 hideLaneTooltip();
-              });
-              line.addEventListener("click", (event) => {
-                event.stopPropagation();
-                const selection = window.getSelection();
-                if (selection && !selection.isCollapsed) return;
-                const annId = line.getAttribute("data-overlay-ann-id");
-                const doc = getCurrentDocument();
-                if (!doc) return;
-                const ann = doc.annotations.find((item) => item.id === annId);
-                if (!ann) return;
-                state.selectedAnnotationId = ann.id;
-                state.focusedLabelId = ann.labelId;
-                render();
-              });
+                return;
+              }
+              const annId = line.getAttribute("data-overlay-ann-id");
+              syncUnderlineHover(annId);
+              showLaneTooltip(annId, event.clientX, event.clientY);
             });
-          };
-          bindOverlayUnderlineEvents();
+
+            overlay.addEventListener("mouseleave", () => {
+              syncUnderlineHover(null);
+              hideLaneTooltip();
+            });
+
+            overlay.addEventListener("click", (event) => {
+              const line = event.target.closest("[data-overlay-ann-id]");
+              if (!line || !overlay.contains(line)) return;
+              event.stopPropagation();
+              const selection = window.getSelection();
+              if (selection && !selection.isCollapsed) return;
+              const annId = line.getAttribute("data-overlay-ann-id");
+              const doc = getCurrentDocument();
+              if (!doc) return;
+              const ann = doc.annotations.find((item) => item.id === annId);
+              if (!ann) return;
+              state.selectedAnnotationId = ann.id;
+              state.focusedLabelId = ann.labelId;
+              render();
+            });
+          }
 
           const clearAnnotationSelection = () => {
             if (state.selectedAnnotationId === null) return;
