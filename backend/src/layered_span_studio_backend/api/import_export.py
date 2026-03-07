@@ -8,17 +8,18 @@ from layered_span_studio_backend.models.import_export import (
     ExportResponse,
     ImportRequest,
     ImportResponse,
+    ProjectImportResponse,
 )
 from layered_span_studio_backend.services import import_export_service
 
 router = APIRouter(
-    prefix="/projects/{project_id}",
+    prefix="/projects",
     tags=["import-export"],
     dependencies=[Depends(get_current_user)],
 )
 
 
-@router.post("/export", response_model=ExportResponse)
+@router.post("/{project_id}/export", response_model=ExportResponse)
 def export_project(
     project_id: str,
     payload: ExportRequest = Body(default_factory=ExportRequest),
@@ -35,7 +36,15 @@ def export_project(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-@router.post("/import", response_model=ImportResponse)
+@router.post("/import", response_model=ProjectImportResponse, status_code=status.HTTP_201_CREATED)
+def import_project_as_new(payload: ImportRequest, settings=Depends(get_settings)):
+    try:
+        return import_export_service.import_project_as_new(settings, payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/{project_id}/import", response_model=ImportResponse)
 def import_project(project_id: str, payload: ImportRequest, settings=Depends(get_settings)):
     try:
         return import_export_service.import_project(settings, project_id, payload.model_dump())

@@ -56,7 +56,8 @@
 ### Import/Export
 
 - `POST /projects/{project_id}/export` - プロジェクト全体をJSONでエクスポート
-- `POST /projects/{project_id}/import` - JSONからプロジェクトへインポート（不整合時は全体失敗）
+- `POST /projects/import` - Export JSON から新規プロジェクトを作成してインポート
+- `POST /projects/{project_id}/import` - JSONを既存プロジェクトへ追記インポート（不整合時は全体失敗）
 
 ---
 
@@ -1075,9 +1076,98 @@ Authorization: Bearer <token>
 
 ---
 
+### POST /projects/import
+
+Export JSON から新しいプロジェクトを作成してインポートする。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "project": {
+    "id": "uuid",
+    "name": "医療文書NER",
+    "description": "医療文書からエンティティ抽出",
+    "meta": {}
+  },
+  "labels": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "name": "疾患名",
+      "color": "#FF5733",
+      "description": "疾患や病気の名前",
+      "shortcut": "d",
+      "meta": {}
+    }
+  ],
+  "documents": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "document_name": "患者記録_001",
+      "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+      "annotations": [
+        {
+          "id": "uuid",
+          "document_id": "uuid",
+          "document_name": "患者記録_001",
+          "label_id": "uuid",
+          "label_name": "疾患名",
+          "start": 24,
+          "end": 27,
+          "span_text": "糖尿病",
+          "comment": "",
+          "status": "pending",
+          "meta": {}
+        }
+      ],
+      "meta": {}
+    }
+  ],
+  "meta": {
+    "format": "layered-span-studio/export",
+    "version": "1.0"
+  }
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "project": {
+    "id": "uuid",
+    "name": "医療文書NER (imported)",
+    "description": "医療文書からエンティティ抽出",
+    "meta": {}
+  },
+  "imported": {
+    "labels": 1,
+    "documents": 1,
+    "annotations": 1
+  },
+  "errors": []
+}
+```
+
+**注記:**
+- Export JSON と同じ payload 形式をそのまま受け付ける
+- payload の `project.name` / `project.description` / `project.meta` を新規プロジェクトの初期値として使う
+- payload の `id`（project/labels/documents/annotations）や `project_id` / `document_id` / `label_id` は無視し、新しい UUID を生成する
+- 同名プロジェクトが既に存在する場合は、自動で `"(imported)"`, `"(imported 2)"` ... の suffix を付けて一意な名前にする
+- payload の `labels` / `documents` / `annotations` に不整合がある場合は、インポート全体を中断する（400）
+
+---
+
 ### POST /projects/{project_id}/import
 
-プロジェクトデータをインポートする。
+既存プロジェクトに対して、labels / documents / annotations を追記インポートする。
 
 **Headers:**
 ```
@@ -1151,7 +1241,7 @@ Authorization: Bearer <token>
 
 **注記:**
 - URL の `project_id` が正。payload の `project.id` や各エンティティの `project_id` は無視
-- `project.name` / `project.description` / `project.meta` を既存プロジェクトへ反映
+- payload の `project.name` / `project.description` / `project.meta` は受け取るが、既存プロジェクト情報の更新には使わない
 - インポート時は `id`（project/labels/documents/annotations）を無視し、新しい UUID を生成
 - payload の `labels` に既存ラベル名と同名が含まれている場合は、競合としてインポート全体を中断（400）
 - `label_name` は「既存ラベル」または「今回 payload に含めた新規ラベル」を参照可能
