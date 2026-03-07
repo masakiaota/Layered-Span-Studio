@@ -95,6 +95,7 @@ function loadMockApp(document) {
 showFlash = () => {};
 render = () => {};
 globalThis.__mock_exports = {
+  applyDocSwitch,
   bindCommonEvents,
   createProjectFromImportPayload,
   ensureWorkspaceState,
@@ -234,5 +235,33 @@ test("workspace starts with no annotation selected", () => {
 
   assert.equal(mockApp.state.selectedDocId, "doc-1");
   assert.equal(mockApp.state.focusedLabelId, "label-a");
+  assert.equal(mockApp.state.selectedAnnotationId, null);
+});
+
+test("doc switch clears selected annotation", () => {
+  const mockApp = loadMockApp(createDocument({}));
+  const project = {
+    id: "project-1",
+    labels: [{ id: "label-a", name: "A" }],
+    documents: [
+      {
+        id: "doc-1",
+        annotations: [{ id: "ann-1", labelId: "label-a", start: 1, end: 3 }],
+      },
+      {
+        id: "doc-2",
+        annotations: [{ id: "ann-2", labelId: "label-a", start: 4, end: 6 }],
+      },
+    ],
+  };
+
+  mockApp.state.projects = [project];
+  mockApp.state.currentProjectId = "project-1";
+  mockApp.state.selectedDocId = "doc-1";
+  mockApp.state.selectedAnnotationId = "ann-1";
+
+  mockApp.applyDocSwitch("doc-2");
+
+  assert.equal(mockApp.state.selectedDocId, "doc-2");
   assert.equal(mockApp.state.selectedAnnotationId, null);
 });

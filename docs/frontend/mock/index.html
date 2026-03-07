@@ -1234,9 +1234,13 @@
         }
         if (nextPendingDoc) {
           state.selectedDocId = nextPendingDoc.id;
-          state.selectedAnnotationId = nextPendingDoc.annotations[0] ? nextPendingDoc.annotations[0].id : null;
+          state.selectedAnnotationId = null;
         } else {
-          state.selectedAnnotationId = doc.annotations[0] ? doc.annotations[0].id : null;
+          const hasCurrentSelection = !!(
+            state.selectedAnnotationId &&
+            doc.annotations.some((item) => item.id === state.selectedAnnotationId)
+          );
+          if (!hasCurrentSelection) state.selectedAnnotationId = null;
         }
         state.hoverLaneAnnId = null;
 
@@ -1329,7 +1333,7 @@
         }
         const doc = getCurrentDocument();
         if (!doc || !doc.annotations.some((ann) => ann.id === state.selectedAnnotationId)) {
-          state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
+          state.selectedAnnotationId = null;
         }
         if (!project.labels.some((label) => label.id === state.focusedLabelId)) {
           state.focusedLabelId = project.labels[0] ? project.labels[0].id : null;
@@ -2031,8 +2035,7 @@
         state.showUnsavedDialog = false;
         state.pendingDocSwitchId = null;
         state.pendingNavigationHash = null;
-        const doc = getCurrentDocument();
-        state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
+        state.selectedAnnotationId = null;
         render();
       }
 
@@ -2159,7 +2162,7 @@
         }
         const doc = getCurrentDocument();
         if (!doc || !doc.annotations.some((item) => item.id === state.selectedAnnotationId)) {
-          state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
+          state.selectedAnnotationId = null;
         }
         const nextAccordionOpen = {};
         project.labels.forEach((label) => {
@@ -3100,7 +3103,7 @@
             });
             const doc = getCurrentDocument();
             if (!doc || !doc.annotations.some((ann) => ann.id === state.selectedAnnotationId)) {
-              state.selectedAnnotationId = doc && doc.annotations[0] ? doc.annotations[0].id : null;
+              state.selectedAnnotationId = null;
             }
             if (!project.labels.some((label) => label.id === state.focusedLabelId)) {
               state.focusedLabelId = project.labels[0] ? project.labels[0].id : null;
@@ -3224,8 +3227,7 @@
                 state.pendingNavigationHash = null;
                 if (pendingId) {
                   state.selectedDocId = pendingId;
-                  const nextDoc = getCurrentDocument();
-                  state.selectedAnnotationId = nextDoc && nextDoc.annotations[0] ? nextDoc.annotations[0].id : null;
+                  state.selectedAnnotationId = null;
                   resetWorkspaceHistory();
                   render();
                   return;
@@ -3246,8 +3248,7 @@
                 state.pendingNavigationHash = null;
                 if (pendingId) {
                   state.selectedDocId = pendingId;
-                  const nextDoc = getCurrentDocument();
-                  state.selectedAnnotationId = nextDoc && nextDoc.annotations[0] ? nextDoc.annotations[0].id : null;
+                  state.selectedAnnotationId = null;
                   pushWorkspaceHistory();
                   render();
                   return;
