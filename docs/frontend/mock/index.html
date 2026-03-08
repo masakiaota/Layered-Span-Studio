@@ -638,6 +638,107 @@
         display: inline-block;
       }
 
+      .related-hover-tooltip {
+        position: fixed;
+        display: none;
+        width: min(420px, calc(100vw - 16px));
+        max-width: 420px;
+        max-height: min(440px, calc(100vh - 16px));
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid #cbd4de;
+        background: rgba(255, 253, 248, 0.98);
+        color: #223347;
+        font-size: 12px;
+        line-height: 1.55;
+        z-index: 37;
+        pointer-events: none;
+        box-shadow: 0 16px 32px rgba(23, 32, 47, 0.2);
+        backdrop-filter: blur(10px);
+      }
+
+      .related-hover-tooltip.show {
+        display: block;
+      }
+
+      .related-hover-tooltip-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+
+      .related-hover-tooltip-labels {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        flex-wrap: wrap;
+      }
+
+      .related-hover-tooltip-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        display: inline-block;
+        flex: 0 0 auto;
+      }
+
+      .related-hover-tooltip-label {
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .related-hover-tooltip-doc {
+        color: #6d7782;
+        font-size: 11px;
+      }
+
+      .related-hover-tooltip-context {
+        color: #2f3540;
+      }
+
+      .related-hover-tooltip-context mark {
+        background: linear-gradient(180deg, rgba(255, 230, 147, 0.32) 0%, rgba(255, 214, 94, 0.72) 100%);
+        color: inherit;
+        padding: 0 2px;
+        border-radius: 4px;
+      }
+
+      .related-hover-tooltip-meta {
+        margin-bottom: 8px;
+        color: #6d7782;
+        font-size: 11px;
+      }
+
+      .related-hover-tooltip-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-height: min(320px, calc(100vh - 120px));
+        overflow: auto;
+        padding-right: 2px;
+      }
+
+      .related-hover-tooltip-case {
+        border-top: 1px solid rgba(203, 212, 222, 0.72);
+        padding-top: 10px;
+      }
+
+      .related-hover-tooltip-case:first-child {
+        border-top: none;
+        padding-top: 0;
+      }
+
+      .related-hover-tooltip-case-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
       .right-panel {
         min-height: 0;
         overflow: hidden;
@@ -1119,6 +1220,7 @@
       <span class="lane-hover-tooltip-dot" id="lane-hover-tooltip-dot"></span>
       <span id="lane-hover-tooltip-text"></span>
     </div>
+    <div id="related-hover-tooltip" class="related-hover-tooltip" aria-hidden="true"></div>
     <script>
       function deepClone(value) {
         if (typeof structuredClone === "function") return structuredClone(value);
@@ -2087,6 +2189,53 @@
         );
       }
 
+      function renderExtendedAnnotationContextHtml(text, start, end, size) {
+        const context = contextParts(text, start, end, size);
+        return (
+          '<span class="related-context-muted">' +
+          escapeHtml(context.left) +
+          "</span><mark>" +
+          escapeHtml(context.mid) +
+          '</mark><span class="related-context-muted">' +
+          escapeHtml(context.right) +
+          "</span>"
+        );
+      }
+
+      function renderRelatedHoverTooltipHtml(surfaceText, label, items) {
+        if (!Array.isArray(items) || items.length === 0) return "";
+        const color = label && label.color ? label.color : "#8b94a0";
+        const labelName = label ? label.name : "Unknown";
+        const tooltipCasesHtml = items
+          .map((item) => `
+            <div class="related-hover-tooltip-case">
+              <div class="related-hover-tooltip-case-head">
+                <div class="related-hover-tooltip-doc">${escapeHtml(item.doc.documentName || "")}</div>
+                <span class="pill ${escapeHtml(item.annotation.status || "pending")}">${escapeHtml(
+                  item.annotation.status || "pending"
+                )}</span>
+              </div>
+              <div class="related-hover-tooltip-context">${renderExtendedAnnotationContextHtml(
+                item.doc.text || "",
+                item.annotation.start,
+                item.annotation.end,
+                56
+              )}</div>
+            </div>
+          `)
+          .join("");
+        return `
+          <div class="related-hover-tooltip-head">
+            <div class="related-hover-tooltip-labels">
+              <span class="related-hover-tooltip-dot" style="background:${escapeHtml(color)}"></span>
+              <span class="related-hover-tooltip-label">${escapeHtml(labelName)}</span>
+            </div>
+          </div>
+          <div class="related-hover-tooltip-meta">${escapeHtml(surfaceText || "")} / ${items.length}件の事例</div>
+          <div class="related-hover-tooltip-list">${tooltipCasesHtml}</div>
+        `;
+      }
+
       function collectProjectAnnotationEntries(project) {
         if (!project) return [];
         return project.documents.flatMap((doc) =>
@@ -2109,12 +2258,13 @@
           if (!key) return;
           const existing = deduped.get(key);
           if (!existing) {
-            deduped.set(key, { ...entry, duplicateCount: 1 });
+            deduped.set(key, { ...entry, duplicateCount: 1, duplicates: [entry] });
             return;
           }
           existing.duplicateCount += 1;
+          existing.duplicates.push(entry);
           if (existing.annotation.status !== "verified" && entry.annotation.status === "verified") {
-            deduped.set(key, { ...entry, duplicateCount: existing.duplicateCount });
+            deduped.set(key, { ...entry, duplicateCount: existing.duplicateCount, duplicates: existing.duplicates });
           }
         });
 
@@ -2344,7 +2494,14 @@
                 .map((entry) => {
                   const label = project.labels.find((item) => item.id === entry.annotation.labelId) || null;
                   return `
-                    <article class="related-item" style="${getRelatedItemStyle(label)}">
+                    <article
+                      class="related-item"
+                      style="${getRelatedItemStyle(label)}"
+                      data-related-preview="true"
+                      data-related-preview-context="${escapeHtmlAttr(
+                        renderRelatedHoverTooltipHtml(entry.annotation.spanText, label, entry.duplicates || [entry])
+                      )}"
+                    >
                       <div class="related-item-head">
                         <div class="related-item-labels">
                           <span class="related-surface">${escapeHtml(entry.annotation.spanText)}</span>
@@ -2367,7 +2524,14 @@
                   const label = project.labels.find((item) => item.id === entry.annotation.labelId) || null;
                   const isDifferentLabel = entry.annotation.labelId !== selectedAnn.labelId;
                   return `
-                    <article class="related-item" style="${getRelatedItemStyle(label)}">
+                    <article
+                      class="related-item"
+                      style="${getRelatedItemStyle(label)}"
+                      data-related-preview="true"
+                      data-related-preview-context="${escapeHtmlAttr(
+                        renderRelatedHoverTooltipHtml(entry.annotation.spanText, label, [entry])
+                      )}"
+                    >
                       <div class="related-item-head">
                         <div class="related-item-labels">
                           <span class="related-surface">${escapeHtml(entry.annotation.spanText)}</span>
@@ -2395,14 +2559,14 @@
                 </section>
                 <section class="card related-section">
                   <div class="related-section-head">
-                    <span class="related-section-title">project内の同じラベルの例</span>
+                    <span class="related-section-title">同一ラベルの他アノテーション</span>
                     <span class="small">${focusedLabel ? escapeHtml(focusedLabel.name) : "Label未選択"}</span>
                   </div>
                   <div class="related-section-scroll">${sameLabelExamplesHtml}</div>
                 </section>
                 <section class="card related-section">
                   <div class="related-section-head">
-                    <span class="related-section-title warning">project内の同一表層の他アノテーション</span>
+                    <span class="related-section-title warning">同一表層の他アノテーション</span>
                     <span class="small">${selectedAnn ? escapeHtml(selectedAnn.spanText) : "Annotation未選択"}</span>
                   </div>
                   <div class="related-section-scroll">${sameSurfaceExamplesHtml}</div>
@@ -2692,6 +2856,11 @@
         if (laneTooltip) {
           laneTooltip.classList.remove("show");
           laneTooltip.setAttribute("aria-hidden", "true");
+        }
+        const relatedTooltip = document.getElementById("related-hover-tooltip");
+        if (relatedTooltip) {
+          relatedTooltip.classList.remove("show");
+          relatedTooltip.setAttribute("aria-hidden", "true");
         }
         if (route.view === "projects") {
           state.currentProjectId = null;
@@ -3637,6 +3806,41 @@
           button.addEventListener("click", () => {
             state.rightPanelTab = button.getAttribute("data-right-tab") || "related";
             render();
+          });
+        });
+
+        const relatedHoverTooltip = document.getElementById("related-hover-tooltip");
+        const hideRelatedHoverTooltip = () => {
+          if (!relatedHoverTooltip) return;
+          relatedHoverTooltip.classList.remove("show");
+          relatedHoverTooltip.setAttribute("aria-hidden", "true");
+        };
+        const showRelatedHoverTooltip = (article, clientX, clientY) => {
+          if (!relatedHoverTooltip || !article) return;
+          relatedHoverTooltip.innerHTML = article.getAttribute("data-related-preview-context") || "";
+          if (!relatedHoverTooltip.innerHTML) {
+            hideRelatedHoverTooltip();
+            return;
+          }
+          relatedHoverTooltip.classList.add("show");
+          relatedHoverTooltip.setAttribute("aria-hidden", "false");
+          const rect = relatedHoverTooltip.getBoundingClientRect();
+          let left = clientX + 18;
+          let top = clientY + 14;
+          if (left + rect.width > window.innerWidth - 8) left = clientX - rect.width - 18;
+          if (top + rect.height > window.innerHeight - 8) top = window.innerHeight - rect.height - 8;
+          if (left < 8) left = 8;
+          if (top < 8) top = 8;
+          relatedHoverTooltip.style.left = String(left) + "px";
+          relatedHoverTooltip.style.top = String(top) + "px";
+        };
+
+        document.querySelectorAll("[data-related-preview]").forEach((article) => {
+          article.addEventListener("mousemove", (event) => {
+            showRelatedHoverTooltip(article, event.clientX, event.clientY);
+          });
+          article.addEventListener("mouseleave", () => {
+            hideRelatedHoverTooltip();
           });
         });
 

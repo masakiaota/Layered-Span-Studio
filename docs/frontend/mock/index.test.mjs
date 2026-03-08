@@ -79,6 +79,8 @@ function loadMockApp(document) {
     },
     location: { hash: "" },
     window: {
+      innerWidth: 1440,
+      innerHeight: 900,
       addEventListener(type, handler) {
         if (!windowListeners[type]) windowListeners[type] = [];
         windowListeners[type].push(handler);
@@ -485,6 +487,17 @@ test("related examples collect same-label and same-surface annotations across th
           { id: "ann-6", labelId: "label-c", start: 14, end: 26, spanText: "CRPは2.1 mg/dL", status: "verified" },
         ],
       },
+      {
+        id: "doc-3",
+        documentName: "病棟サマリ",
+        text: "退院時も2型糖尿病の継続管理が必要である。",
+        status: "pending",
+        createdAt: 3,
+        updatedAt: 7,
+        annotations: [
+          { id: "ann-8", labelId: "label-a", start: 5, end: 11, spanText: "2型糖尿病", status: "verified" },
+        ],
+      },
     ],
   };
 
@@ -500,6 +513,8 @@ test("related examples collect same-label and same-surface annotations across th
   const html = mockApp.renderWorkspace(project);
 
   assert.equal(sameLabel.map((item) => item.annotation.spanText).join(","), "2型糖尿病,高血圧症,市中肺炎");
+  assert.equal(sameLabel[0].duplicateCount, 2);
+  assert.equal(sameLabel[0].duplicates.map((item) => item.doc.id).join(","), "doc-2,doc-3");
   assert.equal(
     sameSurface.map((item) => item.doc.id + ":" + item.annotation.labelId).join(","),
     "doc-2:label-c,doc-1:label-c,doc-2:label-b"
@@ -507,9 +522,13 @@ test("related examples collect same-label and same-surface annotations across th
   assert.match(html, /関連例/);
   assert.match(html, /注釈一覧/);
   assert.match(html, /疾患名 アノテーション基準/);
-  assert.match(html, /project内の同じラベルの例/);
-  assert.match(html, /project内の同一表層の他アノテーション/);
+  assert.match(html, /同一ラベルの他アノテーション/);
+  assert.match(html, /同一表層の他アノテーション/);
   assert.match(html, /別ラベル/);
+  assert.match(html, /data-related-preview="true"/);
+  assert.match(html, /data-related-preview-context="/);
+  assert.match(html, /2型糖尿病 \/ 2件の事例/);
+  assert.match(html, /病棟サマリ/);
 });
 
 test("doc search input updates the left pane without calling global render", async () => {
