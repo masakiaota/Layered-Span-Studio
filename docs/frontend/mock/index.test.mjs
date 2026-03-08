@@ -304,6 +304,26 @@ test("keyboard shortcuts use h/l for label move and brackets for right panel tab
   assert.equal(mockApp.state.focusedLabelId, "label-a");
 });
 
+test("annotation edit card can collapse from the annotation list tab", async () => {
+  const toggleButton = new FakeElement();
+  const mockApp = loadMockApp(
+    createDocument({
+      "annotation-edit-toggle": toggleButton,
+    })
+  );
+
+  mockApp.state.rightPanelTab = "annotationList";
+  mockApp.state.annotationEditCollapsed = false;
+  mockApp.setRenderImpl(() => {});
+
+  mockApp.bindWorkspaceControls();
+  await toggleButton.dispatch("click");
+  assert.equal(mockApp.state.annotationEditCollapsed, true);
+
+  await toggleButton.dispatch("click");
+  assert.equal(mockApp.state.annotationEditCollapsed, false);
+});
+
 test("workspace starts with no annotation selected", () => {
   const mockApp = loadMockApp(createDocument({}));
   const project = {
@@ -532,6 +552,42 @@ test("related examples collect same-label and same-surface annotations across th
   assert.match(html, /data-related-preview-context="/);
   assert.match(html, /2型糖尿病 \/ 2件の事例/);
   assert.match(html, /病棟サマリ/);
+});
+
+test("annotation list render marks the comment meta card as collapsible", () => {
+  const mockApp = loadMockApp(createDocument({}));
+  const project = {
+    id: "project-1",
+    name: "Project",
+    labels: [{ id: "label-a", name: "疾患名", color: "#E06464", description: "診断名。" }],
+    documents: [
+      {
+        id: "doc-1",
+        documentName: "初診",
+        text: "市中肺炎と診断した。",
+        status: "pending",
+        createdAt: 1,
+        updatedAt: 5,
+        annotations: [{ id: "ann-1", labelId: "label-a", start: 0, end: 4, spanText: "市中肺炎", status: "pending" }],
+      },
+    ],
+  };
+
+  mockApp.state.projects = [project];
+  mockApp.state.currentProjectId = "project-1";
+  mockApp.state.selectedDocId = "doc-1";
+  mockApp.state.selectedAnnotationId = "ann-1";
+  mockApp.state.focusedLabelId = "label-a";
+  mockApp.state.rightPanelTab = "annotationList";
+  mockApp.state.annotationEditCollapsed = true;
+
+  const html = mockApp.renderWorkspace(project);
+
+  assert.match(html, /annotation-edit-card collapsed/);
+  assert.match(html, /id="annotation-edit-toggle"/);
+  assert.match(html, /aria-expanded="false"/);
+  assert.match(html, /annotation-edit-toggle-icon/);
+  assert.match(html, /▶/);
 });
 
 test("doc search input updates the left pane without calling global render", async () => {

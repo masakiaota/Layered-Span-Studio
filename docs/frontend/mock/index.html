@@ -926,6 +926,50 @@
         flex: 0 0 auto;
       }
 
+      .annotation-edit-card-head {
+        margin-bottom: 8px;
+      }
+
+      .annotation-edit-toggle {
+        width: 100%;
+        border: none;
+        background: #efeade;
+        color: #2f3540;
+        border-radius: 10px;
+        padding: 9px 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        text-align: left;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .annotation-edit-toggle:focus-visible {
+        outline: 2px solid #6f8fb7;
+        outline-offset: 2px;
+      }
+
+      .annotation-edit-toggle-icon {
+        font-size: 16px;
+        line-height: 1;
+      }
+
+      .annotation-edit-card-body {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .annotation-edit-card.collapsed .annotation-edit-card-body {
+        display: none;
+      }
+
+      .annotation-edit-card.collapsed {
+        padding-bottom: 10px;
+      }
+
       .annotation-list-card {
         flex: 1;
         min-height: 0;
@@ -969,10 +1013,6 @@
       .related-section-title {
         font-size: 13px;
         font-weight: 700;
-      }
-
-      .related-section-title.warning {
-        color: #8e3a1c;
       }
 
       .related-badge {
@@ -1562,6 +1602,7 @@
         docSearchQuery: "",
         createDocPrefillName: "",
         rightPanelTab: "related",
+        annotationEditCollapsed: false,
         dirty: false,
         flash: "",
         showCreateDocModal: false,
@@ -1919,6 +1960,7 @@
           selectedAnnotationId: state.selectedAnnotationId,
           focusedLabelId: state.focusedLabelId,
           rightPanelTab: state.rightPanelTab,
+          annotationEditCollapsed: state.annotationEditCollapsed,
           sortBy: state.sortBy,
           accordionOpen: deepClone(state.accordionOpen),
           dirty: state.dirty,
@@ -1960,6 +2002,7 @@
         state.selectedAnnotationId = entry.selectedAnnotationId || null;
         state.focusedLabelId = entry.focusedLabelId || null;
         state.rightPanelTab = entry.rightPanelTab || "related";
+        state.annotationEditCollapsed = !!entry.annotationEditCollapsed;
         state.dirty = !!entry.dirty;
         state.hoverLaneAnnId = null;
         state.showCreateDocModal = false;
@@ -2046,6 +2089,7 @@
         state.docSearchQuery = "";
         state.createDocPrefillName = "";
         state.rightPanelTab = "related";
+        state.annotationEditCollapsed = false;
         state.hoverLaneAnnId = null;
         state.dirty = false;
         state.showCreateDocModal = false;
@@ -2686,7 +2730,7 @@
                 </section>
                 <section class="card related-section">
                   <div class="related-section-head">
-                    <span class="related-section-title warning">同一表層の他アノテーション</span>
+                    <span class="related-section-title">同一表層の他アノテーション</span>
                     <span class="small">${selectedAnn ? escapeHtml(selectedAnn.spanText) : "Annotation未選択"}</span>
                   </div>
                   <div class="related-section-scroll">${sameSurfaceExamplesHtml}</div>
@@ -2695,21 +2739,34 @@
             `
             : `
               <div class="right-panel-view annotation-list-view">
-                <section class="card field annotation-edit-card">
-                  <h4>Comment / Meta</h4>
-                  <div class="small">Doc: ${doc ? escapeHtml(doc.documentName) : "Document未選択"}</div>
-                  <div class="small">Span: ${selectedAnn ? `${selectedAnn.start}-${selectedAnn.end}` : "未選択"}</div>
-                  <label for="ann-status">status</label>
-                  <select id="ann-status" ${selectedAnn ? "" : "disabled"}>
-                    <option value="pending" ${selectedAnn && selectedAnn.status === "pending" ? "selected" : ""}>pending</option>
-                    <option value="verified" ${selectedAnn && selectedAnn.status === "verified" ? "selected" : ""}>verified</option>
-                  </select>
-                  <label for="ann-comment">comment</label>
-                  <textarea id="ann-comment" ${selectedAnn ? "" : "disabled"}>${escapeHtml(
-                    selectedAnn ? selectedAnn.comment || "" : ""
-                  )}</textarea>
-                  <label for="ann-meta">meta</label>
-                  <textarea id="ann-meta" ${selectedAnn ? "" : "disabled"}>${escapeHtml(metaText)}</textarea>
+                <section class="card field annotation-edit-card ${state.annotationEditCollapsed ? "collapsed" : ""}">
+                  <div class="annotation-edit-card-head">
+                    <button
+                      class="annotation-edit-toggle"
+                      id="annotation-edit-toggle"
+                      type="button"
+                      aria-expanded="${state.annotationEditCollapsed ? "false" : "true"}"
+                      aria-label="Comment / Meta の表示を切り替える"
+                    >
+                      <span>Comment / Meta</span>
+                      <span class="annotation-edit-toggle-icon" aria-hidden="true">${state.annotationEditCollapsed ? "▶" : "▼"}</span>
+                    </button>
+                  </div>
+                  <div class="annotation-edit-card-body">
+                    <div class="small">Doc: ${doc ? escapeHtml(doc.documentName) : "Document未選択"}</div>
+                    <div class="small">Span: ${selectedAnn ? `${selectedAnn.start}-${selectedAnn.end}` : "未選択"}</div>
+                    <label for="ann-status">status</label>
+                    <select id="ann-status" ${selectedAnn ? "" : "disabled"}>
+                      <option value="pending" ${selectedAnn && selectedAnn.status === "pending" ? "selected" : ""}>pending</option>
+                      <option value="verified" ${selectedAnn && selectedAnn.status === "verified" ? "selected" : ""}>verified</option>
+                    </select>
+                    <label for="ann-comment">comment</label>
+                    <textarea id="ann-comment" ${selectedAnn ? "" : "disabled"}>${escapeHtml(
+                      selectedAnn ? selectedAnn.comment || "" : ""
+                    )}</textarea>
+                    <label for="ann-meta">meta</label>
+                    <textarea id="ann-meta" ${selectedAnn ? "" : "disabled"}>${escapeHtml(metaText)}</textarea>
+                  </div>
                 </section>
                 <section class="card annotation-list-card">
                   <h4>Docアノテーション一覧</h4>
@@ -3966,6 +4023,14 @@
             render();
           });
         });
+
+        const annotationEditToggle = document.getElementById("annotation-edit-toggle");
+        if (annotationEditToggle) {
+          annotationEditToggle.addEventListener("click", () => {
+            state.annotationEditCollapsed = !state.annotationEditCollapsed;
+            render();
+          });
+        }
 
         const relatedHoverTooltip = document.getElementById("related-hover-tooltip");
         const hideRelatedHoverTooltip = () => {

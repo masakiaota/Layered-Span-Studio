@@ -95,7 +95,7 @@
 - `関連例` 内の各項目は短い抜粋を常時表示し、hover 時はより長い周辺文脈をマウス近傍のフローティングウィンドウで表示する。
 - `同一ラベルの他アノテーション` で同じ表層を件数集約している場合、hover 時のフローティングウィンドウでは該当する複数 Document の事例を並べて表示する。
 - `注釈一覧` タブは以下で構成する。
-  - Comment / Meta カード: 「選択中 Annotation」に紐づく `status` / `comment` / `meta` を表示・編集する。
+  - Comment / Meta カード: 「選択中 Annotation」に紐づく `status` / `comment` / `meta` を表示・編集する。必要に応じて折りたたみ可能とし、開閉 UI は Doc アノテーション一覧と同系統の三角アコーディオン表現で統一する。
   - Doc アノテーション一覧カード: 現在選択中 Doc の Annotation を Label ごとに表示する。
 - Doc アノテーション一覧は Label ごとのアコーディオン形式とする。
 - 各 Label グループ内の Annotation は `start`（span の開始 index）昇順で表示し、同一 `start` の場合は `end` 昇順で扱う。
