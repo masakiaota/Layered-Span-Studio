@@ -26,7 +26,7 @@
   - Workspace
   - Project Settings
 5. Workspace では左ペインで Document を選び、中央で Annotation 編集、右ペインで詳細編集を行う。
-6. Project Settings では Label 定義 / ガイドライン / ショートカット表示設定 / Import・Export を管理する。
+6. Project Settings では Label 定義 / ガイドライン / Import・Export を管理する。
 
 ## 4. Document 切り替え時の扱い
 
