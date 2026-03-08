@@ -640,8 +640,57 @@
 
       .right-panel {
         min-height: 0;
-        overflow: auto;
+        overflow: hidden;
         padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .right-panel-tabs {
+        display: inline-flex;
+        gap: 4px;
+        padding: 4px;
+        background: #ece6db;
+        border: 1px solid #d8d1c4;
+        border-radius: 14px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+      }
+
+      .right-panel-tab {
+        border: none;
+        background: transparent;
+        color: #5d6672;
+        border-radius: 10px;
+        padding: 9px 12px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+        transition:
+          background-color 120ms ease,
+          color 120ms ease,
+          box-shadow 120ms ease;
+      }
+
+      .right-panel-tab.active {
+        background: #fffdf8;
+        color: #1b2a37;
+        box-shadow:
+          0 1px 2px rgba(33, 41, 52, 0.08),
+          inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      }
+
+      .right-panel-body {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .right-panel-view {
+        flex: 1;
+        min-height: 0;
         display: flex;
         flex-direction: column;
         gap: 10px;
@@ -707,6 +756,137 @@
         display: flex;
         flex-direction: column;
         gap: 8px;
+      }
+
+      .annotation-list-view {
+        min-height: 0;
+      }
+
+      .annotation-edit-card {
+        flex: 0 0 auto;
+      }
+
+      .annotation-list-card {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .annotation-list-card-body {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding-right: 2px;
+      }
+
+      .related-view {
+        min-height: 0;
+      }
+
+      .guideline-card-compact p {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      .related-section {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .related-section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .related-section-title {
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .related-section-title.warning {
+        color: #8e3a1c;
+      }
+
+      .related-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 7px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 700;
+        border: 1px solid transparent;
+      }
+
+      .related-badge.attention {
+        background: #fff0e6;
+        color: #8e3a1c;
+        border-color: #efc0a4;
+      }
+
+      .related-section-scroll {
+        min-height: 0;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding-right: 2px;
+      }
+
+      .related-item {
+        border: 1px solid var(--related-border, #d4cec2);
+        border-left: 4px solid var(--related-accent, #8b94a0);
+        border-radius: 8px;
+        background: #fff;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .related-item-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .related-item-labels {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .related-surface {
+        font-size: 13px;
+        font-weight: 700;
+        color: #223347;
+      }
+
+      .related-context {
+        font-size: 12px;
+        color: #2f3540;
+        line-height: 1.55;
+      }
+
+      .related-context-muted {
+        color: #8b94a0;
+      }
+
+      .related-context mark {
+        background: linear-gradient(180deg, rgba(255, 230, 147, 0.34) 0%, rgba(255, 214, 94, 0.7) 100%);
+        color: inherit;
+        padding: 0 2px;
+        border-radius: 4px;
       }
 
       .anno-group {
@@ -1029,6 +1209,11 @@
         );
       }
 
+      function getRelatedItemStyle(label) {
+        const color = label && label.color ? label.color : "#8b94a0";
+        return "--related-accent:" + color + ";--related-border:" + hexToRgba(color, 0.42) + ";";
+      }
+
       const UNDERLINE_LANE_BASE = 3;
       const UNDERLINE_LANE_PITCH = 5;
       const UNDERLINE_HIT_HALF = 3;
@@ -1073,6 +1258,9 @@
 
       const followupText =
         "再診時に発熱は解熱し、咳は軽快した。CRP 2.1 mg/dLへ改善。内服は継続せず、生活指導を中心にフォローする。";
+
+      const dischargeText =
+        "退院前評価では呼吸状態は安定。CRP 2.1 mg/dLを維持しており、2型糖尿病は内科外来で継続管理し、薬剤調整は次回受診時に再評価する。";
 
       const seedProjects = [
         {
@@ -1171,13 +1359,22 @@
             {
               id: "doc-003",
               documentName: "病棟サマリ_退院前",
-              text:
-                "退院前評価では呼吸状態は安定。糖尿病は内科外来で継続管理し、薬剤調整は次回受診時に再評価する。",
+              text: dischargeText,
               status: "pending",
               createdAt: Date.now() - 1000 * 60 * 60 * 24,
               updatedAt: Date.now() - 1000 * 60 * 30,
               meta: { publish_date: "2026-02-13" },
-              annotations: [],
+              annotations: [
+                annWith(dischargeText, "label-lab", "CRP 2.1 mg/dL", 0, {
+                  status: "verified",
+                }),
+                annWith(dischargeText, "label-plan", "CRP 2.1 mg/dL", 0, {
+                  comment: "退院判断の根拠として参照",
+                }),
+                annWith(dischargeText, "label-disease", "2型糖尿病", 0, {
+                  status: "verified",
+                }),
+              ],
             },
           ],
         },
@@ -1202,6 +1399,7 @@
         sortBy: "created",
         docSearchQuery: "",
         createDocPrefillName: "",
+        rightPanelTab: "related",
         dirty: false,
         flash: "",
         showCreateDocModal: false,
@@ -1503,6 +1701,7 @@
           selectedDocId: state.selectedDocId,
           selectedAnnotationId: state.selectedAnnotationId,
           focusedLabelId: state.focusedLabelId,
+          rightPanelTab: state.rightPanelTab,
           sortBy: state.sortBy,
           accordionOpen: deepClone(state.accordionOpen),
           dirty: state.dirty,
@@ -1543,6 +1742,7 @@
         state.selectedDocId = preserveDocSelection ? currentDocId || null : entry.selectedDocId || null;
         state.selectedAnnotationId = entry.selectedAnnotationId || null;
         state.focusedLabelId = entry.focusedLabelId || null;
+        state.rightPanelTab = entry.rightPanelTab || "related";
         state.dirty = !!entry.dirty;
         state.hoverLaneAnnId = null;
         state.showCreateDocModal = false;
@@ -1628,6 +1828,7 @@
         state.sortBy = "created";
         state.docSearchQuery = "";
         state.createDocPrefillName = "";
+        state.rightPanelTab = "related";
         state.hoverLaneAnnId = null;
         state.dirty = false;
         state.showCreateDocModal = false;
@@ -1873,6 +2074,79 @@
         return { left, mid, right };
       }
 
+      function renderAnnotationContextHtml(text, start, end, size) {
+        const context = contextParts(text, start, end, size);
+        return (
+          '<span class="related-context-muted">' +
+          escapeHtml(context.left) +
+          "</span><mark>" +
+          escapeHtml(context.mid) +
+          '</mark><span class="related-context-muted">' +
+          escapeHtml(context.right) +
+          "</span>"
+        );
+      }
+
+      function collectProjectAnnotationEntries(project) {
+        if (!project) return [];
+        return project.documents.flatMap((doc) =>
+          doc.annotations.map((annotation) => ({
+            annotation,
+            doc,
+          }))
+        );
+      }
+
+      function getSameLabelSurfaceExamples(project, focusedLabel, selectedAnnotation) {
+        if (!project || !focusedLabel) return [];
+        const entries = collectProjectAnnotationEntries(project)
+          .filter((entry) => entry.annotation.labelId === focusedLabel.id)
+          .filter((entry) => !selectedAnnotation || entry.annotation.id !== selectedAnnotation.id);
+
+        const deduped = new Map();
+        entries.forEach((entry) => {
+          const key = normalizeSearchText(entry.annotation.spanText);
+          if (!key) return;
+          const existing = deduped.get(key);
+          if (!existing) {
+            deduped.set(key, { ...entry, duplicateCount: 1 });
+            return;
+          }
+          existing.duplicateCount += 1;
+          if (existing.annotation.status !== "verified" && entry.annotation.status === "verified") {
+            deduped.set(key, { ...entry, duplicateCount: existing.duplicateCount });
+          }
+        });
+
+        return [...deduped.values()]
+          .sort((left, right) => {
+            if (left.annotation.status !== right.annotation.status) {
+              return left.annotation.status === "verified" ? -1 : 1;
+            }
+            return right.doc.updatedAt - left.doc.updatedAt;
+          })
+          .slice(0, 8);
+      }
+
+      function getSameSurfaceAnnotationExamples(project, selectedAnnotation) {
+        if (!project || !selectedAnnotation) return [];
+        const target = normalizeSearchText(selectedAnnotation.spanText);
+        if (!target) return [];
+        return collectProjectAnnotationEntries(project)
+          .filter((entry) => normalizeSearchText(entry.annotation.spanText) === target)
+          .filter((entry) => entry.annotation.id !== selectedAnnotation.id)
+          .sort((left, right) => {
+            const leftDifferent = left.annotation.labelId !== selectedAnnotation.labelId;
+            const rightDifferent = right.annotation.labelId !== selectedAnnotation.labelId;
+            if (leftDifferent !== rightDifferent) return leftDifferent ? -1 : 1;
+            if (left.annotation.status !== right.annotation.status) {
+              return left.annotation.status === "verified" ? -1 : 1;
+            }
+            return right.doc.updatedAt - left.doc.updatedAt;
+          })
+          .slice(0, 8);
+      }
+
       function renderProjects() {
         const cards = state.projects
           .map((project) => {
@@ -2039,6 +2313,128 @@
         const docTextHtml = renderDocText(doc, project);
         const docTextBottomPadding = state.globalUnderlineReserve > 0 ? state.globalUnderlineReserve + 2 : 0;
         const metaText = selectedAnn ? JSON.stringify(selectedAnn.meta || {}, null, 2) : "";
+        const sameLabelExamples = getSameLabelSurfaceExamples(project, focusedLabel, selectedAnn);
+        const sameSurfaceExamples = getSameSurfaceAnnotationExamples(project, selectedAnn);
+        const relatedTabButtons = `
+          <div class="right-panel-tabs" role="tablist" aria-label="Right panel view">
+            <button
+              class="right-panel-tab ${state.rightPanelTab === "related" ? "active" : ""}"
+              data-right-tab="related"
+              type="button"
+              role="tab"
+              aria-selected="${state.rightPanelTab === "related" ? "true" : "false"}"
+            >
+              関連例
+            </button>
+            <button
+              class="right-panel-tab ${state.rightPanelTab === "annotationList" ? "active" : ""}"
+              data-right-tab="annotationList"
+              type="button"
+              role="tab"
+              aria-selected="${state.rightPanelTab === "annotationList" ? "true" : "false"}"
+            >
+              注釈一覧
+            </button>
+          </div>
+        `;
+
+        const sameLabelExamplesHtml =
+          sameLabelExamples.length > 0
+            ? sameLabelExamples
+                .map((entry) => {
+                  const label = project.labels.find((item) => item.id === entry.annotation.labelId) || null;
+                  return `
+                    <article class="related-item" style="${getRelatedItemStyle(label)}">
+                      <div class="related-item-head">
+                        <div class="related-item-labels">
+                          <span class="related-surface">${escapeHtml(entry.annotation.spanText)}</span>
+                          ${entry.duplicateCount > 1 ? `<span class="small">x${entry.duplicateCount}</span>` : ""}
+                        </div>
+                        <span class="pill ${entry.annotation.status}">${entry.annotation.status}</span>
+                      </div>
+                      <div class="related-context">${renderAnnotationContextHtml(entry.doc.text, entry.annotation.start, entry.annotation.end, 18)}</div>
+                      <div class="small">${escapeHtml(entry.doc.documentName)}</div>
+                    </article>
+                  `;
+                })
+                .join("")
+            : '<div class="small">このラベルの他表層例はまだ少ない。</div>';
+
+        const sameSurfaceExamplesHtml = selectedAnn
+          ? sameSurfaceExamples.length > 0
+            ? sameSurfaceExamples
+                .map((entry) => {
+                  const label = project.labels.find((item) => item.id === entry.annotation.labelId) || null;
+                  const isDifferentLabel = entry.annotation.labelId !== selectedAnn.labelId;
+                  return `
+                    <article class="related-item" style="${getRelatedItemStyle(label)}">
+                      <div class="related-item-head">
+                        <div class="related-item-labels">
+                          <span class="related-surface">${escapeHtml(entry.annotation.spanText)}</span>
+                          <span class="small">${escapeHtml(label ? label.name : "Unknown")}</span>
+                          ${isDifferentLabel ? '<span class="related-badge attention">別ラベル</span>' : ""}
+                        </div>
+                        <span class="pill ${entry.annotation.status}">${entry.annotation.status}</span>
+                      </div>
+                      <div class="related-context">${renderAnnotationContextHtml(entry.doc.text, entry.annotation.start, entry.annotation.end, 18)}</div>
+                      <div class="small">${escapeHtml(entry.doc.documentName)}</div>
+                    </article>
+                  `;
+                })
+                .join("")
+            : '<div class="small">この表層に付いた他アノテーションはまだない。</div>'
+          : '<div class="small">表層比較は Annotation を選ぶと表示される。</div>';
+
+        const rightPanelBody =
+          state.rightPanelTab === "related"
+            ? `
+              <div class="right-panel-view related-view">
+                <section class="card guideline-card-compact">
+                  <h4>${escapeHtml(focusedLabel ? focusedLabel.name + " アノテーション基準" : "アノテーション基準")}</h4>
+                  <p>${escapeHtml(focusedLabel ? focusedLabel.description : "Labelを選択すると基準を表示する。")}</p>
+                </section>
+                <section class="card related-section">
+                  <div class="related-section-head">
+                    <span class="related-section-title">project内の同じラベルの例</span>
+                    <span class="small">${focusedLabel ? escapeHtml(focusedLabel.name) : "Label未選択"}</span>
+                  </div>
+                  <div class="related-section-scroll">${sameLabelExamplesHtml}</div>
+                </section>
+                <section class="card related-section">
+                  <div class="related-section-head">
+                    <span class="related-section-title warning">project内の同一表層の他アノテーション</span>
+                    <span class="small">${selectedAnn ? escapeHtml(selectedAnn.spanText) : "Annotation未選択"}</span>
+                  </div>
+                  <div class="related-section-scroll">${sameSurfaceExamplesHtml}</div>
+                </section>
+              </div>
+            `
+            : `
+              <div class="right-panel-view annotation-list-view">
+                <section class="card field annotation-edit-card">
+                  <h4>Comment / Meta</h4>
+                  <div class="small">Doc: ${doc ? escapeHtml(doc.documentName) : "Document未選択"}</div>
+                  <div class="small">Span: ${selectedAnn ? `${selectedAnn.start}-${selectedAnn.end}` : "未選択"}</div>
+                  <label for="ann-status">status</label>
+                  <select id="ann-status" ${selectedAnn ? "" : "disabled"}>
+                    <option value="pending" ${selectedAnn && selectedAnn.status === "pending" ? "selected" : ""}>pending</option>
+                    <option value="verified" ${selectedAnn && selectedAnn.status === "verified" ? "selected" : ""}>verified</option>
+                  </select>
+                  <label for="ann-comment">comment</label>
+                  <textarea id="ann-comment" ${selectedAnn ? "" : "disabled"}>${escapeHtml(
+                    selectedAnn ? selectedAnn.comment || "" : ""
+                  )}</textarea>
+                  <label for="ann-meta">meta</label>
+                  <textarea id="ann-meta" ${selectedAnn ? "" : "disabled"}>${escapeHtml(metaText)}</textarea>
+                </section>
+                <section class="card annotation-list-card">
+                  <h4>Docアノテーション一覧</h4>
+                  <div class="annotation-list-card-body">
+                    <div class="anno-groups">${annotationGroups}</div>
+                  </div>
+                </section>
+              </div>
+            `;
 
         return `
           ${renderProjectHeader(project, "workspace")}
@@ -2093,32 +2489,8 @@
             </section>
 
             <aside class="right-panel">
-              <section class="card">
-                <h4>アノテーション基準</h4>
-                <p>${escapeHtml(focusedLabel ? focusedLabel.description : "Labelを選択すると基準を表示する。")}</p>
-              </section>
-
-              <section class="card field">
-                <h4>Comment / Meta</h4>
-                <div class="small">Doc: ${doc ? escapeHtml(doc.documentName) : "Document未選択"}</div>
-                <div class="small">Span: ${selectedAnn ? `${selectedAnn.start}-${selectedAnn.end}` : "未選択"}</div>
-                <label for="ann-status">status</label>
-                <select id="ann-status" ${selectedAnn ? "" : "disabled"}>
-                  <option value="pending" ${selectedAnn && selectedAnn.status === "pending" ? "selected" : ""}>pending</option>
-                  <option value="verified" ${selectedAnn && selectedAnn.status === "verified" ? "selected" : ""}>verified</option>
-                </select>
-                <label for="ann-comment">comment</label>
-                <textarea id="ann-comment" ${selectedAnn ? "" : "disabled"}>${escapeHtml(
-        selectedAnn ? selectedAnn.comment || "" : ""
-      )}</textarea>
-                <label for="ann-meta">meta</label>
-                <textarea id="ann-meta" ${selectedAnn ? "" : "disabled"}>${escapeHtml(metaText)}</textarea>
-              </section>
-
-              <section class="card">
-                <h4>Docアノテーション一覧</h4>
-                <div class="anno-groups">${annotationGroups}</div>
-              </section>
+              ${relatedTabButtons}
+              <div class="right-panel-body">${rightPanelBody}</div>
             </aside>
           </main>
         `;
@@ -2360,6 +2732,7 @@
 
       function applyDocSwitch(nextDocId) {
         state.selectedDocId = nextDocId;
+        state.rightPanelTab = "related";
         state.hoverLaneAnnId = null;
         state.showUnsavedDialog = false;
         state.pendingDocSwitchId = null;
@@ -3238,6 +3611,13 @@
 
       function bindWorkspaceControls() {
         bindDocumentPanelDynamicControls();
+
+        document.querySelectorAll("[data-right-tab]").forEach((button) => {
+          button.addEventListener("click", () => {
+            state.rightPanelTab = button.getAttribute("data-right-tab") || "related";
+            render();
+          });
+        });
 
         const sort = document.getElementById("doc-sort");
         if (sort) {

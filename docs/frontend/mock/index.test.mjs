@@ -107,6 +107,8 @@ globalThis.__mock_exports = {
   ensureWorkspaceState,
   getAnnotationsInPanelOrder,
   getDocumentSearchSnippet,
+  getSameLabelSurfaceExamples,
+  getSameSurfaceAnnotationExamples,
   getVisibleDocuments,
   highlightSearchTerms,
   moveAnnotationByDirection,
@@ -251,9 +253,10 @@ test("workspace starts with no annotation selected", () => {
   assert.equal(mockApp.state.selectedDocId, "doc-1");
   assert.equal(mockApp.state.focusedLabelId, "label-a");
   assert.equal(mockApp.state.selectedAnnotationId, null);
+  assert.equal(mockApp.state.rightPanelTab, "related");
 });
 
-test("doc switch clears selected annotation", () => {
+test("doc switch clears selected annotation and returns the right pane to related", () => {
   const mockApp = loadMockApp(createDocument({}));
   const project = {
     id: "project-1",
@@ -274,11 +277,13 @@ test("doc switch clears selected annotation", () => {
   mockApp.state.currentProjectId = "project-1";
   mockApp.state.selectedDocId = "doc-1";
   mockApp.state.selectedAnnotationId = "ann-1";
+  mockApp.state.rightPanelTab = "annotationList";
 
   mockApp.applyDocSwitch("doc-2");
 
   assert.equal(mockApp.state.selectedDocId, "doc-2");
   assert.equal(mockApp.state.selectedAnnotationId, null);
+  assert.equal(mockApp.state.rightPanelTab, "related");
 });
 
 test("doc search normalizes spaces for body text matching", () => {
@@ -371,6 +376,71 @@ test("workspace render shows search affordance and out-of-result guidance", () =
   assert.match(html, /id="doc-search-show-current"/);
   assert.match(html, /初診_58歳男性_救急外来/);
   assert.match(html, /<mark>CRP<\/mark> 8\.4 mg\/dL/);
+});
+
+test("related examples collect same-label and same-surface annotations across the project", () => {
+  const mockApp = loadMockApp(createDocument({}));
+  const project = {
+    id: "project-1",
+    name: "Project",
+    labels: [
+      { id: "label-a", name: "疾患名", color: "#E06464", description: "診断名。" },
+      { id: "label-b", name: "検査値", color: "#5AA35A", description: "検査値。" },
+      { id: "label-c", name: "治療計画", color: "#7A63C8", description: "計画。" },
+    ],
+    documents: [
+      {
+        id: "doc-1",
+        documentName: "初診",
+        text: "市中肺炎と診断し、CRPは2.1 mg/dLまで改善した。",
+        status: "pending",
+        createdAt: 1,
+        updatedAt: 5,
+        annotations: [
+          { id: "ann-1", labelId: "label-a", start: 0, end: 4, spanText: "市中肺炎", status: "pending" },
+          { id: "ann-2", labelId: "label-b", start: 8, end: 20, spanText: "CRPは2.1 mg/dL", status: "verified" },
+          { id: "ann-3", labelId: "label-c", start: 8, end: 20, spanText: "CRPは2.1 mg/dL", status: "pending" },
+        ],
+      },
+      {
+        id: "doc-2",
+        documentName: "再診",
+        text: "2型糖尿病と高血圧症を継続管理し、CRPは2.1 mg/dLまで改善した。",
+        status: "verified",
+        createdAt: 2,
+        updatedAt: 6,
+        annotations: [
+          { id: "ann-4", labelId: "label-a", start: 0, end: 6, spanText: "2型糖尿病", status: "verified" },
+          { id: "ann-5", labelId: "label-a", start: 7, end: 11, spanText: "高血圧症", status: "pending" },
+          { id: "ann-7", labelId: "label-b", start: 14, end: 26, spanText: "CRPは2.1 mg/dL", status: "pending" },
+          { id: "ann-6", labelId: "label-c", start: 14, end: 26, spanText: "CRPは2.1 mg/dL", status: "verified" },
+        ],
+      },
+    ],
+  };
+
+  mockApp.state.projects = [project];
+  mockApp.state.currentProjectId = "project-1";
+  mockApp.state.selectedDocId = "doc-1";
+  mockApp.state.focusedLabelId = "label-a";
+  mockApp.state.selectedAnnotationId = "ann-2";
+  mockApp.state.rightPanelTab = "related";
+
+  const sameLabel = mockApp.getSameLabelSurfaceExamples(project, project.labels[0], project.documents[0].annotations[1]);
+  const sameSurface = mockApp.getSameSurfaceAnnotationExamples(project, project.documents[0].annotations[1]);
+  const html = mockApp.renderWorkspace(project);
+
+  assert.equal(sameLabel.map((item) => item.annotation.spanText).join(","), "2型糖尿病,高血圧症,市中肺炎");
+  assert.equal(
+    sameSurface.map((item) => item.doc.id + ":" + item.annotation.labelId).join(","),
+    "doc-2:label-c,doc-1:label-c,doc-2:label-b"
+  );
+  assert.match(html, /関連例/);
+  assert.match(html, /注釈一覧/);
+  assert.match(html, /疾患名 アノテーション基準/);
+  assert.match(html, /project内の同じラベルの例/);
+  assert.match(html, /project内の同一表層の他アノテーション/);
+  assert.match(html, /別ラベル/);
 });
 
 test("doc search input updates the left pane without calling global render", async () => {
