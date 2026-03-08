@@ -523,6 +523,7 @@ test("related examples collect same-label and same-surface annotations across th
   );
   assert.match(html, /関連例/);
   assert.match(html, /注釈一覧/);
+  assert.match(html, /class="panel right-panel"/);
   assert.match(html, /疾患名 アノテーション基準/);
   assert.match(html, /同一ラベルの他アノテーション/);
   assert.match(html, /同一表層の他アノテーション/);
