@@ -2733,42 +2733,43 @@
         overlay.innerHTML = underlineHtml + selectionHtml;
       }
 
-      function bindCommonEvents() {
-        const openProjectImport = document.getElementById("open-project-import");
-        if (openProjectImport) {
-          openProjectImport.addEventListener("click", () => {
-            state.projectImportFile = null;
-            state.showProjectImportModal = true;
-            render();
-          });
+      function openProjectImportModal() {
+        state.projectImportFile = null;
+        state.showProjectImportModal = true;
+        render();
+      }
+
+      function closeProjectImportModal() {
+        state.projectImportFile = null;
+        state.showProjectImportModal = false;
+        render();
+      }
+
+      function setProjectImportFile(file, selectedFileLabel) {
+        state.projectImportFile = file || null;
+        if (selectedFileLabel) {
+          selectedFileLabel.textContent = file ? file.name : "ファイル未選択";
         }
+      }
+
+      function bindProjectImportEvents() {
+        const projectImportSelectedFile = document.getElementById("project-import-selected-file");
+        const projectImportFileInput = document.getElementById("project-import-json-file");
+
+        const openProjectImport = document.getElementById("open-project-import");
+        if (openProjectImport) openProjectImport.addEventListener("click", openProjectImportModal);
 
         const openProjectImportEmpty = document.getElementById("open-project-import-empty");
-        if (openProjectImportEmpty) {
-          openProjectImportEmpty.addEventListener("click", () => {
-            state.projectImportFile = null;
-            state.showProjectImportModal = true;
-            render();
-          });
-        }
+        if (openProjectImportEmpty) openProjectImportEmpty.addEventListener("click", openProjectImportModal);
 
         const projectImportCancel = document.getElementById("project-import-cancel");
-        if (projectImportCancel) {
-          projectImportCancel.addEventListener("click", () => {
-            state.projectImportFile = null;
-            state.showProjectImportModal = false;
-            render();
-          });
-        }
+        if (projectImportCancel) projectImportCancel.addEventListener("click", closeProjectImportModal);
 
-        const projectImportFileInput = document.getElementById("project-import-json-file");
-        const projectImportSelectedFile = document.getElementById("project-import-selected-file");
         if (projectImportFileInput && projectImportSelectedFile) {
           projectImportFileInput.addEventListener("change", () => {
             const file =
               projectImportFileInput.files && projectImportFileInput.files[0] ? projectImportFileInput.files[0] : null;
-            state.projectImportFile = file;
-            projectImportSelectedFile.textContent = file ? file.name : "ファイル未選択";
+            setProjectImportFile(file, projectImportSelectedFile);
           });
         }
 
@@ -2790,18 +2791,18 @@
             const files = event.dataTransfer && event.dataTransfer.files ? event.dataTransfer.files : null;
             const file = files && files[0] ? files[0] : null;
             if (!file) return;
-            state.projectImportFile = file;
-            projectImportSelectedFile.textContent = file.name;
+            setProjectImportFile(file, projectImportSelectedFile);
           });
         }
 
         const runProjectImportBtn = document.getElementById("run-project-import-btn");
         if (runProjectImportBtn) {
           runProjectImportBtn.addEventListener("click", async () => {
-            const importFileInput = document.getElementById("project-import-json-file");
             const file =
               state.projectImportFile ||
-              (importFileInput && importFileInput.files && importFileInput.files[0] ? importFileInput.files[0] : null);
+              (projectImportFileInput && projectImportFileInput.files && projectImportFileInput.files[0]
+                ? projectImportFileInput.files[0]
+                : null);
             if (!file) {
               showFlash("ImportするJSONファイルを選択する");
               return;
@@ -2811,8 +2812,8 @@
               const result = createProjectFromImportPayload(payload);
               state.projects.push(result.project);
               savedSnapshots[result.project.id] = deepClone(result.project);
-              if (importFileInput) importFileInput.value = "";
-              state.projectImportFile = null;
+              if (projectImportFileInput) projectImportFileInput.value = "";
+              setProjectImportFile(null, projectImportSelectedFile);
               state.showProjectImportModal = false;
               location.hash = "#/projects/" + encodeURIComponent(result.project.id);
               showFlash(
@@ -2828,7 +2829,9 @@
             }
           });
         }
+      }
 
+      function bindNavigationEvents() {
         document.querySelectorAll("[data-open-project]").forEach((button) => {
           button.addEventListener("click", () => {
             location.hash = "#/projects/" + encodeURIComponent(button.getAttribute("data-open-project"));
@@ -2847,7 +2850,9 @@
             requestNavigation("#/projects");
           });
         }
+      }
 
+      function bindWorkspaceControls() {
         document.querySelectorAll("[data-doc-id]").forEach((button) => {
           button.addEventListener("click", () => {
             requestDocSwitch(button.getAttribute("data-doc-id"));
@@ -3014,7 +3019,9 @@
 
         const submitBtn = document.getElementById("submit-btn");
         if (submitBtn) submitBtn.addEventListener("click", submitCurrentDocument);
+      }
 
+      function bindSettingsControls() {
         const settingsSaveBtn = document.getElementById("settings-save-btn");
         if (settingsSaveBtn) settingsSaveBtn.addEventListener("click", saveChanges);
 
@@ -3145,7 +3152,9 @@
             render();
           });
         }
+      }
 
+      function bindProjectDataIoEvents() {
         const exportIncludePending = document.getElementById("export-include-pending");
         if (exportIncludePending) {
           exportIncludePending.addEventListener("change", () => {
@@ -3204,66 +3213,69 @@
             }
           });
         }
+      }
 
+      function bindUnsavedDialogEvents() {
         const unsavedButtons = document.querySelectorAll("[data-unsaved-action]");
-        if (unsavedButtons.length > 0) {
-          unsavedButtons.forEach((button) => {
-            button.addEventListener("click", () => {
-              const action = button.getAttribute("data-unsaved-action");
-              const pendingId = state.pendingDocSwitchId;
-              const pendingHash = state.pendingNavigationHash;
-              if (action === "cancel") {
-                state.showUnsavedDialog = false;
-                state.pendingDocSwitchId = null;
-                state.pendingNavigationHash = null;
-                render();
-                return;
-              }
-              if (action === "discard") {
-                restoreCurrentProject();
-                state.dirty = false;
-                state.showUnsavedDialog = false;
-                state.pendingDocSwitchId = null;
-                state.pendingNavigationHash = null;
-                if (pendingId) {
-                  state.selectedDocId = pendingId;
-                  state.selectedAnnotationId = null;
-                  resetWorkspaceHistory();
-                  render();
-                  return;
-                }
-                if (pendingHash) {
-                  location.hash = pendingHash;
-                  return;
-                }
+        if (unsavedButtons.length === 0) return;
+        unsavedButtons.forEach((button) => {
+          button.addEventListener("click", () => {
+            const action = button.getAttribute("data-unsaved-action");
+            const pendingId = state.pendingDocSwitchId;
+            const pendingHash = state.pendingNavigationHash;
+            if (action === "cancel") {
+              state.showUnsavedDialog = false;
+              state.pendingDocSwitchId = null;
+              state.pendingNavigationHash = null;
+              render();
+              return;
+            }
+            if (action === "discard") {
+              restoreCurrentProject();
+              state.dirty = false;
+              state.showUnsavedDialog = false;
+              state.pendingDocSwitchId = null;
+              state.pendingNavigationHash = null;
+              if (pendingId) {
+                state.selectedDocId = pendingId;
+                state.selectedAnnotationId = null;
                 resetWorkspaceHistory();
                 render();
                 return;
               }
-              if (action === "save") {
-                saveCurrentProjectSnapshot();
-                state.dirty = false;
-                state.showUnsavedDialog = false;
-                state.pendingDocSwitchId = null;
-                state.pendingNavigationHash = null;
-                if (pendingId) {
-                  state.selectedDocId = pendingId;
-                  state.selectedAnnotationId = null;
-                  pushWorkspaceHistory();
-                  render();
-                  return;
-                }
-                if (pendingHash) {
-                  location.hash = pendingHash;
-                  return;
-                }
+              if (pendingHash) {
+                location.hash = pendingHash;
+                return;
+              }
+              resetWorkspaceHistory();
+              render();
+              return;
+            }
+            if (action === "save") {
+              saveCurrentProjectSnapshot();
+              state.dirty = false;
+              state.showUnsavedDialog = false;
+              state.pendingDocSwitchId = null;
+              state.pendingNavigationHash = null;
+              if (pendingId) {
+                state.selectedDocId = pendingId;
+                state.selectedAnnotationId = null;
                 pushWorkspaceHistory();
                 render();
+                return;
               }
-            });
+              if (pendingHash) {
+                location.hash = pendingHash;
+                return;
+              }
+              pushWorkspaceHistory();
+              render();
+            }
           });
-        }
+        });
+      }
 
+      function bindShortcutEvents() {
         const shortcutClose = document.getElementById("shortcut-close");
         if (shortcutClose) {
           shortcutClose.addEventListener("click", () => {
@@ -3279,192 +3291,206 @@
             render();
           });
         }
+      }
 
+      function bindCanvasEvents() {
         const docText = document.getElementById("doc-text");
-        if (docText) {
-          syncDocOverlayTracking(docText);
-          renderDocOverlay(docText);
-          const overlay = document.getElementById("doc-overlay");
+        if (!docText) {
+          syncDocOverlayTracking(null);
+          return;
+        }
+
+        syncDocOverlayTracking(docText);
+        renderDocOverlay(docText);
+        const overlay = document.getElementById("doc-overlay");
+        applyOverlayUnderlineState(overlay);
+        const laneTooltip = document.getElementById("lane-hover-tooltip");
+        const laneTooltipDot = document.getElementById("lane-hover-tooltip-dot");
+        const laneTooltipText = document.getElementById("lane-hover-tooltip-text");
+
+        const hideLaneTooltip = () => {
+          if (!laneTooltip) return;
+          laneTooltip.classList.remove("show");
+          laneTooltip.setAttribute("aria-hidden", "true");
+        };
+
+        const showLaneTooltip = (annId, clientX, clientY) => {
+          if (!laneTooltip || !laneTooltipDot || !laneTooltipText) return;
+          const project = getCurrentProject();
+          const doc = getCurrentDocument();
+          if (!project || !doc) {
+            hideLaneTooltip();
+            return;
+          }
+          const ann = doc.annotations.find((item) => item.id === annId);
+          if (!ann) {
+            hideLaneTooltip();
+            return;
+          }
+          const label = project.labels.find((item) => item.id === ann.labelId) || null;
+          laneTooltipDot.style.background = label ? label.color || "#8b94a0" : "#8b94a0";
+          laneTooltipText.textContent = label ? label.name : "Unknown";
+          laneTooltip.classList.add("show");
+          laneTooltip.setAttribute("aria-hidden", "false");
+          const rect = laneTooltip.getBoundingClientRect();
+          let left = clientX + 14;
+          let top = clientY + 16;
+          if (left + rect.width > window.innerWidth - 8) left = window.innerWidth - rect.width - 8;
+          if (top + rect.height > window.innerHeight - 8) top = window.innerHeight - rect.height - 8;
+          if (left < 8) left = 8;
+          if (top < 8) top = 8;
+          laneTooltip.style.left = String(left) + "px";
+          laneTooltip.style.top = String(top) + "px";
+        };
+
+        const syncUnderlineHover = (nextLaneAnnId) => {
+          if (state.hoverLaneAnnId === nextLaneAnnId) return;
+          state.hoverLaneAnnId = nextLaneAnnId;
           applyOverlayUnderlineState(overlay);
-          const laneTooltip = document.getElementById("lane-hover-tooltip");
-          const laneTooltipDot = document.getElementById("lane-hover-tooltip-dot");
-          const laneTooltipText = document.getElementById("lane-hover-tooltip-text");
+        };
 
-          const hideLaneTooltip = () => {
-            if (!laneTooltip) return;
-            laneTooltip.classList.remove("show");
-            laneTooltip.setAttribute("aria-hidden", "true");
-          };
-
-          const showLaneTooltip = (annId, clientX, clientY) => {
-            if (!laneTooltip || !laneTooltipDot || !laneTooltipText) return;
-            const project = getCurrentProject();
-            const doc = getCurrentDocument();
-            if (!project || !doc) {
-              hideLaneTooltip();
-              return;
-            }
-            const ann = doc.annotations.find((item) => item.id === annId);
-            if (!ann) {
-              hideLaneTooltip();
-              return;
-            }
-            const label = project.labels.find((item) => item.id === ann.labelId) || null;
-            laneTooltipDot.style.background = label ? label.color || "#8b94a0" : "#8b94a0";
-            laneTooltipText.textContent = label ? label.name : "Unknown";
-            laneTooltip.classList.add("show");
-            laneTooltip.setAttribute("aria-hidden", "false");
-            const rect = laneTooltip.getBoundingClientRect();
-            let left = clientX + 14;
-            let top = clientY + 16;
-            if (left + rect.width > window.innerWidth - 8) left = window.innerWidth - rect.width - 8;
-            if (top + rect.height > window.innerHeight - 8) top = window.innerHeight - rect.height - 8;
-            if (left < 8) left = 8;
-            if (top < 8) top = 8;
-            laneTooltip.style.left = String(left) + "px";
-            laneTooltip.style.top = String(top) + "px";
-          };
-
-          const syncUnderlineHover = (nextLaneAnnId) => {
-            if (state.hoverLaneAnnId === nextLaneAnnId) return;
-            state.hoverLaneAnnId = nextLaneAnnId;
-            applyOverlayUnderlineState(overlay);
-          };
-
-          if (overlay) {
-            overlay.addEventListener("mousemove", (event) => {
-              const line = event.target.closest("[data-overlay-ann-id]");
-              if (!line || !overlay.contains(line)) {
-                syncUnderlineHover(null);
-                hideLaneTooltip();
-                return;
-              }
-              const annId = line.getAttribute("data-overlay-ann-id");
-              syncUnderlineHover(annId);
-              showLaneTooltip(annId, event.clientX, event.clientY);
-            });
-
-            overlay.addEventListener("mouseleave", () => {
-              syncUnderlineHover(null);
-              hideLaneTooltip();
-            });
-
-            overlay.addEventListener("click", (event) => {
-              const line = event.target.closest("[data-overlay-ann-id]");
-              if (!line || !overlay.contains(line)) return;
-              event.stopPropagation();
-              const selection = window.getSelection();
-              if (selection && !selection.isCollapsed) return;
-              const annId = line.getAttribute("data-overlay-ann-id");
-              const doc = getCurrentDocument();
-              if (!doc) return;
-              const ann = doc.annotations.find((item) => item.id === annId);
-              if (!ann) return;
-              state.selectedAnnotationId = ann.id;
-              state.focusedLabelId = ann.labelId;
-              render();
-            });
-          }
-
-          const clearAnnotationSelection = () => {
-            if (state.selectedAnnotationId === null) return;
-            state.selectedAnnotationId = null;
-            render();
-          };
-
-          const canvasWrap = docText.closest(".canvas-wrap");
-          if (canvasWrap) {
-            canvasWrap.addEventListener("click", (event) => {
-              const selection = window.getSelection();
-              if (selection && !selection.isCollapsed) return;
-              const underline = event.target.closest("[data-overlay-ann-id]");
-              if (underline && canvasWrap.contains(underline)) return;
-              const segment = event.target.closest("[data-primary-ann-id]");
-              if (segment && docText.contains(segment)) return;
-              clearAnnotationSelection();
-            });
-          }
-
-          docText.addEventListener("mousemove", (event) => {
-            const selection = window.getSelection();
-            if (selection && !selection.isCollapsed) {
+        if (overlay) {
+          overlay.addEventListener("mousemove", (event) => {
+            const line = event.target.closest("[data-overlay-ann-id]");
+            if (!line || !overlay.contains(line)) {
               syncUnderlineHover(null);
               hideLaneTooltip();
               return;
             }
-            const segment = event.target.closest("[data-primary-ann-id]");
-            if (!segment || !docText.contains(segment)) {
-              syncUnderlineHover(null);
-              hideLaneTooltip();
-              return;
-            }
-            syncUnderlineHover(null);
-            const doc = getCurrentDocument();
-            if (!doc) {
-              hideLaneTooltip();
-              return;
-            }
-            const primaryAnnId = segment.getAttribute("data-primary-ann-id");
-            const primaryAnn = doc.annotations.find((item) => item.id === primaryAnnId);
-            if (!primaryAnn || primaryAnn.labelId !== state.focusedLabelId) {
-              hideLaneTooltip();
-              return;
-            }
-            showLaneTooltip(primaryAnn.id, event.clientX, event.clientY);
+            const annId = line.getAttribute("data-overlay-ann-id");
+            syncUnderlineHover(annId);
+            showLaneTooltip(annId, event.clientX, event.clientY);
           });
 
-          docText.addEventListener("mouseleave", () => {
+          overlay.addEventListener("mouseleave", () => {
             syncUnderlineHover(null);
             hideLaneTooltip();
           });
 
-          docText.addEventListener("mouseup", () => {
+          overlay.addEventListener("click", (event) => {
+            const line = event.target.closest("[data-overlay-ann-id]");
+            if (!line || !overlay.contains(line)) return;
+            event.stopPropagation();
             const selection = window.getSelection();
-            if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
-            const range = selection.getRangeAt(0);
-            if (!docText.contains(range.startContainer) || !docText.contains(range.endContainer)) return;
+            if (selection && !selection.isCollapsed) return;
+            const annId = line.getAttribute("data-overlay-ann-id");
             const doc = getCurrentDocument();
-            const label = getFocusedLabel();
-            if (!doc || !label) return;
-            let start = getTextOffset(docText, range.startContainer, range.startOffset);
-            let end = getTextOffset(docText, range.endContainer, range.endOffset);
-            if (start > end) {
-              const temp = start;
-              start = end;
-              end = temp;
-            }
-            if (start === end) return;
-            const spanText = doc.text.slice(start, end);
-            if (!spanText.trim()) {
-              selection.removeAllRanges();
-              return;
-            }
-            if (hasOverlap(doc.annotations, label.id, start, end)) {
-              selection.removeAllRanges();
-              showFlash("同一ラベルの重複範囲は作成できない");
-              return;
-            }
-            const newAnnotation = {
-              id: makeId("ann"),
-              labelId: label.id,
-              start,
-              end,
-              spanText,
-              comment: "",
-              status: "pending",
-              meta: {},
-            };
-            doc.annotations.push(newAnnotation);
-            touchDoc(doc);
-            setDirty();
-            state.selectedAnnotationId = newAnnotation.id;
-            selection.removeAllRanges();
-            pushWorkspaceHistory();
+            if (!doc) return;
+            const ann = doc.annotations.find((item) => item.id === annId);
+            if (!ann) return;
+            state.selectedAnnotationId = ann.id;
+            state.focusedLabelId = ann.labelId;
             render();
           });
-        } else {
-          syncDocOverlayTracking(null);
         }
+
+        const clearAnnotationSelection = () => {
+          if (state.selectedAnnotationId === null) return;
+          state.selectedAnnotationId = null;
+          render();
+        };
+
+        const canvasWrap = docText.closest(".canvas-wrap");
+        if (canvasWrap) {
+          canvasWrap.addEventListener("click", (event) => {
+            const selection = window.getSelection();
+            if (selection && !selection.isCollapsed) return;
+            const underline = event.target.closest("[data-overlay-ann-id]");
+            if (underline && canvasWrap.contains(underline)) return;
+            const segment = event.target.closest("[data-primary-ann-id]");
+            if (segment && docText.contains(segment)) return;
+            clearAnnotationSelection();
+          });
+        }
+
+        docText.addEventListener("mousemove", (event) => {
+          const selection = window.getSelection();
+          if (selection && !selection.isCollapsed) {
+            syncUnderlineHover(null);
+            hideLaneTooltip();
+            return;
+          }
+          const segment = event.target.closest("[data-primary-ann-id]");
+          if (!segment || !docText.contains(segment)) {
+            syncUnderlineHover(null);
+            hideLaneTooltip();
+            return;
+          }
+          syncUnderlineHover(null);
+          const doc = getCurrentDocument();
+          if (!doc) {
+            hideLaneTooltip();
+            return;
+          }
+          const primaryAnnId = segment.getAttribute("data-primary-ann-id");
+          const primaryAnn = doc.annotations.find((item) => item.id === primaryAnnId);
+          if (!primaryAnn || primaryAnn.labelId !== state.focusedLabelId) {
+            hideLaneTooltip();
+            return;
+          }
+          showLaneTooltip(primaryAnn.id, event.clientX, event.clientY);
+        });
+
+        docText.addEventListener("mouseleave", () => {
+          syncUnderlineHover(null);
+          hideLaneTooltip();
+        });
+
+        docText.addEventListener("mouseup", () => {
+          const selection = window.getSelection();
+          if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+          const range = selection.getRangeAt(0);
+          if (!docText.contains(range.startContainer) || !docText.contains(range.endContainer)) return;
+          const doc = getCurrentDocument();
+          const label = getFocusedLabel();
+          if (!doc || !label) return;
+          let start = getTextOffset(docText, range.startContainer, range.startOffset);
+          let end = getTextOffset(docText, range.endContainer, range.endOffset);
+          if (start > end) {
+            const temp = start;
+            start = end;
+            end = temp;
+          }
+          if (start === end) return;
+          const spanText = doc.text.slice(start, end);
+          if (!spanText.trim()) {
+            selection.removeAllRanges();
+            return;
+          }
+          if (hasOverlap(doc.annotations, label.id, start, end)) {
+            selection.removeAllRanges();
+            showFlash("同一ラベルの重複範囲は作成できない");
+            return;
+          }
+          const newAnnotation = {
+            id: makeId("ann"),
+            labelId: label.id,
+            start,
+            end,
+            spanText,
+            comment: "",
+            status: "pending",
+            meta: {},
+          };
+          doc.annotations.push(newAnnotation);
+          touchDoc(doc);
+          setDirty();
+          state.selectedAnnotationId = newAnnotation.id;
+          selection.removeAllRanges();
+          pushWorkspaceHistory();
+          render();
+        });
+      }
+
+      function bindCommonEvents() {
+        bindProjectImportEvents();
+        bindNavigationEvents();
+        bindWorkspaceControls();
+        bindSettingsControls();
+        bindProjectDataIoEvents();
+        bindUnsavedDialogEvents();
+        bindShortcutEvents();
+        bindCanvasEvents();
       }
 
       window.addEventListener("hashchange", render);
