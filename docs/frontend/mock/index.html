@@ -638,6 +638,65 @@
         display: inline-block;
       }
 
+      .doc-hover-tooltip {
+        position: fixed;
+        display: none;
+        width: min(440px, calc(100vw - 16px));
+        max-width: 440px;
+        max-height: min(420px, calc(100vh - 16px));
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid #cfd7e0;
+        background: rgba(255, 253, 249, 0.98);
+        color: #223347;
+        font-size: 12px;
+        line-height: 1.6;
+        z-index: 37;
+        pointer-events: none;
+        box-shadow: 0 18px 36px rgba(23, 32, 47, 0.2);
+        backdrop-filter: blur(10px);
+      }
+
+      .doc-hover-tooltip.show {
+        display: block;
+      }
+
+      .doc-hover-tooltip-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+
+      .doc-hover-tooltip-title {
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .doc-hover-tooltip-meta {
+        margin-bottom: 10px;
+        color: #6d7782;
+        font-size: 11px;
+      }
+
+      .doc-hover-tooltip-body {
+        overflow: auto;
+        max-height: min(300px, calc(100vh - 130px));
+        color: #2f3540;
+      }
+
+      .doc-hover-tooltip-body mark {
+        background: linear-gradient(180deg, rgba(255, 230, 147, 0.32) 0%, rgba(255, 214, 94, 0.72) 100%);
+        color: inherit;
+        padding: 0 2px;
+        border-radius: 4px;
+      }
+
+      .doc-hover-tooltip-muted {
+        color: #7c8692;
+      }
+
       .related-hover-tooltip {
         position: fixed;
         display: none;
@@ -1220,6 +1279,7 @@
       <span class="lane-hover-tooltip-dot" id="lane-hover-tooltip-dot"></span>
       <span id="lane-hover-tooltip-text"></span>
     </div>
+    <div id="doc-hover-tooltip" class="doc-hover-tooltip" aria-hidden="true"></div>
     <div id="related-hover-tooltip" class="related-hover-tooltip" aria-hidden="true"></div>
     <script>
       function deepClone(value) {
@@ -1659,6 +1719,61 @@
         return prefix + highlightSearchTerms(text.slice(start, end), query) + suffix;
       }
 
+      function getDocumentHoverPreviewHtml(doc, query) {
+        const text = String((doc && doc.text) || "");
+        if (!text) return '<span class="doc-hover-tooltip-muted">本文はまだ空である。</span>';
+
+        const trimmedQuery = String(query || "").trim();
+        if (!trimmedQuery) {
+          const excerpt = text.slice(0, 180);
+          return escapeHtml(excerpt) + (text.length > 180 ? "…" : "");
+        }
+
+        const rawTokens = Array.from(
+          new Set(
+            trimmedQuery
+              .split(/\s+/)
+              .map((token) => token.trim())
+              .filter(Boolean)
+          )
+        );
+
+        let matchIndex = -1;
+        let matchLength = 0;
+        for (const token of rawTokens) {
+          const idx = text.toLocaleLowerCase("ja").indexOf(token.toLocaleLowerCase("ja"));
+          if (idx >= 0) {
+            matchIndex = idx;
+            matchLength = token.length;
+            break;
+          }
+        }
+
+        if (matchIndex < 0) {
+          const fallback = text.slice(0, 180);
+          return highlightSearchTerms(fallback + (text.length > 180 ? "…" : ""), query);
+        }
+
+        const excerptRadius = 88;
+        const start = Math.max(0, matchIndex - excerptRadius);
+        const end = Math.min(text.length, matchIndex + matchLength + excerptRadius);
+        const prefix = start > 0 ? "…" : "";
+        const suffix = end < text.length ? "…" : "";
+        return prefix + highlightSearchTerms(text.slice(start, end), query) + suffix;
+      }
+
+      function renderDocumentHoverTooltipHtml(doc, query) {
+        if (!doc) return "";
+        return `
+          <div class="doc-hover-tooltip-head">
+            <div class="doc-hover-tooltip-title">${escapeHtml(doc.documentName || "")}</div>
+            <span class="pill ${escapeHtml(doc.status || "pending")}">${escapeHtml(doc.status || "pending")}</span>
+          </div>
+          <div class="doc-hover-tooltip-meta">更新: ${escapeHtml(formatDate(doc.updatedAt))}</div>
+          <div class="doc-hover-tooltip-body">${getDocumentHoverPreviewHtml(doc, query)}</div>
+        `;
+      }
+
       function getSelectedAnnotation() {
         const doc = getCurrentDocument();
         if (!doc) return null;
@@ -2001,7 +2116,12 @@
             ? panelState.docs
                 .map((item) => {
                   return `
-                    <button class="doc-item ${item.id === state.selectedDocId ? "active" : ""}" data-doc-id="${item.id}">
+                    <button
+                      class="doc-item ${item.id === state.selectedDocId ? "active" : ""}"
+                      data-doc-id="${item.id}"
+                      data-doc-preview="true"
+                      data-doc-preview-context="${escapeHtmlAttr(renderDocumentHoverTooltipHtml(item, state.docSearchQuery))}"
+                    >
                       <div>
                         <div class="doc-name">${escapeHtml(item.documentName)}</div>
                         ${
@@ -2856,6 +2976,11 @@
         if (laneTooltip) {
           laneTooltip.classList.remove("show");
           laneTooltip.setAttribute("aria-hidden", "true");
+        }
+        const docTooltip = document.getElementById("doc-hover-tooltip");
+        if (docTooltip) {
+          docTooltip.classList.remove("show");
+          docTooltip.setAttribute("aria-hidden", "true");
         }
         const relatedTooltip = document.getElementById("related-hover-tooltip");
         if (relatedTooltip) {
@@ -3754,8 +3879,41 @@
       }
 
       function bindDocumentPanelDynamicControls() {
+        const docHoverTooltip = document.getElementById("doc-hover-tooltip");
+        const hideDocHoverTooltip = () => {
+          if (!docHoverTooltip) return;
+          docHoverTooltip.classList.remove("show");
+          docHoverTooltip.setAttribute("aria-hidden", "true");
+        };
+        const showDocHoverTooltip = (button, clientX, clientY) => {
+          if (!docHoverTooltip || !button) return;
+          docHoverTooltip.innerHTML = button.getAttribute("data-doc-preview-context") || "";
+          if (!docHoverTooltip.innerHTML) {
+            hideDocHoverTooltip();
+            return;
+          }
+          docHoverTooltip.classList.add("show");
+          docHoverTooltip.setAttribute("aria-hidden", "false");
+          const rect = docHoverTooltip.getBoundingClientRect();
+          let left = clientX + 18;
+          let top = clientY + 14;
+          if (left + rect.width > window.innerWidth - 8) left = clientX - rect.width - 18;
+          if (top + rect.height > window.innerHeight - 8) top = window.innerHeight - rect.height - 8;
+          if (left < 8) left = 8;
+          if (top < 8) top = 8;
+          docHoverTooltip.style.left = String(left) + "px";
+          docHoverTooltip.style.top = String(top) + "px";
+        };
+
         document.querySelectorAll("[data-doc-id]").forEach((button) => {
+          button.addEventListener("mousemove", (event) => {
+            showDocHoverTooltip(button, event.clientX, event.clientY);
+          });
+          button.addEventListener("mouseleave", () => {
+            hideDocHoverTooltip();
+          });
           button.addEventListener("click", () => {
+            hideDocHoverTooltip();
             requestDocSwitch(button.getAttribute("data-doc-id"));
           });
         });

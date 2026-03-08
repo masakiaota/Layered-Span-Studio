@@ -445,6 +445,8 @@ test("workspace render shows search affordance and out-of-result guidance", () =
   assert.match(html, /id="doc-search-input"/);
   assert.match(html, /現在表示中の Doc は検索結果の外にある/);
   assert.match(html, /id="doc-search-show-current"/);
+  assert.match(html, /data-doc-preview="true"/);
+  assert.match(html, /data-doc-preview-context="/);
   assert.match(html, /初診_58歳男性_救急外来/);
   assert.match(html, /<mark>CRP<\/mark> 8\.4 mg\/dL/);
 });
@@ -582,5 +584,7 @@ test("doc search input updates the left pane without calling global render", asy
   assert.equal(mockApp.state.docSearchQuery, "生活指導");
   assert.match(docList.innerHTML, /再診_3日後フォロー/);
   assert.match(docList.innerHTML, /<mark>生活指導<\/mark>を継続した/);
+  assert.match(docList.innerHTML, /data-doc-preview="true"/);
+  assert.match(docList.innerHTML, /data-doc-preview-context=/);
   assert.match(searchAccessory.innerHTML, /doc-search-clear/);
 });
