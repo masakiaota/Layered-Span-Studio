@@ -52,10 +52,12 @@ function createDocument(elements) {
     createElement() {
       return new FakeElement();
     },
+    activeElement: null,
   };
 }
 
 function loadMockApp(document) {
+  const windowListeners = {};
   const html = readFileSync(htmlPath, "utf8");
   const match = html.match(/<script>\n([\s\S]*?)\n\s*<\/script>\s*<\/body>/);
   assert.ok(match, "mock script not found");
@@ -77,7 +79,10 @@ function loadMockApp(document) {
     },
     location: { hash: "" },
     window: {
-      addEventListener() {},
+      addEventListener(type, handler) {
+        if (!windowListeners[type]) windowListeners[type] = [];
+        windowListeners[type].push(handler);
+      },
       setTimeout() {
         return 0;
       },
@@ -101,6 +106,7 @@ render = () => {};
 globalThis.__mock_exports = {
   applyDocSwitch,
   bindCommonEvents,
+  bindKeyboardShortcuts,
   bindWorkspaceControls,
   createProjectFromImportPayload,
   doesDocumentMatchSearch,
@@ -116,6 +122,7 @@ globalThis.__mock_exports = {
   refreshDocumentPanel,
   renderWorkspace,
   restoreCurrentProject,
+  moveRightPanelTabByDirection,
   setRenderImpl(fn) {
     render = fn;
   },
@@ -127,7 +134,29 @@ globalThis.__mock_exports = {
     { filename: htmlPath }
   );
 
-  return context.__mock_exports;
+  return {
+    ...context.__mock_exports,
+    location: context.location,
+    async dispatchWindowEvent(type, eventInit = {}) {
+      const listeners = windowListeners[type] || [];
+      const event = {
+        key: "",
+        shiftKey: false,
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        defaultPrevented: false,
+        preventDefault() {
+          this.defaultPrevented = true;
+        },
+        ...eventInit,
+      };
+      for (const listener of listeners) {
+        await listener(event);
+      }
+      return event;
+    },
+  };
 }
 
 function validImportPayload() {
@@ -231,6 +260,46 @@ test("arrow-style annotation move can continue into the next label group", () =>
 
   assert.equal(mockApp.state.selectedAnnotationId, "ann-3");
   assert.equal(mockApp.state.focusedLabelId, "label-b");
+});
+
+test("keyboard shortcuts use h/l for label move and brackets for right panel tabs", async () => {
+  const mockApp = loadMockApp(createDocument({}));
+  const project = {
+    id: "project-1",
+    labels: [
+      { id: "label-a", name: "A" },
+      { id: "label-b", name: "B" },
+    ],
+    documents: [
+      {
+        id: "doc-1",
+        annotations: [{ id: "ann-1", labelId: "label-a", start: 1, end: 3 }],
+      },
+    ],
+  };
+
+  mockApp.state.projects = [project];
+  mockApp.state.currentProjectId = "project-1";
+  mockApp.state.selectedDocId = "doc-1";
+  mockApp.state.focusedLabelId = "label-a";
+  mockApp.state.selectedAnnotationId = "ann-1";
+  mockApp.state.rightPanelTab = "related";
+  mockApp.location.hash = "#/projects/project-1";
+
+  mockApp.bindKeyboardShortcuts();
+
+  await mockApp.dispatchWindowEvent("keydown", { key: "l" });
+  assert.equal(mockApp.state.focusedLabelId, "label-b");
+  assert.equal(mockApp.state.selectedAnnotationId, null);
+
+  await mockApp.dispatchWindowEvent("keydown", { key: "[" });
+  assert.equal(mockApp.state.rightPanelTab, "related");
+
+  await mockApp.dispatchWindowEvent("keydown", { key: "]" });
+  assert.equal(mockApp.state.rightPanelTab, "annotationList");
+
+  await mockApp.dispatchWindowEvent("keydown", { key: "ArrowLeft" });
+  assert.equal(mockApp.state.focusedLabelId, "label-a");
 });
 
 test("workspace starts with no annotation selected", () => {

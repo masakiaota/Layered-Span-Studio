@@ -2665,7 +2665,8 @@
                   <li class="shortcut-item"><span class="shortcut-keys">Cmd+Y / Cmd+Shift+Z</span><span>Redo</span></li>
                   <li class="shortcut-item"><span class="shortcut-keys">J / K</span><span>次のDoc / 前のDoc</span></li>
                   <li class="shortcut-item"><span class="shortcut-keys">Shift+J / Shift+K</span><span>次のpending Doc / 前のpending Doc</span></li>
-                  <li class="shortcut-item"><span class="shortcut-keys">[ / ] / ← / →</span><span>前Label / 次Label</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">H / L / ← / →</span><span>前Label / 次Label</span></li>
+                  <li class="shortcut-item"><span class="shortcut-keys">[ / ]</span><span>関連例 / 注釈一覧 を切り替え</span></li>
                   <li class="shortcut-item"><span class="shortcut-keys">N / P / ↓ / ↑</span><span>現在Label内で次 / 前を選択（未選択時は先頭 / 末尾）</span></li>
                   <li class="shortcut-item"><span class="shortcut-keys">Esc</span><span>選択中Annotationを解除</span></li>
                   <li class="shortcut-item"><span class="shortcut-keys">Delete / Backspace</span><span>選択中Annotationを削除</span></li>
@@ -2791,6 +2792,16 @@
         state.focusedLabelId = project.labels[nextIndex].id;
         state.selectedAnnotationId = null;
         state.hoverLaneAnnId = null;
+        render();
+      }
+
+      function moveRightPanelTabByDirection(direction) {
+        const tabs = ["related", "annotationList"];
+        const currentIndex = tabs.indexOf(state.rightPanelTab);
+        const base = currentIndex >= 0 ? currentIndex : 0;
+        const nextIndex = base + direction;
+        if (nextIndex < 0 || nextIndex >= tabs.length) return;
+        state.rightPanelTab = tabs[nextIndex];
         render();
       }
 
@@ -3263,14 +3274,24 @@
             moveDocumentByDirection(-1, event.shiftKey);
             return;
           }
-          if (event.key === "[" || event.key === "ArrowLeft") {
+          if (keyLower === "h" || event.key === "ArrowLeft") {
             event.preventDefault();
             moveLabelByDirection(-1);
             return;
           }
-          if (event.key === "]" || event.key === "ArrowRight") {
+          if (keyLower === "l" || event.key === "ArrowRight") {
             event.preventDefault();
             moveLabelByDirection(1);
+            return;
+          }
+          if (event.key === "[") {
+            event.preventDefault();
+            moveRightPanelTabByDirection(-1);
+            return;
+          }
+          if (event.key === "]") {
+            event.preventDefault();
+            moveRightPanelTabByDirection(1);
             return;
           }
           if (keyLower === "n") {

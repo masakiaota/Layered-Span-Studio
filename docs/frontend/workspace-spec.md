@@ -157,10 +157,13 @@
   - `Shift+J`: 次の`pending` Doc
   - `Shift+K`: 前の`pending` Doc
 - Label移動
-  - `[`: 前Label
-  - `]`: 次Label
+  - `H`: 前Label
+  - `L`: 次Label
   - `←`: 前Label
   - `→`: 次Label
+- 右ペイン切り替え
+  - `[`: 前タブ（`関連例`）
+  - `]`: 次タブ（`注釈一覧`）
 - Annotation操作
   - `N`: 現在選択中Label内で次のAnnotationを選択
   - `P`: 現在選択中Label内で前のAnnotationを選択
@@ -173,7 +176,8 @@
 - 適用ルール
   - `input` / `textarea` / `select` フォーカス中はショートカットを無効化する。
   - Doc 検索中の `J/K/Shift+J/Shift+K` は、検索結果一覧の中だけを移動対象にする。
-  - `[ / ]` によるLabel切り替え時は、Annotation選択をリセットする。
+  - `H/L/←/→` によるLabel切り替え時は、Annotation選択をリセットする。
+  - `[ / ]` は右ペインのタブ切り替えに使い、選択中 Annotation は維持する。
   - `N/P` は現在選択中Label内のみを対象とし、未選択状態では先頭（`N`）/末尾（`P`）から開始する。
   - `↑/↓` は Doc アノテーション一覧の表示順に従って移動し、group 端では隣接 group へ継続する。
   - Undo/Redo 実行時は、現在選択中のDocを維持し、別Docへ自動切り替えしない。
