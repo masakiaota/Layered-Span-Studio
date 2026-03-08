@@ -13,6 +13,8 @@ class FakeElement {
     this.attributes = new Map(Object.entries(attributes));
     this.listeners = new Map();
     this.files = null;
+    this.innerHTML = "";
+    this.scrollTop = 0;
     this.value = "";
   }
 
@@ -29,6 +31,8 @@ class FakeElement {
     if (!handler) return;
     await handler({ preventDefault() {}, target: this });
   }
+
+  focus() {}
 }
 
 function createDocument(elements) {
@@ -97,11 +101,22 @@ render = () => {};
 globalThis.__mock_exports = {
   applyDocSwitch,
   bindCommonEvents,
+  bindWorkspaceControls,
   createProjectFromImportPayload,
+  doesDocumentMatchSearch,
   ensureWorkspaceState,
   getAnnotationsInPanelOrder,
+  getDocumentSearchSnippet,
+  getVisibleDocuments,
+  highlightSearchTerms,
   moveAnnotationByDirection,
+  normalizeSearchText,
+  refreshDocumentPanel,
+  renderWorkspace,
   restoreCurrentProject,
+  setRenderImpl(fn) {
+    render = fn;
+  },
   state,
   savedSnapshots,
 };
@@ -264,4 +279,150 @@ test("doc switch clears selected annotation", () => {
 
   assert.equal(mockApp.state.selectedDocId, "doc-2");
   assert.equal(mockApp.state.selectedAnnotationId, null);
+});
+
+test("doc search normalizes spaces for body text matching", () => {
+  const mockApp = loadMockApp(createDocument({}));
+
+  assert.equal(mockApp.normalizeSearchText(" 肺炎   CRP  "), "肺炎 crp");
+  assert.equal(
+    mockApp.doesDocumentMatchSearch({ text: "市中肺炎と診断した。CRP 8.4 mg/dL。" }, "肺炎 CRP"),
+    true
+  );
+});
+
+test("visible doc list filters by body text while preserving current selection", () => {
+  const mockApp = loadMockApp(createDocument({}));
+  const project = {
+    id: "project-1",
+    labels: [{ id: "label-a", name: "A" }],
+    documents: [
+      {
+        id: "doc-1",
+        documentName: "初診_58歳男性_救急外来",
+        text: "市中肺炎と診断し、CRP 8.4 mg/dL を確認した。",
+        status: "pending",
+        createdAt: 1,
+        updatedAt: 5,
+        annotations: [],
+      },
+      {
+        id: "doc-2",
+        documentName: "再診_3日後フォロー",
+        text: "咳嗽は軽減し、生活指導を継続した。",
+        status: "verified",
+        createdAt: 2,
+        updatedAt: 4,
+        annotations: [],
+      },
+    ],
+  };
+
+  mockApp.state.projects = [project];
+  mockApp.state.currentProjectId = "project-1";
+  mockApp.state.selectedDocId = "doc-2";
+  mockApp.state.focusedLabelId = "label-a";
+  mockApp.state.docSearchQuery = "CRP";
+
+  const visible = mockApp.getVisibleDocuments(project);
+
+  assert.equal(visible.map((doc) => doc.id).join(","), "doc-1");
+  assert.equal(mockApp.state.selectedDocId, "doc-2");
+});
+
+test("workspace render shows search affordance and out-of-result guidance", () => {
+  const mockApp = loadMockApp(createDocument({}));
+  const project = {
+    id: "project-1",
+    name: "Project",
+    labels: [{ id: "label-a", name: "A", color: "#8b94a0", description: "" }],
+    documents: [
+      {
+        id: "doc-1",
+        documentName: "初診_58歳男性_救急外来",
+        text: "市中肺炎と診断し、CRP 8.4 mg/dL を確認した。",
+        status: "pending",
+        createdAt: 1,
+        updatedAt: 5,
+        annotations: [],
+      },
+      {
+        id: "doc-2",
+        documentName: "再診_3日後フォロー",
+        text: "咳嗽は軽減し、生活指導を継続した。",
+        status: "verified",
+        createdAt: 2,
+        updatedAt: 4,
+        annotations: [],
+      },
+    ],
+  };
+
+  mockApp.state.projects = [project];
+  mockApp.state.currentProjectId = "project-1";
+  mockApp.state.selectedDocId = "doc-2";
+  mockApp.state.focusedLabelId = "label-a";
+  mockApp.state.docSearchQuery = "CRP";
+
+  const html = mockApp.renderWorkspace(project);
+
+  assert.match(html, /id="doc-search-input"/);
+  assert.match(html, /現在表示中の Doc は検索結果の外にある/);
+  assert.match(html, /id="doc-search-show-current"/);
+  assert.match(html, /初診_58歳男性_救急外来/);
+  assert.match(html, /<mark>CRP<\/mark> 8\.4 mg\/dL/);
+});
+
+test("doc search input updates the left pane without calling global render", async () => {
+  const searchInput = new FakeElement();
+  const searchAccessory = new FakeElement();
+  const docList = new FakeElement();
+  const mockApp = loadMockApp(
+    createDocument({
+      "doc-search-input": searchInput,
+      "doc-search-accessory": searchAccessory,
+      "doc-list": docList,
+    })
+  );
+  const project = {
+    id: "project-1",
+    labels: [{ id: "label-a", name: "A" }],
+    documents: [
+      {
+        id: "doc-1",
+        documentName: "初診_58歳男性_救急外来",
+        text: "市中肺炎と診断し、CRP 8.4 mg/dL を確認した。",
+        status: "pending",
+        createdAt: 1,
+        updatedAt: 5,
+        annotations: [],
+      },
+      {
+        id: "doc-2",
+        documentName: "再診_3日後フォロー",
+        text: "咳嗽は軽減し、生活指導を継続した。",
+        status: "verified",
+        createdAt: 2,
+        updatedAt: 4,
+        annotations: [],
+      },
+    ],
+  };
+
+  mockApp.state.projects = [project];
+  mockApp.state.currentProjectId = "project-1";
+  mockApp.state.selectedDocId = "doc-1";
+  mockApp.state.focusedLabelId = "label-a";
+  mockApp.setRenderImpl(() => {
+    throw new Error("render should not run for doc search input");
+  });
+
+  mockApp.bindWorkspaceControls();
+  searchInput.value = "生活指導";
+  await searchInput.dispatch("input");
+
+  assert.equal(mockApp.state.docSearchQuery, "生活指導");
+  assert.match(docList.innerHTML, /再診_3日後フォロー/);
+  assert.match(docList.innerHTML, /<mark>生活指導<\/mark>を継続した/);
+  assert.match(searchAccessory.innerHTML, /doc-search-clear/);
 });

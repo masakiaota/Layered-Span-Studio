@@ -279,12 +279,111 @@
         gap: 8px;
       }
 
+      .doc-panel-head {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .doc-panel-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .doc-toolbar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .doc-search-shell {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 12px;
+        border: 1px solid #d8d1c4;
+        border-radius: 12px;
+        background:
+          radial-gradient(circle at top right, rgba(255, 250, 238, 0.9), transparent 42%),
+          rgba(255, 255, 255, 0.62);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+      }
+
+      .doc-search-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #ece6db;
+        color: #51606f;
+        font-size: 15px;
+      }
+
+      .doc-search-input {
+        min-width: 0;
+      }
+
+      .doc-search-input input {
+        width: 100%;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        font-size: 14px;
+        font-family: inherit;
+        padding: 0;
+      }
+
+      .doc-search-input input:focus {
+        outline: none;
+      }
+
+      .doc-search-input input::placeholder {
+        color: #7b8490;
+      }
+
       .doc-list {
         overflow: auto;
         padding: 8px 8px 12px;
         display: flex;
         flex-direction: column;
         gap: 6px;
+      }
+
+      .doc-list-banner {
+        padding: 10px 12px;
+        border: 1px solid #d7cfbf;
+        border-radius: 12px;
+        background:
+          linear-gradient(180deg, rgba(255, 249, 238, 0.94) 0%, rgba(246, 239, 226, 0.96) 100%);
+        color: #354252;
+      }
+
+      .doc-list-banner strong {
+        display: block;
+        font-size: 13px;
+      }
+
+      .doc-list-banner p {
+        margin: 6px 0 0;
+        color: #5f6976;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .doc-list-banner .actions,
+      .doc-empty-state .actions {
+        margin-top: 10px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
       }
 
       .doc-item {
@@ -308,10 +407,45 @@
         font-weight: 700;
       }
 
+      .doc-snippet {
+        margin-top: 4px;
+        color: #47515f;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .doc-snippet mark {
+        background: linear-gradient(180deg, rgba(255, 230, 147, 0.34) 0%, rgba(255, 214, 94, 0.7) 100%);
+        color: inherit;
+        padding: 0 2px;
+        border-radius: 4px;
+      }
+
       .doc-sub {
         font-size: 12px;
         color: var(--muted);
         margin-top: 2px;
+      }
+
+      .doc-empty-state {
+        padding: 20px 16px;
+        border: 1px dashed #ccbfa8;
+        border-radius: 16px;
+        background:
+          radial-gradient(circle at top right, rgba(255, 248, 235, 0.92), transparent 42%),
+          linear-gradient(180deg, #fbf7ee 0%, #f3ecde 100%);
+      }
+
+      .doc-empty-state strong {
+        display: block;
+        font-size: 15px;
+      }
+
+      .doc-empty-state p {
+        margin: 8px 0 0;
+        color: #5c6673;
+        font-size: 13px;
+        line-height: 1.6;
       }
 
       .pill {
@@ -787,6 +921,16 @@
           font-size: 13px;
         }
       }
+
+      @media (max-width: 720px) {
+        .doc-search-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .doc-search-icon {
+          display: none;
+        }
+      }
     </style>
   </head>
   <body>
@@ -809,7 +953,17 @@
         return input
           .replaceAll("&", "&amp;")
           .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;");
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function escapeHtmlAttr(input) {
+        return escapeHtml(String(input || ""));
+      }
+
+      function escapeRegExp(input) {
+        return String(input).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       }
 
       function formatDate(ts) {
@@ -1046,6 +1200,8 @@
         focusedLabelId: null,
         hoverLaneAnnId: null,
         sortBy: "created",
+        docSearchQuery: "",
+        createDocPrefillName: "",
         dirty: false,
         flash: "",
         showCreateDocModal: false,
@@ -1127,6 +1283,80 @@
         const project = getCurrentProject();
         if (!project) return null;
         return project.documents.find((d) => d.id === state.selectedDocId) || null;
+      }
+
+      function normalizeSearchText(value) {
+        return String(value || "")
+          .normalize("NFKC")
+          .toLocaleLowerCase("ja")
+          .replace(/[_\s-]+/g, " ")
+          .trim();
+      }
+
+      function getDocSearchTokens(value) {
+        const normalized = normalizeSearchText(value);
+        return normalized ? normalized.split(" ").filter(Boolean) : [];
+      }
+
+      function doesDocumentMatchSearch(doc, query) {
+        const tokens = Array.isArray(query) ? query : getDocSearchTokens(query);
+        if (tokens.length === 0) return true;
+        const normalizedText = normalizeSearchText(doc && doc.text);
+        return tokens.every((token) => normalizedText.includes(token));
+      }
+
+      function highlightSearchTerms(text, query) {
+        const rawText = String(text || "");
+        const tokens = Array.from(new Set(getDocSearchTokens(query))).sort((left, right) => right.length - left.length);
+        if (tokens.length === 0) return escapeHtml(rawText);
+        const pattern = new RegExp("(" + tokens.map(escapeRegExp).join("|") + ")", "gi");
+        return rawText
+          .split(pattern)
+          .map((part) => {
+            if (!part) return "";
+            const normalizedPart = normalizeSearchText(part);
+            const matched = tokens.some((token) => normalizedPart === normalizeSearchText(token));
+            return matched ? "<mark>" + escapeHtml(part) + "</mark>" : escapeHtml(part);
+          })
+          .join("");
+      }
+
+      function getDocumentSearchSnippet(doc, query) {
+        const text = String((doc && doc.text) || "");
+        const trimmedQuery = String(query || "").trim();
+        if (!trimmedQuery) return escapeHtml(text.slice(0, 52)) + (text.length > 52 ? "…" : "");
+
+        const rawTokens = Array.from(
+          new Set(
+            trimmedQuery
+              .split(/\s+/)
+              .map((token) => token.trim())
+              .filter(Boolean)
+          )
+        );
+
+        let matchIndex = -1;
+        let matchLength = 0;
+        for (const token of rawTokens) {
+          const idx = text.toLocaleLowerCase("ja").indexOf(token.toLocaleLowerCase("ja"));
+          if (idx >= 0) {
+            matchIndex = idx;
+            matchLength = token.length;
+            break;
+          }
+        }
+
+        if (matchIndex < 0) {
+          const fallback = text.slice(0, 52);
+          return highlightSearchTerms(fallback + (text.length > 52 ? "…" : ""), query);
+        }
+
+        const excerptRadius = 24;
+        const start = Math.max(0, matchIndex - excerptRadius);
+        const end = Math.min(text.length, matchIndex + matchLength + excerptRadius);
+        const prefix = start > 0 ? "…" : "";
+        const suffix = end < text.length ? "…" : "";
+        return prefix + highlightSearchTerms(text.slice(start, end), query) + suffix;
       }
 
       function getSelectedAnnotation() {
@@ -1396,6 +1626,8 @@
         if (state.currentProjectId === projectId) return;
         state.currentProjectId = projectId;
         state.sortBy = "created";
+        state.docSearchQuery = "";
+        state.createDocPrefillName = "";
         state.hoverLaneAnnId = null;
         state.dirty = false;
         state.showCreateDocModal = false;
@@ -1430,6 +1662,96 @@
         if (state.sortBy === "name")
           docs.sort((a, b) => a.documentName.localeCompare(b.documentName, "ja"));
         return docs;
+      }
+
+      function getVisibleDocuments(project) {
+        const docs = getSortedDocuments(project);
+        const tokens = getDocSearchTokens(state.docSearchQuery);
+        if (tokens.length === 0) return docs;
+        return docs.filter((doc) => doesDocumentMatchSearch(doc, tokens));
+      }
+
+      function getDocumentPanelState(project) {
+        const docs = getVisibleDocuments(project);
+        const doc = getCurrentDocument();
+        const pendingDocsCount = project.documents.filter((item) => item.status === "pending").length;
+        const hasDocSearch = getDocSearchTokens(state.docSearchQuery).length > 0;
+        const currentDocHiddenBySearch = !!(doc && hasDocSearch && !docs.some((item) => item.id === doc.id));
+        return {
+          currentDocHiddenBySearch,
+          doc,
+          docs,
+          hasDocSearch,
+          pendingDocsCount,
+        };
+      }
+
+      function renderDocumentSearchAccessory(panelState) {
+        return panelState.hasDocSearch
+          ? '<button class="btn btn-quiet" id="doc-search-clear" type="button">クリア</button>'
+          : "";
+      }
+
+      function renderDocumentListBody(panelState) {
+        const docsHtml =
+          panelState.docs.length > 0
+            ? panelState.docs
+                .map((item) => {
+                  return `
+                    <button class="doc-item ${item.id === state.selectedDocId ? "active" : ""}" data-doc-id="${item.id}">
+                      <div>
+                        <div class="doc-name">${escapeHtml(item.documentName)}</div>
+                        ${
+                          panelState.hasDocSearch
+                            ? '<div class="doc-snippet">' + getDocumentSearchSnippet(item, state.docSearchQuery) + "</div>"
+                            : ""
+                        }
+                        <div class="doc-sub">更新: ${formatDate(item.updatedAt)}</div>
+                      </div>
+                      <span class="pill ${item.status}">${item.status}</span>
+                    </button>
+                  `;
+                })
+                .join("")
+            : `
+              <section class="doc-empty-state">
+                <strong>一致する Doc がまだない</strong>
+                <p>「${escapeHtml(state.docSearchQuery)}」に合う本文が見つからない。言い回しを変えるか、検索をクリアすると全件に戻る。</p>
+                <div class="actions">
+                  <button class="btn" id="doc-search-clear-empty">検索をクリア</button>
+                  <button class="btn btn-primary" id="doc-search-create-doc">+ Doc を作る</button>
+                </div>
+              </section>
+            `;
+
+        const currentDocSearchBanner = panelState.currentDocHiddenBySearch
+          ? `
+            <section class="doc-list-banner">
+              <strong>現在表示中の Doc は検索結果の外にある</strong>
+              <p><code>${escapeHtml(panelState.doc.documentName)}</code> を編集中のまま、一覧は検索結果だけに絞っている。戻りたくなったら検索をクリアすればよい。</p>
+              <div class="actions">
+                <button class="btn" id="doc-search-show-current">現在 Doc を一覧に出す</button>
+                <button class="btn" id="doc-search-clear-banner">検索をクリア</button>
+              </div>
+            </section>
+          `
+          : "";
+
+        return currentDocSearchBanner + docsHtml;
+      }
+
+      function refreshDocumentPanel(project, options) {
+        if (!project) return;
+        const panelState = getDocumentPanelState(project);
+        const searchAccessory = document.getElementById("doc-search-accessory");
+        if (searchAccessory) searchAccessory.innerHTML = renderDocumentSearchAccessory(panelState);
+        const docList = document.getElementById("doc-list");
+        if (docList) {
+          const previousScrollTop = docList.scrollTop;
+          docList.innerHTML = renderDocumentListBody(panelState);
+          docList.scrollTop = options && options.resetScroll ? 0 : previousScrollTop;
+        }
+        bindDocumentPanelDynamicControls();
       }
 
       function buildSegments(text, annotations) {
@@ -1645,25 +1967,10 @@
       }
 
       function renderWorkspace(project) {
-        const docs = getSortedDocuments(project);
+        const documentPanelState = getDocumentPanelState(project);
         const doc = getCurrentDocument();
         const selectedAnn = getSelectedAnnotation();
         const focusedLabel = getFocusedLabel();
-        const pendingDocsCount = project.documents.filter((item) => item.status === "pending").length;
-
-        const docsHtml = docs
-          .map((item) => {
-            return `
-              <button class="doc-item ${item.id === state.selectedDocId ? "active" : ""}" data-doc-id="${item.id}">
-                <div>
-                  <div class="doc-name">${escapeHtml(item.documentName)}</div>
-                  <div class="doc-sub">更新: ${formatDate(item.updatedAt)}</div>
-                </div>
-                <span class="pill ${item.status}">${item.status}</span>
-              </button>
-            `;
-          })
-          .join("");
 
         const labelsHtml = project.labels
           .map((label) => {
@@ -1738,18 +2045,36 @@
           <main class="workspace-wrap">
             <section class="panel">
               <div class="panel-head">
-                <span class="small">${pendingDocsCount} pending / ${project.documents.length} docs</span>
-                <div style="display:flex;gap:8px;align-items:center;">
-                  <select id="doc-sort" class="btn">
-                    <option value="created" ${state.sortBy === "created" ? "selected" : ""}>作成順</option>
-                    <option value="pendingFirst" ${state.sortBy === "pendingFirst" ? "selected" : ""}>未完了優先</option>
-                    <option value="updated" ${state.sortBy === "updated" ? "selected" : ""}>最終更新順</option>
-                    <option value="name" ${state.sortBy === "name" ? "selected" : ""}>document_name順</option>
-                  </select>
-                  <button class="btn" id="create-doc-open">+ Doc</button>
+                <div class="doc-panel-head">
+                  <div class="doc-panel-top">
+                    <span class="small">${documentPanelState.pendingDocsCount} pending / ${project.documents.length} docs</span>
+                    <div class="doc-toolbar">
+                      <select id="doc-sort" class="btn">
+                        <option value="created" ${state.sortBy === "created" ? "selected" : ""}>作成順</option>
+                        <option value="pendingFirst" ${state.sortBy === "pendingFirst" ? "selected" : ""}>未完了優先</option>
+                        <option value="updated" ${state.sortBy === "updated" ? "selected" : ""}>最終更新順</option>
+                        <option value="name" ${state.sortBy === "name" ? "selected" : ""}>document_name順</option>
+                      </select>
+                      <button class="btn" id="create-doc-open">+ Doc</button>
+                    </div>
+                  </div>
+                  <label class="doc-search-shell" for="doc-search-input">
+                    <span class="doc-search-icon" aria-hidden="true">⌕</span>
+                    <span class="doc-search-input">
+                      <input
+                        id="doc-search-input"
+                        type="search"
+                        value="${escapeHtmlAttr(state.docSearchQuery)}"
+                        placeholder="本文を検索。例: 肺炎 CRP 改善"
+                        autocomplete="off"
+                        spellcheck="false"
+                      />
+                    </span>
+                    <span id="doc-search-accessory">${renderDocumentSearchAccessory(documentPanelState)}</span>
+                  </label>
                 </div>
               </div>
-              <div class="doc-list">${docsHtml}</div>
+              <div id="doc-list" class="doc-list">${renderDocumentListBody(documentPanelState)}</div>
             </section>
 
             <section class="panel center-panel">
@@ -1899,7 +2224,11 @@
                 <h3>Create Document</h3>
                 <div class="field">
                   <label for="new-doc-name">document_name</label>
-                  <input id="new-doc-name" placeholder="例: 新規ドキュメント_001" />
+                  <input
+                    id="new-doc-name"
+                    placeholder="例: 新規ドキュメント_001"
+                    value="${escapeHtmlAttr(state.createDocPrefillName)}"
+                  />
                 </div>
                 <div class="field" style="margin-top:8px;">
                   <label for="new-doc-text">text</label>
@@ -2054,10 +2383,19 @@
       function moveDocumentByDirection(direction, pendingOnly) {
         const project = getCurrentProject();
         const currentDoc = getCurrentDocument();
-        if (!project || !currentDoc) return;
-        const sortedDocs = getSortedDocuments(project);
+        if (!project) return;
+        const sortedDocs = getVisibleDocuments(project);
+        if (!currentDoc) {
+          if (sortedDocs.length === 0) return;
+          requestDocSwitch(direction > 0 ? sortedDocs[0].id : sortedDocs[sortedDocs.length - 1].id);
+          return;
+        }
         const currentIndex = sortedDocs.findIndex((item) => item.id === currentDoc.id);
-        if (currentIndex < 0) return;
+        if (currentIndex < 0) {
+          if (sortedDocs.length === 0) return;
+          requestDocSwitch(direction > 0 ? sortedDocs[0].id : sortedDocs[sortedDocs.length - 1].id);
+          return;
+        }
         let idx = currentIndex + direction;
         while (idx >= 0 && idx < sortedDocs.length) {
           const candidate = sortedDocs[idx];
@@ -2852,24 +3190,79 @@
         }
       }
 
-      function bindWorkspaceControls() {
+      function bindDocumentPanelDynamicControls() {
         document.querySelectorAll("[data-doc-id]").forEach((button) => {
           button.addEventListener("click", () => {
             requestDocSwitch(button.getAttribute("data-doc-id"));
           });
         });
 
+        ["doc-search-clear", "doc-search-clear-empty", "doc-search-clear-banner"].forEach((id) => {
+          const button = document.getElementById(id);
+          if (!button) return;
+          button.addEventListener("click", () => {
+            const input = document.getElementById("doc-search-input");
+            if (input) input.value = "";
+            state.docSearchQuery = "";
+            refreshDocumentPanel(getCurrentProject(), { resetScroll: true });
+            window.setTimeout(() => {
+              if (input && typeof input.focus === "function") input.focus();
+            }, 0);
+          });
+        });
+
+        const docSearchShowCurrent = document.getElementById("doc-search-show-current");
+        if (docSearchShowCurrent) {
+          docSearchShowCurrent.addEventListener("click", () => {
+            const currentDoc = getCurrentDocument();
+            const input = document.getElementById("doc-search-input");
+            if (!currentDoc) return;
+            state.docSearchQuery = currentDoc.documentName;
+            if (input) input.value = currentDoc.documentName;
+            refreshDocumentPanel(getCurrentProject(), { resetScroll: true });
+            window.setTimeout(() => {
+              if (input && typeof input.focus === "function") input.focus();
+            }, 0);
+          });
+        }
+
+        const docSearchCreateDoc = document.getElementById("doc-search-create-doc");
+        if (docSearchCreateDoc) {
+          docSearchCreateDoc.addEventListener("click", () => {
+            state.createDocPrefillName = state.docSearchQuery.trim();
+            state.showCreateDocModal = true;
+            render();
+          });
+        }
+      }
+
+      function bindWorkspaceControls() {
+        bindDocumentPanelDynamicControls();
+
         const sort = document.getElementById("doc-sort");
         if (sort) {
           sort.addEventListener("change", () => {
             state.sortBy = sort.value;
-            render();
+            refreshDocumentPanel(getCurrentProject(), { resetScroll: true });
+          });
+        }
+
+        const docSearchInput = document.getElementById("doc-search-input");
+        if (docSearchInput) {
+          docSearchInput.addEventListener("input", () => {
+            state.docSearchQuery = docSearchInput.value;
+            refreshDocumentPanel(getCurrentProject(), { resetScroll: true });
+          });
+          docSearchInput.addEventListener("search", () => {
+            state.docSearchQuery = docSearchInput.value;
+            refreshDocumentPanel(getCurrentProject(), { resetScroll: true });
           });
         }
 
         const createDocOpen = document.getElementById("create-doc-open");
         if (createDocOpen) {
           createDocOpen.addEventListener("click", () => {
+            state.createDocPrefillName = "";
             state.showCreateDocModal = true;
             render();
           });
@@ -2878,6 +3271,7 @@
         const createDocCancel = document.getElementById("create-doc-cancel");
         if (createDocCancel) {
           createDocCancel.addEventListener("click", () => {
+            state.createDocPrefillName = "";
             state.showCreateDocModal = false;
             render();
           });
@@ -2915,6 +3309,7 @@
             state.selectedAnnotationId = null;
             touchDoc(doc);
             setDirty();
+            state.createDocPrefillName = "";
             state.showCreateDocModal = false;
             pushWorkspaceHistory();
             render();
