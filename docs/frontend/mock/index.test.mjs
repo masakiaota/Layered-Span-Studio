@@ -324,6 +324,13 @@ test("annotation edit card can collapse from the annotation list tab", async () 
   assert.equal(mockApp.state.annotationEditCollapsed, false);
 });
 
+test("mock script no longer uses blocking alert dialogs", () => {
+  const html = readFileSync(htmlPath, "utf8");
+  const match = html.match(/<script>\n([\s\S]*?)\n\s*<\/script>\s*<\/body>/);
+  assert.ok(match, "mock script not found");
+  assert.doesNotMatch(match[1], /\balert\s*\(/);
+});
+
 test("workspace starts with no annotation selected", () => {
   const mockApp = loadMockApp(createDocument({}));
   const project = {

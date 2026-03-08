@@ -3908,7 +3908,7 @@
                   result.counts.annotations
               );
             } catch (err) {
-              alert(err instanceof Error ? err.message : "project importに失敗した");
+              showFlash(err instanceof Error ? err.message : "project importに失敗した");
             }
           });
         }
@@ -4113,13 +4113,13 @@
             const name = nameInput ? nameInput.value.trim() : "";
             const text = textInput ? textInput.value.trim() : "";
             if (!name || !text) {
-              alert("document_name と text の両方を入力する必要がある。");
+              showFlash("document_name と text の両方を入力する必要がある。");
               return;
             }
             const project = getCurrentProject();
             if (!project) return;
             if (project.documents.some((item) => item.documentName === name)) {
-              alert("同名のdocument_nameは使えない。");
+              showFlash("同名のdocument_nameは使えない。");
               return;
             }
             const doc = {
@@ -4227,7 +4227,7 @@
             try {
               ann.meta = meta.value.trim() ? JSON.parse(meta.value) : {};
             } catch (_err) {
-              alert("meta はJSON形式で入力する必要がある。");
+              showFlash("meta はJSON形式で入力する必要がある。");
               meta.focus();
               return;
             }
@@ -4354,7 +4354,7 @@
             if (!project || !nameInput || !colorInput || !descInput) return;
             const name = nameInput.value.trim();
             if (!name) {
-              alert("ラベル名は必須である。");
+              showFlash("ラベル名は必須である。");
               return;
             }
             const label = {
@@ -4432,7 +4432,7 @@
                   counts.annotations
               );
             } catch (err) {
-              alert(err instanceof Error ? err.message : "importに失敗した");
+              showFlash(err instanceof Error ? err.message : "importに失敗した");
             }
           });
         }
