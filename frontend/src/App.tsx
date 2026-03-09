@@ -1241,6 +1241,9 @@ function ProjectShell({
     if (nextIndex < 0 || nextIndex >= bundle.labels.length) {
       return;
     }
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setFocusedLabelId(bundle.labels[nextIndex].id);
     setSelectedAnnotationId(null);
   }
@@ -1592,9 +1595,10 @@ function ProjectShell({
                     <Chip
                       key={label.id}
                       label={label.name}
-                      onClick={() => {
+                      onClick={(event) => {
                         setFocusedLabelId(label.id);
                         setSelectedAnnotationId(null);
+                        event.currentTarget.blur();
                       }}
                       sx={{
                         height: 30,
@@ -1602,6 +1606,20 @@ function ProjectShell({
                         color: active ? "#fff" : label.color,
                         backgroundColor: active ? label.color : alpha(label.color, 0.08),
                         border: `1px solid ${alpha(label.color, active ? 0.4 : 0.24)}`,
+                        transition: "background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease",
+                        boxShadow: active ? `inset 0 0 0 1px ${alpha("#ffffff", 0.14)}` : "none",
+                        "&:hover": {
+                          backgroundColor: active ? label.color : alpha(label.color, 0.14),
+                          borderColor: alpha(label.color, active ? 0.56 : 0.42),
+                          boxShadow: active
+                            ? `0 0 0 3px ${alpha(label.color, 0.18)}, inset 0 0 0 1px ${alpha("#ffffff", 0.18)}`
+                            : `0 0 0 3px ${alpha(label.color, 0.12)}`,
+                          transform: "translateY(-1px)",
+                        },
+                        "&:focus-visible": {
+                          borderColor: alpha(label.color, active ? 0.56 : 0.42),
+                          boxShadow: `0 0 0 3px ${alpha(label.color, 0.2)}`,
+                        },
                         "& .MuiChip-label": {
                           px: 1,
                           fontWeight: 600,
