@@ -204,12 +204,23 @@ function ProjectShell({
     currentDocument && searchQuery.trim() && !visibleDocuments.some((document) => document.id === currentDocument.id),
   );
 
+  function isShortcutBlockedTarget(target: HTMLElement | null) {
+    return Boolean(
+      target?.closest(
+        "input, textarea, select, [contenteditable='true'], [role='combobox'], [role='listbox'], [role='option']",
+      ),
+    );
+  }
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      const editing = Boolean(target?.closest("input, textarea, [contenteditable='true']"));
+      const shortcutBlocked = isShortcutBlockedTarget(target);
       const keyLower = event.key.toLowerCase();
-      if (event.key === "?" && !editing) {
+      if (shortcutBlocked) {
+        return;
+      }
+      if (event.key === "?") {
         event.preventDefault();
         setShortcutOpen((current) => !current);
         return;
@@ -224,13 +235,12 @@ function ProjectShell({
         void handleSubmit();
         return;
       }
-      if (!editing && (event.metaKey || event.ctrlKey) && keyLower === "z" && !event.shiftKey) {
+      if ((event.metaKey || event.ctrlKey) && keyLower === "z" && !event.shiftKey) {
         event.preventDefault();
         undoBundle();
         return;
       }
       if (
-        !editing &&
         (((event.metaKey || event.ctrlKey) && keyLower === "y") ||
           ((event.metaKey || event.ctrlKey) && keyLower === "z" && event.shiftKey))
       ) {
@@ -238,7 +248,7 @@ function ProjectShell({
         redoBundle();
         return;
       }
-      if (editing || !bundle || !currentDocument) {
+      if (!bundle || !currentDocument) {
         return;
       }
       if (keyLower === "j") {
@@ -747,8 +757,15 @@ function ProjectShell({
           <Divider />
           <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1, overflow: "auto" }}>
             {currentHiddenBySearch ? (
-              <Alert severity="info" action={<Button onClick={() => setSearchQuery("")}>検索クリア</Button>}>
-                現在表示中の Document は検索結果外である。
+              <Alert severity="info">
+                <Typography variant="body2">現在表示中の Document は検索結果外である。</Typography>
+                <Button
+                  size="small"
+                  onClick={() => setSearchQuery("")}
+                  sx={{ mt: 1, alignSelf: "flex-start", minWidth: "auto", px: 1 }}
+                >
+                  検索クリア
+                </Button>
               </Alert>
             ) : null}
             {visibleDocuments.length === 0 ? (
