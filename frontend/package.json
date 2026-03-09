@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "agentation:mcp": "agentation-mcp server"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -21,6 +22,8 @@
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.6",
     "@vitejs/plugin-react": "^4.7.0",
+    "agentation": "^2.3.0",
+    "agentation-mcp": "^1.2.0",
     "typescript": "^5.9.2",
     "vite": "^5.4.21"
   }
