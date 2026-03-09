@@ -926,11 +926,18 @@ function ProjectShell({
                 ) : (
                   <>
                     <Paper variant="outlined" sx={{ p: 2 }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="center"
+                        id="annotation-edit-toggle"
+                        sx={{ cursor: "pointer", width: "fit-content" }}
+                        onClick={() => setAnnotationEditCollapsed((current) => !current)}
+                      >
+                        <Box sx={{ width: 18, display: "grid", placeItems: "center" }}>
+                          <Typography variant="caption">{annotationEditCollapsed ? "▶" : "▼"}</Typography>
+                        </Box>
                         <Typography variant="subtitle2">選択中 Annotation</Typography>
-                        <Button size="small" id="annotation-edit-toggle" onClick={() => setAnnotationEditCollapsed((current) => !current)}>
-                          {annotationEditCollapsed ? "▶" : "▼"}
-                        </Button>
                       </Stack>
                       {selectedAnnotation && !annotationEditCollapsed ? (
                         <Stack spacing={1.5} sx={{ mt: 1.5 }}>
@@ -1022,7 +1029,7 @@ function ProjectShell({
                               direction="row"
                               spacing={1}
                               alignItems="center"
-                              sx={{ cursor: "pointer" }}
+                              sx={{ cursor: "pointer", width: "fit-content" }}
                               onClick={() =>
                                 setAccordionOpen((current) => ({
                                   ...current,
@@ -1030,7 +1037,9 @@ function ProjectShell({
                                 }))
                               }
                             >
-                              <Typography variant="caption">{accordionOpen[label.id] ?? true ? "▼" : "▶"}</Typography>
+                              <Box sx={{ width: 18, display: "grid", placeItems: "center" }}>
+                                <Typography variant="caption">{accordionOpen[label.id] ?? true ? "▼" : "▶"}</Typography>
+                              </Box>
                               <LabelRoundedIcon sx={{ color: label.color, fontSize: 18 }} />
                               <Typography variant="subtitle2">{label.name}</Typography>
                               <Chip size="small" label={annotations.length} />
