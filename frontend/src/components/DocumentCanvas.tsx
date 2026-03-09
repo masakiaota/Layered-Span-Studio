@@ -173,6 +173,9 @@ export function DocumentCanvas({
   const [laneTooltip, setLaneTooltip] = useState<{ text: string; color: string; top: number; left: number } | null>(
     null,
   );
+  const [markerTooltip, setMarkerTooltip] = useState<{ text: string; color: string; top: number; left: number } | null>(
+    null,
+  );
   const [markerBoxes, setMarkerBoxes] = useState<
     Array<{ annotationId: string; left: number; top: number; width: number; height: number; color: string }>
   >([]);
@@ -196,6 +199,7 @@ export function DocumentCanvas({
     setSelection(null);
     setHoveredLaneAnnotationId(null);
     setLaneTooltip(null);
+    setMarkerTooltip(null);
   }, [document.id, focusedLabelId, selectedAnnotationId]);
 
   useEffect(() => {
@@ -317,6 +321,27 @@ export function DocumentCanvas({
     });
   };
 
+  const moveMarkerTooltip = (annotationId: string) => {
+    const annotation = document.annotations.find((item) => item.id === annotationId);
+    const label = annotation ? labelsById.get(annotation.label_id) : null;
+    const rootRect = textRef.current?.getBoundingClientRect();
+    const annotationBoxes = markerBoxes.filter((box) => box.annotationId === annotationId);
+    if (!annotation || !label || !rootRect || annotationBoxes.length === 0) {
+      setMarkerTooltip(null);
+      return;
+    }
+    const topLineTop = Math.min(...annotationBoxes.map((box) => box.top));
+    const topLineBoxes = annotationBoxes.filter((box) => Math.abs(box.top - topLineTop) <= 1);
+    const leftEdge = Math.min(...topLineBoxes.map((box) => box.left));
+    const rightEdge = Math.max(...topLineBoxes.map((box) => box.left + box.width));
+    setMarkerTooltip({
+      text: label.name,
+      color: label.color,
+      left: rootRect.left + (leftEdge + rightEdge) / 2,
+      top: Math.max(8, rootRect.top + topLineTop - 46),
+    });
+  };
+
   const handleMouseUp = () => {
     const root = textRef.current;
     const selectionObj = window.getSelection();
@@ -372,6 +397,7 @@ export function DocumentCanvas({
             onMouseLeave={() => {
               setHoveredLaneAnnotationId(null);
               setLaneTooltip(null);
+              setMarkerTooltip(null);
             }}
             sx={{
               fontSize: 19,
@@ -399,6 +425,22 @@ export function DocumentCanvas({
                       return;
                     }
                     onClearSelection();
+                  }}
+                  onMouseEnter={(event) => {
+                    if (!primaryFocused) {
+                      return;
+                    }
+                    setLaneTooltip(null);
+                    moveMarkerTooltip(primaryFocused.id);
+                  }}
+                  onMouseMove={() => {
+                    if (!primaryFocused) {
+                      return;
+                    }
+                    moveMarkerTooltip(primaryFocused.id);
+                  }}
+                  onMouseLeave={() => {
+                    setMarkerTooltip(null);
                   }}
                   sx={{
                     display: "inline",
@@ -453,6 +495,7 @@ export function DocumentCanvas({
                     if (!annotation) {
                       return;
                     }
+                    setMarkerTooltip(null);
                     onFocusLabel(annotation.label_id);
                     onSelectAnnotation(annotation.id);
                   }}
@@ -547,6 +590,41 @@ export function DocumentCanvas({
         >
           <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: laneTooltip.color }} />
           <Typography variant="caption">{laneTooltip.text}</Typography>
+        </Paper>
+      ) : null}
+
+      {markerTooltip ? (
+        <Paper
+          sx={{
+            position: "fixed",
+            top: markerTooltip.top,
+            left: markerTooltip.left,
+            transform: "translateX(-50%)",
+            zIndex: 31,
+            px: 1.1,
+            py: 0.45,
+            borderRadius: 999,
+            bgcolor: "rgba(84, 88, 96, 0.96)",
+            color: "#ffffff",
+            boxShadow: "0 10px 22px rgba(15, 23, 42, 0.18)",
+            pointerEvents: "none",
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              left: "50%",
+              top: "100%",
+              transform: "translateX(-50%)",
+              width: 0,
+              height: 0,
+              borderLeft: "6px solid transparent",
+              borderRight: "6px solid transparent",
+              borderTop: "7px solid rgba(84, 88, 96, 0.96)",
+            },
+          }}
+        >
+          <Typography variant="caption" sx={{ fontWeight: 600, letterSpacing: "0.01em" }}>
+            {markerTooltip.text}
+          </Typography>
         </Paper>
       ) : null}
     </Box>

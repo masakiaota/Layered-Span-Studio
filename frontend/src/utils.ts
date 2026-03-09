@@ -103,24 +103,132 @@ export function makeLocalId(prefix: string): string {
   return `local-${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function getDocumentSnippet(document: DocumentRecord, query: string): string {
+type DocumentSnippetWindow = {
+  content: string;
+  hasLeadingEllipsis: boolean;
+  hasTrailingEllipsis: boolean;
+};
+
+export type DocumentSnippetPart = {
+  text: string;
+  highlighted: boolean;
+};
+
+function buildDocumentSnippetWindow(document: DocumentRecord, query: string): DocumentSnippetWindow {
   if (!query.trim()) {
-    return document.text.slice(0, 120);
+    return {
+      content: document.text.slice(0, 120),
+      hasLeadingEllipsis: false,
+      hasTrailingEllipsis: document.text.length > 120,
+    };
   }
   const tokens = buildSearchTokens(query);
-  const normalized = normalizeSearchText(document.text);
-  const first = tokens.find((token) => normalized.includes(token));
-  if (!first) {
-    return document.text.slice(0, 120);
+  const loweredText = document.text.toLowerCase();
+  const firstMatch = tokens.reduce<{ index: number; token: string } | null>((closest, token) => {
+    const index = loweredText.indexOf(token.toLowerCase());
+    if (index < 0) {
+      return closest;
+    }
+    if (!closest || index < closest.index) {
+      return { index, token };
+    }
+    return closest;
+  }, null);
+  if (!firstMatch) {
+    return {
+      content: document.text.slice(0, 120),
+      hasLeadingEllipsis: false,
+      hasTrailingEllipsis: document.text.length > 120,
+    };
   }
-  const index = normalized.indexOf(first);
-  const start = Math.max(0, index - 40);
-  const end = Math.min(document.text.length, index + 80);
-  return `${start > 0 ? "…" : ""}${document.text.slice(start, end)}${end < document.text.length ? "…" : ""}`;
+  const start = Math.max(0, firstMatch.index - 40);
+  const end = Math.min(document.text.length, firstMatch.index + 80);
+  return {
+    content: document.text.slice(start, end),
+    hasLeadingEllipsis: start > 0,
+    hasTrailingEllipsis: end < document.text.length,
+  };
+}
+
+export function getDocumentSnippet(document: DocumentRecord, query: string): string {
+  const snippet = buildDocumentSnippetWindow(document, query);
+  return `${snippet.hasLeadingEllipsis ? "…" : ""}${snippet.content}${snippet.hasTrailingEllipsis ? "…" : ""}`;
+}
+
+export function getDocumentSnippetParts(document: DocumentRecord, query: string): DocumentSnippetPart[] {
+  const snippet = buildDocumentSnippetWindow(document, query);
+  const parts: DocumentSnippetPart[] = [];
+  if (snippet.hasLeadingEllipsis) {
+    parts.push({ text: "…", highlighted: false });
+  }
+  const tokens = [...new Set(buildSearchTokens(query).map((token) => token.toLowerCase()))].sort(
+    (left, right) => right.length - left.length,
+  );
+  if (tokens.length === 0) {
+    parts.push({ text: snippet.content, highlighted: false });
+  } else {
+    const loweredContent = snippet.content.toLowerCase();
+    let index = 0;
+    while (index < snippet.content.length) {
+      const token = tokens.find((candidate) => loweredContent.startsWith(candidate, index));
+      if (token) {
+        parts.push({
+          text: snippet.content.slice(index, index + token.length),
+          highlighted: true,
+        });
+        index += token.length;
+        continue;
+      }
+      const nextMatchIndex = tokens
+        .map((candidate) => loweredContent.indexOf(candidate, index))
+        .filter((candidateIndex) => candidateIndex >= 0)
+        .sort((left, right) => left - right)[0];
+      const end = nextMatchIndex === undefined ? snippet.content.length : nextMatchIndex;
+      parts.push({
+        text: snippet.content.slice(index, end),
+        highlighted: false,
+      });
+      index = end;
+    }
+  }
+  if (snippet.hasTrailingEllipsis) {
+    parts.push({ text: "…", highlighted: false });
+  }
+  return parts.filter((part) => part.text.length > 0);
+}
+
+function getDocumentMetaTimestamp(document: DocumentRecord, key: "created_at" | "updated_at"): number | null {
+  const value = toJsonObject(document.meta)[key];
+  if (typeof value !== "string") {
+    return null;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? null : timestamp;
 }
 
 export function sortDocuments(documents: DocumentRecord[], mode: string): DocumentRecord[] {
   const items = [...documents];
+  const originalIndexById = new Map(items.map((document, index) => [document.id, index]));
+  const compareByOriginalOrder = (left: DocumentRecord, right: DocumentRecord) =>
+    (originalIndexById.get(left.id) ?? 0) - (originalIndexById.get(right.id) ?? 0);
+  if (mode === "created") {
+    return items.sort((left, right) => {
+      const leftCreated = getDocumentMetaTimestamp(left, "created_at");
+      const rightCreated = getDocumentMetaTimestamp(right, "created_at");
+      if (leftCreated !== null || rightCreated !== null) {
+        if (leftCreated === null) {
+          return 1;
+        }
+        if (rightCreated === null) {
+          return -1;
+        }
+        if (leftCreated !== rightCreated) {
+          return leftCreated - rightCreated;
+        }
+      }
+      return compareByOriginalOrder(left, right);
+    });
+  }
   if (mode === "name") {
     return items.sort((a, b) => a.document_name.localeCompare(b.document_name, "ja"));
   }
@@ -131,6 +239,25 @@ export function sortDocuments(documents: DocumentRecord[], mode: string): Docume
         return statusCompare;
       }
       return a.document_name.localeCompare(b.document_name, "ja");
+    });
+  }
+  if (mode === "updated") {
+    return items.sort((left, right) => {
+      const leftUpdated = getDocumentMetaTimestamp(left, "updated_at") ?? getDocumentMetaTimestamp(left, "created_at");
+      const rightUpdated =
+        getDocumentMetaTimestamp(right, "updated_at") ?? getDocumentMetaTimestamp(right, "created_at");
+      if (leftUpdated !== null || rightUpdated !== null) {
+        if (leftUpdated === null) {
+          return 1;
+        }
+        if (rightUpdated === null) {
+          return -1;
+        }
+        if (leftUpdated !== rightUpdated) {
+          return rightUpdated - leftUpdated;
+        }
+      }
+      return compareByOriginalOrder(left, right);
     });
   }
   return items.sort((a, b) => a.document_name.localeCompare(b.document_name, "ja"));
