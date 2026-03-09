@@ -122,7 +122,7 @@ function ProjectShell({
   const [focusedLabelId, setFocusedLabelId] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<"examples" | "annotations">("examples");
-  const [annotationEditCollapsed, setAnnotationEditCollapsed] = useState(false);
+  const [annotationEditCollapsed, setAnnotationEditCollapsed] = useState(true);
   const [accordionOpen, setAccordionOpen] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState("created");
@@ -162,7 +162,7 @@ function ProjectShell({
       setFocusedLabelId(nextBundle.labels[0]?.id ?? null);
       setSelectedAnnotationId(null);
       setRightTab("examples");
-      setAnnotationEditCollapsed(false);
+      setAnnotationEditCollapsed(true);
       setAccordionOpen(Object.fromEntries(nextBundle.labels.map((label) => [label.id, true])));
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Workspace の読み込みに失敗した", "error");
@@ -437,6 +437,7 @@ function ProjectShell({
       setSelectedDocId(direction > 0 ? visibleDocuments[0].id : visibleDocuments[visibleDocuments.length - 1].id);
       setSelectedAnnotationId(null);
       setRightTab("examples");
+      setAnnotationEditCollapsed(true);
       return;
     }
     let index = currentIndex + direction;
@@ -446,6 +447,7 @@ function ProjectShell({
         setSelectedDocId(candidate.id);
         setSelectedAnnotationId(null);
         setRightTab("examples");
+        setAnnotationEditCollapsed(true);
         return;
       }
       index += direction;
@@ -556,6 +558,7 @@ function ProjectShell({
       setSelectedDocId(nextId);
       setSelectedAnnotationId(null);
       setRightTab("examples");
+      setAnnotationEditCollapsed(true);
     }
     showToast("Document を submit した", "success");
   }
@@ -565,6 +568,7 @@ function ProjectShell({
       setSelectedDocId(action.docId);
       setSelectedAnnotationId(null);
       setRightTab("examples");
+      setAnnotationEditCollapsed(true);
       return;
     }
     if (action.type === "settings") {
@@ -1469,6 +1473,7 @@ function ProjectShell({
                 draft.documents.push(nextDocument);
               });
               setSelectedDocId(nextDocument.id);
+              setAnnotationEditCollapsed(true);
               setCreateDocOpen(false);
               setNewDocName("");
               setNewDocText("");
