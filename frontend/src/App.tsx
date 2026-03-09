@@ -52,7 +52,7 @@ import {
   contextSnippet,
   getDocumentHoverPreview,
   getSameLabelSurfaceExamples,
-  getSameSurfaceAnnotationExamples,
+  getSameSurfaceExamplesByText,
   sortAnnotationsInPanelOrder,
 } from "./features/workspace/workspaceUtils";
 import { useToast } from "./hooks/useToast";
@@ -94,6 +94,12 @@ type PendingAction =
   | { type: "workspace" }
   | { type: "projects" };
 
+type SelectionPreview = {
+  start: number;
+  end: number;
+  text: string;
+};
+
 const TOKEN_KEY = "layered-span-studio/token";
 
 function ProjectShell({
@@ -121,6 +127,7 @@ function ProjectShell({
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [focusedLabelId, setFocusedLabelId] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [selectionPreview, setSelectionPreview] = useState<SelectionPreview | null>(null);
   const [rightTab, setRightTab] = useState<"examples" | "annotations">("examples");
   const [annotationEditCollapsed, setAnnotationEditCollapsed] = useState(true);
   const [accordionOpen, setAccordionOpen] = useState<Record<string, boolean>>({});
@@ -161,6 +168,7 @@ function ProjectShell({
       setSelectedDocId(nextBundle.documents[0]?.id ?? null);
       setFocusedLabelId(nextBundle.labels[0]?.id ?? null);
       setSelectedAnnotationId(null);
+      setSelectionPreview(null);
       setRightTab("examples");
       setAnnotationEditCollapsed(true);
       setAccordionOpen(Object.fromEntries(nextBundle.labels.map((label) => [label.id, true])));
@@ -326,8 +334,21 @@ function ProjectShell({
     if (!bundle) {
       return [];
     }
-    return getSameSurfaceAnnotationExamples(bundle, selectedAnnotation);
-  }, [bundle, selectedAnnotation]);
+    const target =
+      selectionPreview && selectionPreview.text.trim()
+        ? {
+            text: selectionPreview.text,
+            labelId: focusedLabel?.id ?? null,
+          }
+        : selectedAnnotation
+          ? {
+              text: selectedAnnotation.span_text,
+              annotationId: selectedAnnotation.id,
+              labelId: selectedAnnotation.label_id,
+            }
+          : null;
+    return getSameSurfaceExamplesByText(bundle, target);
+  }, [bundle, focusedLabel?.id, selectedAnnotation, selectionPreview]);
 
   function stampChangedDocuments(previousBundle: ProjectBundle, nextBundle: ProjectBundle) {
     const previousDocumentsById = new Map(previousBundle.documents.map((document) => [document.id, document]));
@@ -436,6 +457,7 @@ function ProjectShell({
     if (currentIndex < 0) {
       setSelectedDocId(direction > 0 ? visibleDocuments[0].id : visibleDocuments[visibleDocuments.length - 1].id);
       setSelectedAnnotationId(null);
+      setSelectionPreview(null);
       setRightTab("examples");
       setAnnotationEditCollapsed(true);
       return;
@@ -446,6 +468,7 @@ function ProjectShell({
       if (!pendingOnly || getDocumentStatus(candidate) === "pending") {
         setSelectedDocId(candidate.id);
         setSelectedAnnotationId(null);
+        setSelectionPreview(null);
         setRightTab("examples");
         setAnnotationEditCollapsed(true);
         return;
@@ -469,6 +492,7 @@ function ProjectShell({
     }
     setFocusedLabelId(bundle.labels[nextIndex].id);
     setSelectedAnnotationId(null);
+    setSelectionPreview(null);
   }
 
   function moveRightPanelTabByDirection(direction: number) {
@@ -512,6 +536,7 @@ function ProjectShell({
       return;
     }
     setSelectedAnnotationId(next.id);
+    setSelectionPreview(null);
     setFocusedLabelId(next.label_id);
   }
 
@@ -527,6 +552,7 @@ function ProjectShell({
       document.annotations = document.annotations.filter((annotation) => annotation.id !== selectedAnnotationId);
     });
     setSelectedAnnotationId(null);
+    setSelectionPreview(null);
   }
 
   async function handleSave() {
@@ -557,6 +583,7 @@ function ProjectShell({
     if (nextId) {
       setSelectedDocId(nextId);
       setSelectedAnnotationId(null);
+      setSelectionPreview(null);
       setRightTab("examples");
       setAnnotationEditCollapsed(true);
     }
@@ -567,6 +594,7 @@ function ProjectShell({
     if (action.type === "doc") {
       setSelectedDocId(action.docId);
       setSelectedAnnotationId(null);
+      setSelectionPreview(null);
       setRightTab("examples");
       setAnnotationEditCollapsed(true);
       return;
@@ -640,6 +668,7 @@ function ProjectShell({
       const document = draft.documents.find((item) => item.id === currentDocument.id);
       document?.annotations.push(nextAnnotation);
     });
+    setSelectionPreview(null);
     setSelectedAnnotationId(nextAnnotation.id);
     setRightTab("annotations");
   }
@@ -896,9 +925,22 @@ function ProjectShell({
                   focusedLabelId={focusedLabel?.id ?? null}
                   selectedAnnotationId={selectedAnnotationId}
                   onFocusLabel={setFocusedLabelId}
-                  onSelectAnnotation={setSelectedAnnotationId}
+                  onSelectAnnotation={(annotationId) => {
+                    setSelectionPreview(null);
+                    setSelectedAnnotationId(annotationId);
+                  }}
                   onCreateAnnotation={handleCreateAnnotation}
-                  onClearSelection={() => setSelectedAnnotationId(null)}
+                  onClearSelection={() => {
+                    setSelectionPreview(null);
+                    setSelectedAnnotationId(null);
+                  }}
+                  onSelectionDraftChange={(selection) => {
+                    setSelectionPreview(selection);
+                    if (selection) {
+                      setSelectedAnnotationId(null);
+                      setRightTab("examples");
+                    }
+                  }}
                 />
               ) : (
                 <Paper sx={{ p: 4 }}>
@@ -1022,50 +1064,72 @@ function ProjectShell({
 
                     <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
                       <Typography variant="subtitle2">同一表層の他アノテーション</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75 }}>
+                        {selectionPreview?.text
+                          ? `選択中: ${selectionPreview.text}`
+                          : selectedAnnotation
+                            ? `対象: ${selectedAnnotation.span_text}`
+                            : "範囲選択または Annotation 選択で表示される"}
+                      </Typography>
                       <Stack spacing={1.25} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
                         {sameSurfaceExamples.map(({ document, annotation }) => (
-                          <Tooltip
-                            key={annotation.id}
-                            placement="left-start"
-                            arrow
-                            title={
-                              <Box sx={{ maxWidth: 360, p: 0.5 }}>
-                                <Typography variant="subtitle2">{document.document_name}</Typography>
-                                <Typography variant="body2" sx={{ mt: 1, lineHeight: 1.7 }}>
-                                  {contextSnippet(document.text, annotation.start, annotation.end, 42).before}
-                                  <Box component="span" sx={{ fontWeight: 700 }}>
-                                    {annotation.span_text}
+                          (() => {
+                            const snippet = contextSnippet(document.text, annotation.start, annotation.end);
+                            const labelColor =
+                              bundle.labels.find((label) => label.id === annotation.label_id)?.color ?? "#1a73e8";
+                            return (
+                              <Tooltip
+                                key={annotation.id}
+                                placement="left-start"
+                                arrow
+                                title={
+                                  <Box sx={{ maxWidth: 360, p: 0.5 }}>
+                                    <Typography variant="subtitle2">{document.document_name}</Typography>
+                                    <Typography variant="body2" sx={{ mt: 1, lineHeight: 1.7 }}>
+                                      {contextSnippet(document.text, annotation.start, annotation.end, 42).before}
+                                      <Box component="span" sx={{ fontWeight: 700 }}>
+                                        {annotation.span_text}
+                                      </Box>
+                                      {contextSnippet(document.text, annotation.start, annotation.end, 42).after}
+                                    </Typography>
                                   </Box>
-                                  {contextSnippet(document.text, annotation.start, annotation.end, 42).after}
-                                </Typography>
-                              </Box>
-                            }
-                          >
-                            <Paper variant="outlined" sx={{ p: 1.5 }}>
-                              <Stack direction="row" justifyContent="space-between">
-                                <Typography variant="caption" color="text.secondary">
-                                  {document.document_name}
-                                </Typography>
-                                <Chip
-                                  size="small"
-                                  label={annotation.label_name}
-                                  sx={{
-                                    color: bundle.labels.find((label) => label.id === annotation.label_id)?.color ?? "primary.main",
-                                    bgcolor: alpha(
-                                      bundle.labels.find((label) => label.id === annotation.label_id)?.color ?? "#1a73e8",
-                                      0.12,
-                                    ),
-                                  }}
-                                />
-                              </Stack>
-                              <Typography variant="body2" sx={{ mt: 1 }}>
-                                {annotation.span_text}
-                              </Typography>
-                            </Paper>
-                          </Tooltip>
+                                }
+                              >
+                                <Paper variant="outlined" sx={{ p: 1.5 }}>
+                                  <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="caption" color="text.secondary">
+                                      {document.document_name}
+                                    </Typography>
+                                    <Chip
+                                      size="small"
+                                      label={annotation.label_name}
+                                      sx={{
+                                        color: labelColor,
+                                        bgcolor: alpha(labelColor, 0.12),
+                                      }}
+                                    />
+                                  </Stack>
+                                  <Typography variant="body2" sx={{ mt: 1 }}>
+                                    <Box component="span" color="text.disabled">
+                                      {snippet.before}
+                                    </Box>
+                                    <Box component="span" sx={{ fontWeight: 700 }}>
+                                      {snippet.focus}
+                                    </Box>
+                                    <Box component="span" color="text.disabled">
+                                      {snippet.after}
+                                    </Box>
+                                  </Typography>
+                                </Paper>
+                              </Tooltip>
+                            );
+                          })()
                         ))}
-                        {!selectedAnnotation ? (
-                          <Typography color="text.secondary">Annotation を選択すると同一表層の事例が出る。</Typography>
+                        {!selectionPreview && !selectedAnnotation ? (
+                          <Typography color="text.secondary">範囲選択または Annotation を選択すると同一表層の事例が出る。</Typography>
+                        ) : null}
+                        {(selectionPreview || selectedAnnotation) && sameSurfaceExamples.length === 0 ? (
+                          <Typography color="text.secondary">この表層に一致する他アノテーションはまだない。</Typography>
                         ) : null}
                       </Stack>
                     </Paper>

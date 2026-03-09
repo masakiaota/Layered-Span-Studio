@@ -156,6 +156,7 @@ export function DocumentCanvas({
   onSelectAnnotation,
   onCreateAnnotation,
   onClearSelection,
+  onSelectionDraftChange,
 }: {
   document: DocumentRecord;
   labels: LabelRecord[];
@@ -165,6 +166,7 @@ export function DocumentCanvas({
   onSelectAnnotation: (annotationId: string | null) => void;
   onCreateAnnotation: (start: number, end: number, text: string) => void;
   onClearSelection: () => void;
+  onSelectionDraftChange: (selection: { start: number; end: number; text: string } | null) => void;
 }) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const textRef = useRef<HTMLDivElement | null>(null);
@@ -204,8 +206,14 @@ export function DocumentCanvas({
 
   useEffect(() => {
     if (!selection) {
+      onSelectionDraftChange(null);
       return;
     }
+    onSelectionDraftChange({
+      start: selection.start,
+      end: selection.end,
+      text: selection.text,
+    });
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Enter") {
         event.preventDefault();
@@ -221,7 +229,7 @@ export function DocumentCanvas({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selection, onCreateAnnotation]);
+  }, [selection, onCreateAnnotation, onSelectionDraftChange]);
 
   useLayoutEffect(() => {
     const root = textRef.current;

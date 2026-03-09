@@ -122,3 +122,35 @@ export function getSameSurfaceAnnotationExamples(bundle: ProjectBundle, selected
     })
     .slice(0, 8);
 }
+
+export function getSameSurfaceExamplesByText(
+  bundle: ProjectBundle,
+  target: { text: string; annotationId?: string | null; labelId?: string | null } | null,
+) {
+  if (!target?.text.trim()) {
+    return [];
+  }
+  const normalizedTarget = normalizeSearchText(target.text);
+  if (!normalizedTarget) {
+    return [];
+  }
+  return bundle.documents
+    .flatMap((document) =>
+      document.annotations
+        .filter((annotation) => normalizeSearchText(annotation.span_text) === normalizedTarget)
+        .filter((annotation) => !target.annotationId || annotation.id !== target.annotationId)
+        .map((annotation) => ({ document, annotation })),
+    )
+    .sort((left, right) => {
+      const leftDifferent = target.labelId ? left.annotation.label_id !== target.labelId : false;
+      const rightDifferent = target.labelId ? right.annotation.label_id !== target.labelId : false;
+      if (leftDifferent !== rightDifferent) {
+        return leftDifferent ? -1 : 1;
+      }
+      if (left.annotation.status !== right.annotation.status) {
+        return left.annotation.status === "verified" ? -1 : 1;
+      }
+      return right.document.document_name.localeCompare(left.document.document_name, "ja");
+    })
+    .slice(0, 8);
+}
