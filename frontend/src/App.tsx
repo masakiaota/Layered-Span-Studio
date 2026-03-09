@@ -594,8 +594,18 @@ function ProjectShell({
         </Toolbar>
       </AppBar>
 
-      <Box sx={{ p: 2, display: "grid", gap: 2, gridTemplateColumns: view === "workspace" ? "320px minmax(540px,1fr) 380px" : "320px minmax(0,1fr)" }}>
-        <Paper sx={{ minHeight: "calc(100vh - 96px)", display: "flex", flexDirection: "column" }}>
+      <Box
+        sx={{
+          p: 2,
+          height: "calc(100vh - 81px)",
+          boxSizing: "border-box",
+          display: "grid",
+          gap: 2,
+          overflow: "hidden",
+          gridTemplateColumns: view === "workspace" ? "320px minmax(540px,1fr) 380px" : "320px minmax(0,1fr)",
+        }}
+      >
+        <Paper sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
           <Box sx={{ p: 2, display: "grid", gap: 2 }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
               <Box>
@@ -688,7 +698,7 @@ function ProjectShell({
 
         {view === "workspace" ? (
           <>
-            <Box sx={{ display: "grid", gap: 2, minHeight: "calc(100vh - 96px)", gridTemplateRows: "auto minmax(0,1fr) auto" }}>
+            <Box sx={{ display: "grid", gap: 2, height: "100%", minHeight: 0, gridTemplateRows: "auto minmax(0,1fr) auto" }}>
               <Paper sx={{ px: 1.5, py: 1.25, display: "flex", gap: 1, overflowX: "auto", minHeight: 58, alignItems: "center" }}>
                 {bundle.labels.map((label) => {
                   const active = label.id === focusedLabel?.id;
@@ -781,13 +791,13 @@ function ProjectShell({
               </Stack>
             </Box>
 
-            <Paper sx={{ minHeight: "calc(100vh - 96px)", display: "flex", flexDirection: "column" }}>
+            <Paper sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
               <Tabs value={rightTab} onChange={(_event, value) => setRightTab(value)} variant="fullWidth">
                 <Tab value="examples" label="関連例" />
                 <Tab value="annotations" label="注釈一覧" />
               </Tabs>
               <Divider />
-              <Box sx={{ p: 2, display: "grid", gap: 2, overflow: "auto" }}>
+              <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2, flex: 1, minHeight: 0, overflow: "hidden" }}>
                 {rightTab === "examples" ? (
                   <>
                     <Paper variant="outlined" sx={{ p: 2 }}>
@@ -797,9 +807,9 @@ function ProjectShell({
                       </Typography>
                     </Paper>
 
-                    <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
                       <Typography variant="subtitle2">同一ラベルの他アノテーション</Typography>
-                      <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+                      <Stack spacing={1.25} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
                         {sameLabelExamples.map(({ document, annotation, duplicateCount, duplicates }) => {
                           const snippet = contextSnippet(document.text, annotation.start, annotation.end);
                           return (
@@ -833,15 +843,7 @@ function ProjectShell({
                             >
                               <Paper
                                 variant="outlined"
-                                sx={{ p: 1.5, cursor: "pointer" }}
-                                onClick={() => {
-                                  if (document.id !== currentDocument?.id) {
-                                    requestAction({ type: "doc", docId: document.id });
-                                  }
-                                  setFocusedLabelId(annotation.label_id);
-                                  setSelectedAnnotationId(annotation.id);
-                                  setRightTab("annotations");
-                                }}
+                                sx={{ p: 1.5 }}
                               >
                                 <Stack direction="row" justifyContent="space-between" spacing={1}>
                                   <Typography variant="caption" color="text.secondary">
@@ -871,9 +873,9 @@ function ProjectShell({
                       </Stack>
                     </Paper>
 
-                    <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
                       <Typography variant="subtitle2">同一表層の他アノテーション</Typography>
-                      <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+                      <Stack spacing={1.25} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
                         {sameSurfaceExamples.map(({ document, annotation }) => (
                           <Tooltip
                             key={annotation.id}
@@ -1011,9 +1013,9 @@ function ProjectShell({
                       )}
                     </Paper>
 
-                    <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
                       <Typography variant="subtitle2">Doc アノテーション一覧</Typography>
-                      <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+                      <Stack spacing={1.5} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
                         {groupedAnnotations.map(({ label, annotations }) => (
                           <Paper key={label.id} variant="outlined" sx={{ p: 1.5 }}>
                             <Stack
@@ -1082,7 +1084,7 @@ function ProjectShell({
             </Paper>
           </>
         ) : (
-          <Paper sx={{ minHeight: "calc(100vh - 96px)", p: 3, display: "grid", gap: 3, alignContent: "start" }}>
+          <Paper sx={{ height: "100%", minHeight: 0, p: 3, display: "grid", gap: 3, alignContent: "start", overflow: "auto" }}>
             <Box>
               <Typography variant="h5">Project Settings</Typography>
               <Typography color="text.secondary" sx={{ mt: 1 }}>
