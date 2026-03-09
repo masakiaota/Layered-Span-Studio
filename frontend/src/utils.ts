@@ -57,18 +57,6 @@ export function setProjectGuideline(project: ProjectRecord, guideline: string) {
   };
 }
 
-export function getProjectShortcutHelpEnabled(project: ProjectRecord): boolean {
-  const value = toJsonObject(project.meta).shortcut_help_enabled;
-  return value === false ? false : true;
-}
-
-export function setProjectShortcutHelpEnabled(project: ProjectRecord, enabled: boolean) {
-  project.meta = {
-    ...toJsonObject(project.meta),
-    shortcut_help_enabled: enabled,
-  };
-}
-
 export function compareJson(a: JsonValue | undefined, b: JsonValue | undefined): boolean {
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 }

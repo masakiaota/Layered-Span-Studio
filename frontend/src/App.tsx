@@ -76,14 +76,12 @@ import {
   getDocumentSnippetParts,
   getDocumentStatus,
   getProjectGuideline,
-  getProjectShortcutHelpEnabled,
   groupAnnotationsByLabel,
   isLocalId,
   makeLocalId,
   readJsonFile,
   setDocumentStatus,
   setProjectGuideline,
-  setProjectShortcutHelpEnabled,
   sortDocuments,
   toJsonObject,
 } from "./utils";
@@ -143,7 +141,6 @@ function ProjectShell({
     name: "",
     color: "#1a73e8",
     description: "",
-    shortcut: "",
   });
   const [settingsImportFile, setSettingsImportFile] = useState<File | null>(null);
   const [exportPending, setExportPending] = useState(true);
@@ -749,128 +746,130 @@ function ProjectShell({
           display: "grid",
           gap: 2,
           overflow: "hidden",
-          gridTemplateColumns: view === "workspace" ? "320px minmax(540px,1fr) 380px" : "320px minmax(0,1fr)",
+          gridTemplateColumns: view === "workspace" ? "320px minmax(540px,1fr) 380px" : "minmax(0,1fr)",
         }}
       >
-        <Paper sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <Box sx={{ p: 2, display: "grid", gap: 2 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Typography variant="subtitle1">Documents</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {bundle.documents.filter((document) => getDocumentStatus(document) === "pending").length} pending / {bundle.documents.length} docs
-                </Typography>
-              </Box>
-              <Tooltip title="Create Document">
-                <IconButton onClick={() => setCreateDocOpen(true)}>
-                  <AddRoundedIcon />
-                </IconButton>
-              </Tooltip>
-            </Stack>
-            <TextField
-              placeholder="本文検索"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              size="small"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
-            />
-            <TextField select size="small" label="並び順" value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
-              <MenuItem value="created">作成順</MenuItem>
-              <MenuItem value="pending">未完了優先</MenuItem>
-              <MenuItem value="updated">最終更新順</MenuItem>
-              <MenuItem value="name">document_name 順</MenuItem>
-            </TextField>
-          </Box>
-          <Divider />
-          <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1, overflow: "auto" }}>
-            {currentHiddenBySearch ? (
-              <Alert severity="info">
-                <Typography variant="body2">現在表示中の Document は検索結果外である。</Typography>
-                <Button
-                  size="small"
-                  onClick={() => setSearchQuery("")}
-                  sx={{ mt: 1, alignSelf: "flex-start", minWidth: "auto", px: 1 }}
-                >
-                  検索クリア
-                </Button>
-              </Alert>
-            ) : null}
-            {visibleDocuments.length === 0 ? (
-              <Paper variant="outlined" sx={{ p: 2.5 }}>
-                <Typography variant="subtitle2">一致する Document がない</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  検索条件を見直すか、新しい Document を作成する。
-                </Typography>
-              </Paper>
-            ) : null}
-            {visibleDocuments.map((document) => (
-              <Tooltip
-                key={document.id}
-                placement="right-start"
-                arrow
-                title={
-                  <Box sx={{ maxWidth: 360, p: 0.5 }}>
-                    <Typography variant="subtitle2">{document.document_name}</Typography>
-                    <Typography variant="caption" sx={{ display: "block", color: "rgba(255,255,255,0.72)", mb: 1 }}>
-                      Hover preview
-                    </Typography>
-                    <Typography variant="body2" sx={{ lineHeight: 1.7 }}>
-                      {getDocumentHoverPreview(document, searchQuery)}
-                    </Typography>
-                  </Box>
-                }
-              >
-                <ListItemButton
-                  selected={document.id === currentDocument?.id}
-                  onClick={() => requestAction({ type: "doc", docId: document.id })}
-                  sx={{ alignItems: "flex-start", borderRadius: 3, border: "1px solid", borderColor: document.id === currentDocument?.id ? "primary.main" : "#dbe3ee" }}
-                >
-                  <ListItemText
-                    primary={
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                        <Typography variant="subtitle2" noWrap>
-                          {document.document_name}
-                        </Typography>
-                        <Chip size="small" label={getDocumentStatus(document)} color={getDocumentStatus(document) === "verified" ? "success" : "warning"} />
-                      </Stack>
-                    }
-                    secondary={
-                      <Typography component="span" variant="body2" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                        {getDocumentSnippetParts(document, searchQuery).map((part, index) =>
-                          part.highlighted ? (
-                            <Box
-                              key={`${document.id}-snippet-${index}`}
-                              component="mark"
-                              sx={{
-                                px: 0.15,
-                                py: 0.02,
-                                borderRadius: 0.5,
-                                bgcolor: alpha("#fbbc04", 0.34),
-                                color: "inherit",
-                              }}
-                            >
-                              {part.text}
-                            </Box>
-                          ) : (
-                            <Box key={`${document.id}-snippet-${index}`} component="span">
-                              {part.text}
-                            </Box>
-                          ),
-                        )}
+        {view === "workspace" ? (
+          <Paper sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <Box sx={{ p: 2, display: "grid", gap: 2 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="subtitle1">Documents</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {bundle.documents.filter((document) => getDocumentStatus(document) === "pending").length} pending / {bundle.documents.length} docs
+                  </Typography>
+                </Box>
+                <Tooltip title="Create Document">
+                  <IconButton onClick={() => setCreateDocOpen(true)}>
+                    <AddRoundedIcon />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+              <TextField
+                placeholder="本文検索"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                size="small"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRoundedIcon fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <TextField select size="small" label="並び順" value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
+                <MenuItem value="created">作成順</MenuItem>
+                <MenuItem value="pending">未完了優先</MenuItem>
+                <MenuItem value="updated">最終更新順</MenuItem>
+                <MenuItem value="name">document_name 順</MenuItem>
+              </TextField>
+            </Box>
+            <Divider />
+            <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1, overflow: "auto" }}>
+              {currentHiddenBySearch ? (
+                <Alert severity="info">
+                  <Typography variant="body2">現在表示中の Document は検索結果外である。</Typography>
+                  <Button
+                    size="small"
+                    onClick={() => setSearchQuery("")}
+                    sx={{ mt: 1, alignSelf: "flex-start", minWidth: "auto", px: 1 }}
+                  >
+                    検索クリア
+                  </Button>
+                </Alert>
+              ) : null}
+              {visibleDocuments.length === 0 ? (
+                <Paper variant="outlined" sx={{ p: 2.5 }}>
+                  <Typography variant="subtitle2">一致する Document がない</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    検索条件を見直すか、新しい Document を作成する。
+                  </Typography>
+                </Paper>
+              ) : null}
+              {visibleDocuments.map((document) => (
+                <Tooltip
+                  key={document.id}
+                  placement="right-start"
+                  arrow
+                  title={
+                    <Box sx={{ maxWidth: 360, p: 0.5 }}>
+                      <Typography variant="subtitle2">{document.document_name}</Typography>
+                      <Typography variant="caption" sx={{ display: "block", color: "rgba(255,255,255,0.72)", mb: 1 }}>
+                        Hover preview
                       </Typography>
-                    }
-                  />
-                </ListItemButton>
-              </Tooltip>
-            ))}
-          </Box>
-        </Paper>
+                      <Typography variant="body2" sx={{ lineHeight: 1.7 }}>
+                        {getDocumentHoverPreview(document, searchQuery)}
+                      </Typography>
+                    </Box>
+                  }
+                >
+                  <ListItemButton
+                    selected={document.id === currentDocument?.id}
+                    onClick={() => requestAction({ type: "doc", docId: document.id })}
+                    sx={{ alignItems: "flex-start", borderRadius: 3, border: "1px solid", borderColor: document.id === currentDocument?.id ? "primary.main" : "#dbe3ee" }}
+                  >
+                    <ListItemText
+                      primary={
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                          <Typography variant="subtitle2" noWrap>
+                            {document.document_name}
+                          </Typography>
+                          <Chip size="small" label={getDocumentStatus(document)} color={getDocumentStatus(document) === "verified" ? "success" : "warning"} />
+                        </Stack>
+                      }
+                      secondary={
+                        <Typography component="span" variant="body2" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                          {getDocumentSnippetParts(document, searchQuery).map((part, index) =>
+                            part.highlighted ? (
+                              <Box
+                                key={`${document.id}-snippet-${index}`}
+                                component="mark"
+                                sx={{
+                                  px: 0.15,
+                                  py: 0.02,
+                                  borderRadius: 0.5,
+                                  bgcolor: alpha("#fbbc04", 0.34),
+                                  color: "inherit",
+                                }}
+                              >
+                                {part.text}
+                              </Box>
+                            ) : (
+                              <Box key={`${document.id}-snippet-${index}`} component="span">
+                                {part.text}
+                              </Box>
+                            ),
+                          )}
+                        </Typography>
+                      }
+                    />
+                  </ListItemButton>
+                </Tooltip>
+              ))}
+            </Box>
+          </Paper>
+        ) : null}
 
         {view === "workspace" ? (
           <>
@@ -1346,19 +1345,6 @@ function ProjectShell({
                     })
                   }
                 />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={getProjectShortcutHelpEnabled(bundle.project)}
-                      onChange={(event) =>
-                        mutateBundle((draft) => {
-                          setProjectShortcutHelpEnabled(draft.project, event.target.checked);
-                        })
-                      }
-                    />
-                  }
-                  label="ショートカットヘルプを有効化"
-                />
               </Stack>
             </Paper>
 
@@ -1369,7 +1355,6 @@ function ProjectShell({
                   <TextField label="Name" value={labelDraft.name} onChange={(event) => setLabelDraft((current) => ({ ...current, name: event.target.value }))} />
                   <TextField label="Color" value={labelDraft.color} onChange={(event) => setLabelDraft((current) => ({ ...current, color: event.target.value }))} />
                   <TextField label="Description" multiline minRows={3} value={labelDraft.description} onChange={(event) => setLabelDraft((current) => ({ ...current, description: event.target.value }))} />
-                  <TextField label="Shortcut" value={labelDraft.shortcut} onChange={(event) => setLabelDraft((current) => ({ ...current, shortcut: event.target.value }))} />
                   <Stack direction="row" spacing={1}>
                     <Button
                       variant="contained"
@@ -1379,6 +1364,7 @@ function ProjectShell({
                           return;
                         }
                         const existing = bundle.labels.find((label) => label.name === labelDraft.name.trim());
+                        const editingLabel = bundle.labels.find((label) => label.id === labelDraft.id);
                         if (existing && !labelDraft.id) {
                           showToast("同名 label は追加できない", "warning");
                           return;
@@ -1391,7 +1377,7 @@ function ProjectShell({
                             name: labelDraft.name.trim(),
                             color: labelDraft.color,
                             description: labelDraft.description,
-                            shortcut: labelDraft.shortcut || null,
+                            shortcut: editingLabel?.shortcut ?? null,
                             meta: {},
                           };
                           const index = draft.labels.findIndex((label) => label.id === nextLabel.id);
@@ -1401,14 +1387,14 @@ function ProjectShell({
                             draft.labels.push(nextLabel);
                           }
                         });
-                        setLabelDraft({ id: "", name: "", color: "#1a73e8", description: "", shortcut: "" });
+                        setLabelDraft({ id: "", name: "", color: "#1a73e8", description: "" });
                       }}
                     >
                       {labelDraft.id ? "Update label" : "Add label"}
                     </Button>
                     <Button
                       variant="outlined"
-                      onClick={() => setLabelDraft({ id: "", name: "", color: "#1a73e8", description: "", shortcut: "" })}
+                      onClick={() => setLabelDraft({ id: "", name: "", color: "#1a73e8", description: "" })}
                     >
                       Clear
                     </Button>
@@ -1424,7 +1410,6 @@ function ProjectShell({
                           name: label.name,
                           color: label.color,
                           description: label.description,
-                          shortcut: label.shortcut ?? "",
                         })
                       }
                     >
