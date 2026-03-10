@@ -597,9 +597,10 @@ function ProjectShell({
 
   async function handleSave() {
     if (!bundle || !snapshot) {
-      return;
+      return false;
     }
-    await saveBundle(bundle);
+    const saved = await saveBundle(bundle);
+    return Boolean(saved);
   }
 
   async function handleSubmit() {
@@ -663,12 +664,16 @@ function ProjectShell({
       return;
     }
     const action = pendingAction;
-    setPendingAction(null);
     if (mode === "save") {
-      await handleSave();
+      const saved = await handleSave();
+      if (!saved) {
+        return;
+      }
+      setPendingAction(null);
       executePendingAction(action);
       return;
     }
+    setPendingAction(null);
     if (snapshot) {
       const restored = deepClone(snapshot);
       setBundle(restored);

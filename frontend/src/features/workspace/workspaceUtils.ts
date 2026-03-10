@@ -13,14 +13,12 @@ export function getDocumentHoverPreview(document: DocumentRecord, query: string,
   if (!query.trim()) {
     return document.text.slice(0, size);
   }
-  const normalizedText = normalizeSearchText(document.text);
-  const normalizedQuery = normalizeSearchText(query);
-  const index = normalizedText.indexOf(normalizedQuery);
+  const index = document.text.toLowerCase().indexOf(query.trim().toLowerCase());
   if (index < 0) {
     return document.text.slice(0, size);
   }
   const start = Math.max(0, index - 48);
-  const end = Math.min(document.text.length, index + size);
+  const end = Math.min(document.text.length, index + query.trim().length + 48);
   return `${start > 0 ? "…" : ""}${document.text.slice(start, end)}${end < document.text.length ? "…" : ""}`;
 }
 

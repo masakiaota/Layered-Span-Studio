@@ -25,12 +25,27 @@ export function buildSearchTokens(value: string): string[] {
   return normalizeSearchText(value).split(" ").filter(Boolean);
 }
 
-export function documentMatchesSearch(document: DocumentRecord, query: string): boolean {
-  if (!query.trim()) {
-    return true;
+function normalizeSimpleSearchQuery(query: string): string {
+  return query.trim().toLowerCase();
+}
+
+function findSimpleSearchMatchRange(text: string, query: string) {
+  const normalizedQuery = normalizeSimpleSearchQuery(query);
+  if (!normalizedQuery) {
+    return null;
   }
-  const normalizedText = normalizeSearchText(document.text);
-  return buildSearchTokens(query).every((token) => normalizedText.includes(token));
+  const start = text.toLowerCase().indexOf(normalizedQuery);
+  if (start < 0) {
+    return null;
+  }
+  return {
+    start,
+    end: start + normalizedQuery.length,
+  };
+}
+
+export function documentMatchesSearch(document: DocumentRecord, query: string): boolean {
+  return !query.trim() || findSimpleSearchMatchRange(document.text, query) !== null;
 }
 
 export function getDocumentStatus(document: DocumentRecord): StatusValue {
@@ -93,6 +108,8 @@ export function makeLocalId(prefix: string): string {
 
 type DocumentSnippetWindow = {
   content: string;
+  matchStart: number | null;
+  matchEnd: number | null;
   hasLeadingEllipsis: boolean;
   hasTrailingEllipsis: boolean;
 };
@@ -106,33 +123,28 @@ function buildDocumentSnippetWindow(document: DocumentRecord, query: string): Do
   if (!query.trim()) {
     return {
       content: document.text.slice(0, 120),
+      matchStart: null,
+      matchEnd: null,
       hasLeadingEllipsis: false,
       hasTrailingEllipsis: document.text.length > 120,
     };
   }
-  const tokens = buildSearchTokens(query);
-  const loweredText = document.text.toLowerCase();
-  const firstMatch = tokens.reduce<{ index: number; token: string } | null>((closest, token) => {
-    const index = loweredText.indexOf(token.toLowerCase());
-    if (index < 0) {
-      return closest;
-    }
-    if (!closest || index < closest.index) {
-      return { index, token };
-    }
-    return closest;
-  }, null);
-  if (!firstMatch) {
+  const match = findSimpleSearchMatchRange(document.text, query);
+  if (!match) {
     return {
       content: document.text.slice(0, 120),
+      matchStart: null,
+      matchEnd: null,
       hasLeadingEllipsis: false,
       hasTrailingEllipsis: document.text.length > 120,
     };
   }
-  const start = Math.max(0, firstMatch.index - 40);
-  const end = Math.min(document.text.length, firstMatch.index + 80);
+  const start = Math.max(0, match.start - 40);
+  const end = Math.min(document.text.length, match.end + 40);
   return {
     content: document.text.slice(start, end),
+    matchStart: match.start - start,
+    matchEnd: match.end - start,
     hasLeadingEllipsis: start > 0,
     hasTrailingEllipsis: end < document.text.length,
   };
@@ -149,34 +161,24 @@ export function getDocumentSnippetParts(document: DocumentRecord, query: string)
   if (snippet.hasLeadingEllipsis) {
     parts.push({ text: "…", highlighted: false });
   }
-  const tokens = [...new Set(buildSearchTokens(query).map((token) => token.toLowerCase()))].sort(
-    (left, right) => right.length - left.length,
-  );
-  if (tokens.length === 0) {
+  if (snippet.matchStart === null || snippet.matchEnd === null) {
     parts.push({ text: snippet.content, highlighted: false });
   } else {
-    const loweredContent = snippet.content.toLowerCase();
-    let index = 0;
-    while (index < snippet.content.length) {
-      const token = tokens.find((candidate) => loweredContent.startsWith(candidate, index));
-      if (token) {
-        parts.push({
-          text: snippet.content.slice(index, index + token.length),
-          highlighted: true,
-        });
-        index += token.length;
-        continue;
-      }
-      const nextMatchIndex = tokens
-        .map((candidate) => loweredContent.indexOf(candidate, index))
-        .filter((candidateIndex) => candidateIndex >= 0)
-        .sort((left, right) => left - right)[0];
-      const end = nextMatchIndex === undefined ? snippet.content.length : nextMatchIndex;
+    if (snippet.matchStart > 0) {
       parts.push({
-        text: snippet.content.slice(index, end),
+        text: snippet.content.slice(0, snippet.matchStart),
         highlighted: false,
       });
-      index = end;
+    }
+    parts.push({
+      text: snippet.content.slice(snippet.matchStart, snippet.matchEnd),
+      highlighted: true,
+    });
+    if (snippet.matchEnd < snippet.content.length) {
+      parts.push({
+        text: snippet.content.slice(snippet.matchEnd),
+        highlighted: false,
+      });
     }
   }
   if (snippet.hasTrailingEllipsis) {
