@@ -80,6 +80,7 @@ import {
   getDocumentStatus,
   getProjectGuideline,
   groupAnnotationsByLabel,
+  isShortcutBlockedTarget,
   isLocalId,
   makeLocalId,
   readJsonFile,
@@ -404,14 +405,6 @@ function ProjectShell({
     [documentList, pinnedCurrentDocument],
   );
 
-  function isShortcutBlockedTarget(target: HTMLElement | null) {
-    return Boolean(
-      target?.closest(
-        "input, textarea, select, [contenteditable='true'], [role='combobox'], [role='listbox'], [role='option']",
-      ),
-    );
-  }
-
   function handleShortcutPanelToggle() {
     setShortcutOpen((current) => !current);
   }
@@ -444,9 +437,8 @@ function ProjectShell({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
       const keyLower = event.key.toLowerCase();
-      const shortcutBlocked = isShortcutBlockedTarget(target);
+      const shortcutBlocked = isShortcutBlockedTarget(event.target);
       if (shortcutBlocked) {
         return;
       }

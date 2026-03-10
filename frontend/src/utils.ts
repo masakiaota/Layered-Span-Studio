@@ -109,6 +109,15 @@ export function makeLocalId(prefix: string): string {
   return `local-${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+export function isShortcutBlockedTarget(target: EventTarget | null): boolean {
+  return Boolean(
+    target instanceof HTMLElement &&
+      target.closest(
+        "input, textarea, select, [contenteditable='true'], [role='combobox'], [role='listbox'], [role='option']",
+      ),
+  );
+}
+
 type DocumentSnippetWindow = {
   content: string;
   matchStart: number | null;

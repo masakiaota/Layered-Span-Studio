@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Box, Button, Paper, Typography, alpha } from "@mui/material";
 import type { AnnotationRecord, DocumentRecord, LabelRecord } from "../types";
+import { isShortcutBlockedTarget } from "../utils";
 
 type SelectionDraft = {
   start: number;
@@ -216,11 +217,18 @@ export function DocumentCanvas({
       text: selection.text,
     });
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isShortcutBlockedTarget(event.target)) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
+        return;
+      }
       if (event.key === "Enter") {
         event.preventDefault();
         onCreateAnnotation(selection.start, selection.end, selection.text);
         window.getSelection()?.removeAllRanges();
         setSelection(null);
+        return;
       }
       if (event.key === "Escape") {
         event.preventDefault();
