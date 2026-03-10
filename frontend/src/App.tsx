@@ -42,6 +42,7 @@ import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
 import LabelRoundedIcon from "@mui/icons-material/LabelRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
+import PaletteRoundedIcon from "@mui/icons-material/PaletteRounded";
 import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
@@ -104,7 +105,6 @@ const EXAMPLES_BATCH_SIZE = 8;
 const DOCUMENT_PAGE_SIZE = 40;
 const DOCUMENT_WINDOW_SIZE = 120;
 const DEFAULT_LABEL_COLOR = "#1a73e8";
-const HEX_COLOR_PATTERN = /^#?[0-9a-fA-F]{6}$/;
 
 function normalizeHexColor(value: string) {
   const trimmed = value.trim();
@@ -188,6 +188,7 @@ function ProjectShell({
   const sameLabelExamplesScrollRef = useRef<HTMLDivElement | null>(null);
   const sameSurfaceExamplesScrollRef = useRef<HTMLDivElement | null>(null);
   const shortcutDragStateRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+  const labelColorInputRef = useRef<HTMLInputElement | null>(null);
   const documentListRequestIdRef = useRef(0);
   const [shortcutPanelOffset, setShortcutPanelOffset] = useState({ x: 0, y: 0 });
   const [shortcutDragging, setShortcutDragging] = useState(false);
@@ -2042,7 +2043,7 @@ function ProjectShell({
                 <Stack spacing={1.5} sx={{ minWidth: 320, flex: 1 }}>
                   <TextField label="Name" value={labelDraft.name} onChange={(event) => setLabelDraft((current) => ({ ...current, name: event.target.value }))} />
                   <TextField
-                    label="Color"
+                    label="Color: 16進カラーコード"
                     value={labelDraft.color}
                     onChange={(event) => setLabelDraft((current) => ({ ...current, color: event.target.value }))}
                     onBlur={() =>
@@ -2052,44 +2053,23 @@ function ProjectShell({
                       })
                     }
                     error={labelDraft.color.trim().length > 0 && !labelColorValid}
-                    helperText={labelDraft.color.trim().length > 0 && !labelColorValid ? "Color は #RRGGBB 形式で入力する" : "右側のプレビューで確認しつつ、カラーピッカーからも選べる"}
+                    helperText={labelDraft.color.trim().length > 0 && !labelColorValid ? "Color は #RRGGBB 形式で入力する" : undefined}
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
                           <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 0.2 }}>
+                              色見本
+                            </Typography>
                             <Box
                               aria-label="Selected color preview"
                               sx={{
-                                width: 24,
-                                height: 24,
+                                width: 28,
+                                height: 28,
                                 borderRadius: 1.2,
                                 bgcolor: labelColorPreview,
                                 border: `1px solid ${alpha("#16324f", 0.16)}`,
                                 boxShadow: `inset 0 0 0 1px ${alpha("#ffffff", 0.35)}`,
-                              }}
-                            />
-                            <Box
-                              component="input"
-                              type="color"
-                              aria-label="Pick label color"
-                              value={labelColorPreview}
-                              onChange={(event) => setLabelDraft((current) => ({ ...current, color: event.target.value }))}
-                              sx={{
-                                width: 36,
-                                height: 36,
-                                p: 0,
-                                border: "none",
-                                bgcolor: "transparent",
-                                cursor: "pointer",
-                                '&::-webkit-color-swatch-wrapper': { p: 0 },
-                                '&::-webkit-color-swatch': {
-                                  border: `1px solid ${alpha("#16324f", 0.16)}`,
-                                  borderRadius: 1.2,
-                                },
-                                '&::-moz-color-swatch': {
-                                  border: `1px solid ${alpha("#16324f", 0.16)}`,
-                                  borderRadius: 1.2,
-                                },
                               }}
                             />
                           </Stack>
@@ -2097,32 +2077,39 @@ function ProjectShell({
                       ),
                     }}
                   />
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<PaletteRoundedIcon />}
+                      onClick={() => labelColorInputRef.current?.click()}
+                      sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}
+                    >
+                      色を選ぶ
+                    </Button>
+                    <Typography variant="caption" color="text.secondary" sx={{ minHeight: 20, display: "flex", alignItems: "center" }}>
+                      {labelColorValid ? `現在の色: ${normalizedLabelColor}` : "有効なカラーコードを入力すると色見本に反映される"}
+                    </Typography>
+                    <Box
+                      component="input"
+                      ref={labelColorInputRef}
+                      type="color"
+                      aria-label="Pick label color"
+                      value={labelColorPreview}
+                      onChange={(event) => setLabelDraft((current) => ({ ...current, color: event.target.value }))}
+                      sx={{
+                        position: "absolute",
+                        width: 1,
+                        height: 1,
+                        p: 0,
+                        m: -1,
+                        overflow: "hidden",
+                        clip: "rect(0 0 0 0)",
+                        whiteSpace: "nowrap",
+                        border: 0,
+                      }}
+                    />
+                  </Stack>
                   <TextField label="Description" multiline minRows={3} value={labelDraft.description} onChange={(event) => setLabelDraft((current) => ({ ...current, description: event.target.value }))} />
-                  <Box
-                    sx={{
-                      borderRadius: 2,
-                      border: `1px solid ${alpha(labelColorPreview, 0.24)}`,
-                      bgcolor: alpha(labelColorPreview, 0.08),
-                      px: 1.5,
-                      py: 1.25,
-                    }}
-                  >
-                    <Stack direction="row" spacing={1.25} alignItems="center">
-                      <Box
-                        sx={{
-                          width: 14,
-                          height: 14,
-                          borderRadius: "50%",
-                          bgcolor: labelColorPreview,
-                          border: `1px solid ${alpha("#16324f", 0.14)}`,
-                        }}
-                      />
-                      <Typography variant="subtitle2">{labelDraft.name.trim() || "Label preview"}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {labelColorValid ? normalizedLabelColor : "Invalid color"}
-                      </Typography>
-                    </Stack>
-                  </Box>
                   <Stack direction="row" spacing={1}>
                     <Button
                       variant="contained"
