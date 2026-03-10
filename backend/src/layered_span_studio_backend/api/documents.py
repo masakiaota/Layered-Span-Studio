@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from layered_span_studio_backend.core.dependencies import get_current_user, get_settings
 from layered_span_studio_backend.models.documents import (
+    DocumentBundleIn,
     DocumentCreate,
     DocumentDetailOut,
     DocumentListResponse,
@@ -74,6 +75,50 @@ def get_document(project_id: str, document_id: str, settings=Depends(get_setting
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     return document
+
+
+@router.put("/{document_id}/bundle", response_model=DocumentDetailOut)
+def save_document_bundle(
+    project_id: str,
+    document_id: str,
+    payload: DocumentBundleIn,
+    settings=Depends(get_settings),
+):
+    try:
+        return documents_service.save_document_bundle(
+            settings,
+            project_id,
+            document_id,
+            [annotation.model_dump(mode="json") for annotation in payload.annotations],
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = status.HTTP_400_BAD_REQUEST
+        if "not found" in message.lower():
+            status_code = status.HTTP_404_NOT_FOUND
+        raise HTTPException(status_code=status_code, detail=message)
+
+
+@router.post("/{document_id}/submit", response_model=DocumentDetailOut)
+def submit_document_bundle(
+    project_id: str,
+    document_id: str,
+    payload: DocumentBundleIn,
+    settings=Depends(get_settings),
+):
+    try:
+        return documents_service.submit_document_bundle(
+            settings,
+            project_id,
+            document_id,
+            [annotation.model_dump(mode="json") for annotation in payload.annotations],
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = status.HTTP_400_BAD_REQUEST
+        if "not found" in message.lower():
+            status_code = status.HTTP_404_NOT_FOUND
+        raise HTTPException(status_code=status_code, detail=message)
 
 
 @router.patch("/{document_id}", response_model=DocumentOut)

@@ -84,9 +84,7 @@ import {
   isLocalId,
   makeLocalId,
   readJsonFile,
-  setDocumentStatus,
   setProjectGuideline,
-  toJsonObject,
 } from "./utils";
 
 type PendingAction =
@@ -123,8 +121,10 @@ function ProjectShell({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [bundle, setBundle] = useState<ProjectBundle | null>(null);
-  const [snapshot, setSnapshot] = useState<ProjectBundle | null>(null);
-  const [historyState, setHistoryState] = useState<{ entries: ProjectBundle[]; index: number }>({
+  const [settingsSnapshot, setSettingsSnapshot] = useState<Pick<ProjectBundle, "project" | "labels"> | null>(null);
+  const [documentSnapshotsById, setDocumentSnapshotsById] = useState<Record<string, DocumentRecord>>({});
+  const [historyState, setHistoryState] = useState<{ documentId: string | null; entries: DocumentRecord[]; index: number }>({
+    documentId: null,
     entries: [],
     index: -1,
   });
@@ -175,15 +175,6 @@ function ProjectShell({
   const [shortcutPanelOffset, setShortcutPanelOffset] = useState({ x: 0, y: 0 });
   const [shortcutDragging, setShortcutDragging] = useState(false);
   const initialDocumentListLoadedRef = useRef(false);
-  const canUndo = historyState.index > 0;
-  const canRedo = historyState.index >= 0 && historyState.index < historyState.entries.length - 1;
-
-  const dirty = useMemo(() => {
-    if (!bundle || !snapshot) {
-      return false;
-    }
-    return JSON.stringify(bundle) !== JSON.stringify(snapshot);
-  }, [bundle, snapshot]);
 
   function toDocumentListItem(document: DocumentRecord): DocumentListItem {
     return {
@@ -251,8 +242,18 @@ function ProjectShell({
         documents: loadedDocuments,
       } satisfies ProjectBundle;
       setBundle(nextBundle);
-      setSnapshot(deepClone(nextBundle));
-      setHistoryState({ entries: [deepClone(nextBundle)], index: 0 });
+      setSettingsSnapshot({
+        project: deepClone(project),
+        labels: deepClone(labels),
+      });
+      setDocumentSnapshotsById(
+        Object.fromEntries(loadedDocuments.map((document) => [document.id, deepClone(document)])),
+      );
+      setHistoryState({
+        documentId: loadedDocuments[0]?.id ?? null,
+        entries: loadedDocuments[0] ? [deepClone(loadedDocuments[0])] : [],
+        index: loadedDocuments[0] ? 0 : -1,
+      });
       setDocumentList(trimDocumentWindow(documentsResponse.documents, firstDocId));
       setDocumentTotal(documentsResponse.total);
       setPendingDocumentTotal(documentsResponse.pending_total);
@@ -295,14 +296,10 @@ function ProjectShell({
               }
             : current,
         );
-        setSnapshot((current) =>
-          current
-            ? {
-                ...current,
-                documents: [...current.documents.filter((item) => item.id !== document.id), deepClone(document)],
-              }
-            : current,
-        );
+        setDocumentSnapshotsById((current) => ({
+          ...current,
+          [document.id]: deepClone(document),
+        }));
       })
       .catch((error) => {
         if (active) {
@@ -372,6 +369,7 @@ function ProjectShell({
     () => bundle?.documents.find((document) => document.id === selectedDocId) ?? bundle?.documents[0] ?? null,
     [bundle, selectedDocId],
   );
+  const currentDocumentSnapshot = currentDocument ? documentSnapshotsById[currentDocument.id] ?? null : null;
 
   const focusedLabel = useMemo(
     () => bundle?.labels.find((label) => label.id === focusedLabelId) ?? bundle?.labels[0] ?? null,
@@ -382,6 +380,31 @@ function ProjectShell({
     () => currentDocument?.annotations.find((annotation) => annotation.id === selectedAnnotationId) ?? null,
     [currentDocument, selectedAnnotationId],
   );
+  const settingsDirty = useMemo(() => {
+    if (!bundle || !settingsSnapshot) {
+      return false;
+    }
+    return (
+      JSON.stringify(bundle.project) !== JSON.stringify(settingsSnapshot.project) ||
+      JSON.stringify(bundle.labels) !== JSON.stringify(settingsSnapshot.labels)
+    );
+  }, [bundle, settingsSnapshot]);
+  const currentDocumentDirty = useMemo(() => {
+    if (!currentDocument || !currentDocumentSnapshot) {
+      return false;
+    }
+    return JSON.stringify(currentDocument) !== JSON.stringify(currentDocumentSnapshot);
+  }, [currentDocument, currentDocumentSnapshot]);
+  const dirty = view === "workspace" ? currentDocumentDirty : settingsDirty;
+  const canUndo =
+    view === "workspace" &&
+    historyState.documentId === currentDocument?.id &&
+    historyState.index > 0;
+  const canRedo =
+    view === "workspace" &&
+    historyState.documentId === currentDocument?.id &&
+    historyState.index >= 0 &&
+    historyState.index < historyState.entries.length - 1;
 
   const currentHiddenBySearch = Boolean(
     currentDocument && searchQuery.trim() && !documentMatchesSearch(currentDocument, searchQuery),
@@ -404,6 +427,17 @@ function ProjectShell({
     () => (pinnedCurrentDocument ? [pinnedCurrentDocument, ...documentList] : documentList),
     [documentList, pinnedCurrentDocument],
   );
+
+  useEffect(() => {
+    if (!currentDocument || historyState.documentId === currentDocument.id) {
+      return;
+    }
+    setHistoryState({
+      documentId: currentDocument.id,
+      entries: [deepClone(currentDocumentSnapshot ?? currentDocument)],
+      index: 0,
+    });
+  }, [currentDocument, currentDocumentSnapshot, historyState.documentId]);
 
   function handleShortcutPanelToggle() {
     setShortcutOpen((current) => !current);
@@ -535,7 +569,7 @@ function ProjectShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [bundle, canRedo, canUndo, currentDocument, focusedLabelId, rightTab, selectedAnnotationId, searchQuery, sortMode, snapshot]);
+  }, [bundle, canRedo, canUndo, currentDocument, focusedLabelId, rightTab, selectedAnnotationId, searchQuery, sortMode, view, currentDocumentDirty, settingsDirty]);
 
   useEffect(() => {
     if (!pendingAction) {
@@ -652,130 +686,201 @@ function ProjectShell({
     void loadSameSurfaceExamples(true);
   }, [bundle?.project.id, sameSurfaceTarget?.text, sameSurfaceTarget?.annotationId, sameSurfaceTarget?.labelId]);
 
-  function stampChangedDocuments(previousBundle: ProjectBundle, nextBundle: ProjectBundle) {
-    const previousDocumentsById = new Map(previousBundle.documents.map((document) => [document.id, document]));
-    const now = new Date().toISOString();
-    nextBundle.documents.forEach((document) => {
-      const previousDocument = previousDocumentsById.get(document.id);
-      if (!previousDocument) {
-        const meta = toJsonObject(document.meta);
-        document.meta = {
-          ...meta,
-          created_at: typeof meta.created_at === "string" ? meta.created_at : now,
-          updated_at: typeof meta.updated_at === "string" ? meta.updated_at : now,
-        };
-        return;
-      }
-      if (JSON.stringify(previousDocument) === JSON.stringify(document)) {
-        return;
-      }
-      const currentMeta = toJsonObject(document.meta);
-      const previousMeta = toJsonObject(previousDocument.meta);
-      document.meta = {
-        ...currentMeta,
-        created_at:
-          typeof currentMeta.created_at === "string"
-            ? currentMeta.created_at
-            : typeof previousMeta.created_at === "string"
-              ? previousMeta.created_at
-              : now,
-        updated_at: now,
+  function mutateCurrentDocument(mutator: (draft: DocumentRecord) => void) {
+    if (!bundle || !currentDocument) {
+      return;
+    }
+    const draft = deepClone(currentDocument);
+    mutator(draft);
+    if (JSON.stringify(draft) === JSON.stringify(currentDocument)) {
+      return;
+    }
+    setBundle((current) =>
+      current
+        ? {
+            ...current,
+            documents: current.documents.map((document) => (document.id === draft.id ? draft : document)),
+          }
+        : current,
+    );
+    setHistoryState((current) => {
+      const nextEntries =
+        current.documentId === draft.id ? current.entries.slice(0, current.index + 1) : [];
+      nextEntries.push(deepClone(draft));
+      const cappedEntries = nextEntries.length > 50 ? nextEntries.slice(nextEntries.length - 50) : nextEntries;
+      return {
+        documentId: draft.id,
+        entries: cappedEntries,
+        index: cappedEntries.length - 1,
       };
     });
   }
 
-  function mutateBundle(mutator: (draft: ProjectBundle) => void) {
+  function mutateSettingsBundle(mutator: (draft: ProjectBundle) => void) {
     if (!bundle) {
       return;
     }
     const draft = deepClone(bundle);
     mutator(draft);
-    stampChangedDocuments(bundle, draft);
-    if (JSON.stringify(draft) === JSON.stringify(bundle)) {
+    const currentState = JSON.stringify({ project: bundle.project, labels: bundle.labels });
+    const nextState = JSON.stringify({ project: draft.project, labels: draft.labels });
+    if (currentState === nextState) {
       return;
     }
-    setBundle(draft);
-    setHistoryState((current) => {
-      const nextEntries = current.entries.slice(0, current.index + 1);
-      nextEntries.push(deepClone(draft));
-      const cappedEntries = nextEntries.length > 50 ? nextEntries.slice(nextEntries.length - 50) : nextEntries;
-      return { entries: cappedEntries, index: cappedEntries.length - 1 };
-    });
+    setBundle((current) =>
+      current
+        ? {
+            ...current,
+            project: draft.project,
+            labels: draft.labels,
+          }
+        : current,
+    );
   }
 
   function undoBundle() {
-    if (!canUndo) {
+    if (!canUndo || !currentDocument) {
       return;
     }
     const nextIndex = historyState.index - 1;
-    const nextBundle = historyState.entries[nextIndex];
-    if (!nextBundle) {
+    const nextDocument = historyState.entries[nextIndex];
+    if (!nextDocument) {
       return;
     }
-    setBundle(deepClone(nextBundle));
+    setBundle((current) =>
+      current
+        ? {
+            ...current,
+            documents: current.documents.map((document) => (document.id === nextDocument.id ? deepClone(nextDocument) : document)),
+          }
+        : current,
+    );
     setHistoryState((current) => ({ ...current, index: nextIndex }));
   }
 
   function redoBundle() {
-    if (!canRedo) {
+    if (!canRedo || !currentDocument) {
       return;
     }
     const nextIndex = historyState.index + 1;
-    const nextBundle = historyState.entries[nextIndex];
-    if (!nextBundle) {
+    const nextDocument = historyState.entries[nextIndex];
+    if (!nextDocument) {
       return;
     }
-    setBundle(deepClone(nextBundle));
+    setBundle((current) =>
+      current
+        ? {
+            ...current,
+            documents: current.documents.map((document) => (document.id === nextDocument.id ? deepClone(nextDocument) : document)),
+          }
+        : current,
+    );
     setHistoryState((current) => ({ ...current, index: nextIndex }));
   }
 
-  function resolvePersistedDocument(
-    savedBundle: ProjectBundle,
-    previousDocument: Pick<DocumentRecord, "id" | "document_name" | "text"> | null,
-  ) {
-    if (!previousDocument) {
-      return savedBundle.documents[0] ?? null;
-    }
-    return (
-      savedBundle.documents.find((document) => document.id === previousDocument.id) ??
-      savedBundle.documents.find(
-        (document) =>
-          document.document_name === previousDocument.document_name && document.text === previousDocument.text,
-      ) ??
-      savedBundle.documents[0] ??
-      null
-    );
+  function buildDocumentBundlePayload(document: DocumentRecord, forceVerified: boolean) {
+    return document.annotations.map((annotation) => ({
+      id: isLocalId(annotation.id) ? null : annotation.id,
+      label_id: annotation.label_id,
+      start: annotation.start,
+      end: annotation.end,
+      span_text: annotation.span_text,
+      comment: annotation.comment,
+      status: forceVerified ? "verified" : annotation.status,
+      meta: annotation.meta ?? {},
+    }));
   }
 
-  async function saveBundle(nextBundle: ProjectBundle, successMessage: string | null = "保存した") {
-    if (!snapshot) {
+  async function saveCurrentDocument(successMessage: string | null = "保存した", forceVerified = false) {
+    if (!bundle || !currentDocument) {
       return null;
     }
     setSaving(true);
     try {
-      const previousDocument = currentDocument
-        ? {
-            id: currentDocument.id,
-            document_name: currentDocument.document_name,
-            text: currentDocument.text,
-          }
+      const payload = buildDocumentBundlePayload(currentDocument, forceVerified);
+      const savedDocument = forceVerified
+        ? await api.submitDocumentBundle(token, bundle.project.id, currentDocument.id, payload)
+        : await api.saveDocumentBundle(token, bundle.project.id, currentDocument.id, payload);
+      setBundle((current) =>
+        current
+          ? {
+              ...current,
+              documents: current.documents.map((document) => (document.id === savedDocument.id ? savedDocument : document)),
+            }
+          : current,
+      );
+      setDocumentSnapshotsById((current) => ({
+        ...current,
+        [savedDocument.id]: deepClone(savedDocument),
+      }));
+      setHistoryState({
+        documentId: savedDocument.id,
+        entries: [deepClone(savedDocument)],
+        index: 0,
+      });
+      setSelectedAnnotationId(null);
+      if (successMessage) {
+        showToast(successMessage, "success");
+      }
+      return savedDocument;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "保存に失敗した", "error");
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveSettings(successMessage: string | null = "保存した") {
+    if (!bundle || !settingsSnapshot) {
+      return null;
+    }
+    setSaving(true);
+    try {
+      const saved = await api.saveProjectBundle(
+        token,
+        {
+          project: deepClone(settingsSnapshot.project),
+          labels: deepClone(settingsSnapshot.labels),
+          documents: deepClone(bundle.documents),
+        },
+        bundle,
+      );
+      const refreshedCurrentDocument = selectedDocId
+        ? await api.getDocument(token, bundle.project.id, selectedDocId).catch(() => null)
         : null;
-      const saved = await api.saveProjectBundle(token, snapshot, nextBundle);
-      const persistedCurrentDocument = resolvePersistedDocument(saved, previousDocument);
-      setBundle(saved);
-      setSnapshot(deepClone(saved));
-      setHistoryState({ entries: [deepClone(saved)], index: 0 });
-      setSelectedDocId(persistedCurrentDocument?.id ?? null);
-      if (persistedCurrentDocument) {
-        setSelectedAnnotationId(null);
+      setBundle((current) =>
+        current
+          ? {
+              ...current,
+              project: saved.project,
+              labels: saved.labels,
+              documents: refreshedCurrentDocument ? [refreshedCurrentDocument] : current.documents,
+            }
+          : current,
+      );
+      setSettingsSnapshot({
+        project: deepClone(saved.project),
+        labels: deepClone(saved.labels),
+      });
+      setDocumentSnapshotsById(
+        refreshedCurrentDocument
+          ? {
+              [refreshedCurrentDocument.id]: deepClone(refreshedCurrentDocument),
+            }
+          : {},
+      );
+      if (refreshedCurrentDocument) {
+        setHistoryState({
+          documentId: refreshedCurrentDocument.id,
+          entries: [deepClone(refreshedCurrentDocument)],
+          index: 0,
+        });
       }
       if (successMessage) {
         showToast(successMessage, "success");
       }
-      return {
-        saved,
-        persistedSelectedDocId: persistedCurrentDocument?.id ?? null,
-      };
+      return saved;
     } catch (error) {
       showToast(error instanceof Error ? error.message : "保存に失敗した", "error");
       return null;
@@ -882,48 +987,35 @@ function ProjectShell({
     if (!currentDocument || !selectedAnnotationId) {
       return;
     }
-    mutateBundle((draft) => {
-      const document = draft.documents.find((item) => item.id === currentDocument.id);
-      if (!document) {
-        return;
-      }
-      document.annotations = document.annotations.filter((annotation) => annotation.id !== selectedAnnotationId);
+    mutateCurrentDocument((draft) => {
+      draft.annotations = draft.annotations.filter((annotation) => annotation.id !== selectedAnnotationId);
     });
     setSelectedAnnotationId(null);
     setSelectionPreview(null);
   }
 
   async function handleSave() {
-    if (!bundle || !snapshot) {
+    if (view === "settings") {
+      return saveSettings();
+    }
+    const savedDocument = await saveCurrentDocument();
+    if (!savedDocument) {
       return null;
     }
-    const result = await saveBundle(bundle);
-    if (!result) {
-      return null;
-    }
-    await fetchDocumentPage(true, result.persistedSelectedDocId);
-    return result.saved;
+    await fetchDocumentPage(true, savedDocument.id);
+    return savedDocument;
   }
 
   async function handleSubmit() {
-    if (!bundle || !currentDocument) {
+    if (!bundle || !currentDocument || view !== "workspace") {
       return;
     }
-    const submittedBundle = deepClone(bundle);
-    const document = submittedBundle.documents.find((item) => item.id === currentDocument.id);
-    if (!document) {
+    const savedDocument = await saveCurrentDocument(null, true);
+    if (!savedDocument) {
       return;
     }
-    setDocumentStatus(document, "verified");
-    document.annotations.forEach((annotation) => {
-      annotation.status = "verified";
-    });
-    const result = await saveBundle(submittedBundle, null);
-    if (!result) {
-      return;
-    }
-    const refreshedDocuments = await fetchDocumentPage(true, result.persistedSelectedDocId);
-    const currentIndex = refreshedDocuments.findIndex((document) => document.id === result.persistedSelectedDocId);
+    const refreshedDocuments = await fetchDocumentPage(true, savedDocument.id);
+    const currentIndex = refreshedDocuments.findIndex((document) => document.id === savedDocument.id);
     const forwardPending =
       currentIndex >= 0
         ? refreshedDocuments.slice(currentIndex + 1).find((document) => getDocumentStatus(document) === "pending")
@@ -983,10 +1075,33 @@ function ProjectShell({
       return;
     }
     setPendingAction(null);
-    if (snapshot) {
-      const restored = deepClone(snapshot);
-      setBundle(restored);
-      setHistoryState({ entries: [deepClone(restored)], index: 0 });
+    if (view === "workspace" && currentDocument && currentDocumentSnapshot) {
+      const restoredDocument = deepClone(currentDocumentSnapshot);
+      setBundle((current) =>
+        current
+          ? {
+              ...current,
+              documents: current.documents.map((document) => (document.id === restoredDocument.id ? restoredDocument : document)),
+            }
+          : current,
+      );
+      setHistoryState({
+        documentId: restoredDocument.id,
+        entries: [deepClone(restoredDocument)],
+        index: 0,
+      });
+      setSelectedAnnotationId(null);
+      setSelectionPreview(null);
+    } else if (view === "settings" && bundle && settingsSnapshot) {
+      setBundle((current) =>
+        current
+          ? {
+              ...current,
+              project: deepClone(settingsSnapshot.project),
+              labels: deepClone(settingsSnapshot.labels),
+            }
+          : current,
+      );
     }
     executePendingAction(action);
   }
@@ -1018,9 +1133,8 @@ function ProjectShell({
       status: "pending",
       meta: {},
     };
-    mutateBundle((draft) => {
-      const document = draft.documents.find((item) => item.id === currentDocument.id);
-      document?.annotations.push(nextAnnotation);
+    mutateCurrentDocument((draft) => {
+      draft.annotations.push(nextAnnotation);
     });
     setSelectionPreview(null);
     setSelectedAnnotationId(nextAnnotation.id);
@@ -1659,9 +1773,8 @@ function ProjectShell({
                               if (!value || !currentDocument) {
                                 return;
                               }
-                              mutateBundle((draft) => {
-                                const document = draft.documents.find((item) => item.id === currentDocument.id);
-                                const annotation = document?.annotations.find((item) => item.id === selectedAnnotation.id);
+                              mutateCurrentDocument((draft) => {
+                                const annotation = draft.annotations.find((item) => item.id === selectedAnnotation.id);
                                 if (annotation) {
                                   annotation.status = value as StatusValue;
                                 }
@@ -1678,9 +1791,8 @@ function ProjectShell({
                                 return;
                               }
                               const value = event.target.value;
-                              mutateBundle((draft) => {
-                                const document = draft.documents.find((item) => item.id === currentDocument.id);
-                                const annotation = document?.annotations.find((item) => item.id === selectedAnnotation.id);
+                              mutateCurrentDocument((draft) => {
+                                const annotation = draft.annotations.find((item) => item.id === selectedAnnotation.id);
                                 if (annotation) {
                                   annotation.comment = value;
                                 }
@@ -1698,9 +1810,8 @@ function ProjectShell({
                               }
                               try {
                                 const parsed = JSON.parse(event.target.value) as JsonObject;
-                                mutateBundle((draft) => {
-                                  const document = draft.documents.find((item) => item.id === currentDocument.id);
-                                  const annotation = document?.annotations.find((item) => item.id === selectedAnnotation.id);
+                                mutateCurrentDocument((draft) => {
+                                  const annotation = draft.annotations.find((item) => item.id === selectedAnnotation.id);
                                   if (annotation) {
                                     annotation.meta = parsed;
                                   }
@@ -1818,7 +1929,7 @@ function ProjectShell({
                   label="Project name"
                   value={bundle.project.name}
                   onChange={(event) =>
-                    mutateBundle((draft) => {
+                    mutateSettingsBundle((draft) => {
                       draft.project.name = event.target.value;
                     })
                   }
@@ -1829,7 +1940,7 @@ function ProjectShell({
                   minRows={2}
                   value={bundle.project.description ?? ""}
                   onChange={(event) =>
-                    mutateBundle((draft) => {
+                    mutateSettingsBundle((draft) => {
                       draft.project.description = event.target.value;
                     })
                   }
@@ -1840,7 +1951,7 @@ function ProjectShell({
                   minRows={4}
                   value={getProjectGuideline(bundle.project)}
                   onChange={(event) =>
-                    mutateBundle((draft) => {
+                    mutateSettingsBundle((draft) => {
                       setProjectGuideline(draft.project, event.target.value);
                     })
                   }
@@ -1869,7 +1980,7 @@ function ProjectShell({
                           showToast("同名 label は追加できない", "warning");
                           return;
                         }
-                        mutateBundle((draft) => {
+                        mutateSettingsBundle((draft) => {
                           const nextLabel: LabelRecord = {
                             id: labelDraft.id || makeLocalId("label"),
                             project_id: draft.project.id,
@@ -1927,11 +2038,8 @@ function ProjectShell({
                         color="error"
                         onClick={(event) => {
                           event.stopPropagation();
-                          mutateBundle((draft) => {
+                          mutateSettingsBundle((draft) => {
                             draft.labels = draft.labels.filter((item) => item.id !== label.id);
-                            draft.documents.forEach((document) => {
-                              document.annotations = document.annotations.filter((annotation) => annotation.label_id !== label.id);
-                            });
                           });
                           if (focusedLabelId === label.id) {
                             setFocusedLabelId(bundle.labels.find((item) => item.id !== label.id)?.id ?? null);
@@ -2007,38 +2115,56 @@ function ProjectShell({
           <Button onClick={() => setCreateDocOpen(false)}>Cancel</Button>
           <Button
             variant="contained"
-            onClick={() => {
+            onClick={() => void (async () => {
+              if (!bundle) {
+                return;
+              }
               if (!newDocName.trim() || !newDocText.trim()) {
                 return;
               }
-              const nextDocument: DocumentRecord = {
-                id: makeLocalId("document"),
-                project_id: bundle.project.id,
-                project_name: bundle.project.name,
-                document_name: newDocName.trim(),
-                text: newDocText,
-                annotations: [],
-                meta: {
-                  status: "pending",
-                },
-              };
-              mutateBundle((draft) => {
-                draft.documents.push(nextDocument);
-              });
-              setDocumentList((current) =>
-                trimDocumentWindow(
-                  [toDocumentListItem(nextDocument), ...current.filter((document) => document.id !== nextDocument.id)],
-                  nextDocument.id,
-                ),
-              );
-              setDocumentTotal((current) => current + 1);
-              setPendingDocumentTotal((current) => current + 1);
-              setSelectedDocId(nextDocument.id);
-              setAnnotationEditCollapsed(true);
-              setCreateDocOpen(false);
-              setNewDocName("");
-              setNewDocText("");
-            }}
+              setSaving(true);
+              try {
+                const created = await api.createDocument(token, bundle.project.id, {
+                  id: "",
+                  project_id: bundle.project.id,
+                  project_name: bundle.project.name,
+                  document_name: newDocName.trim(),
+                  text: newDocText,
+                  annotations: [],
+                  meta: {},
+                });
+                const createdDocument = await api.getDocument(token, bundle.project.id, created.id);
+                setBundle((current) =>
+                  current
+                    ? {
+                        ...current,
+                        documents: [...current.documents.filter((document) => document.id !== createdDocument.id), createdDocument],
+                      }
+                    : current,
+                );
+                setDocumentSnapshotsById((current) => ({
+                  ...current,
+                  [createdDocument.id]: deepClone(createdDocument),
+                }));
+                setDocumentList((current) =>
+                  trimDocumentWindow(
+                    [toDocumentListItem(createdDocument), ...current.filter((document) => document.id !== createdDocument.id)],
+                    createdDocument.id,
+                  ),
+                );
+                setDocumentTotal((current) => current + 1);
+                setPendingDocumentTotal((current) => current + 1);
+                setAnnotationEditCollapsed(true);
+                setCreateDocOpen(false);
+                setNewDocName("");
+                setNewDocText("");
+                requestAction({ type: "doc", docId: createdDocument.id });
+              } catch (error) {
+                showToast(error instanceof Error ? error.message : "Document の作成に失敗した", "error");
+              } finally {
+                setSaving(false);
+              }
+            })()}
           >
             Create
           </Button>

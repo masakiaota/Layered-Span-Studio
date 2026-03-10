@@ -232,6 +232,32 @@
 - 一覧 API は `offset/limit/search/sort` を持つ
 - `search` は `text` にのみ適用し、`document_name` は検索対象に含めない
 
+#### Document Bundle Save API の派生ルール
+
+```json
+{
+  "annotations": [
+    {
+      "id": "uuid or null",
+      "label_id": "uuid",
+      "start": 0,
+      "end": 5,
+      "span_text": "Hello",
+      "comment": "",
+      "status": "pending",
+      "meta": {}
+    }
+  ]
+}
+```
+
+- request の `annotations` は対象 document の最終状態全件を表す
+- `id: null` は新規 annotation
+- request に含まれない既存 annotation は削除される
+- response は full `Document` を返す
+- document `meta.created_at` / `meta.updated_at` / `meta.status` は backend 管理
+- `submit` API では保存後に annotation 全件と document `meta.status` が `verified` になる
+
 ## 組み合わせ（Exportの基本形）
 
 プロジェクト全体のエクスポートは、まず次の形を基本とします。

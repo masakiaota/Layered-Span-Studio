@@ -5,6 +5,7 @@ from typing import Optional
 
 from pydantic import Field
 
+from layered_span_studio_backend.models.common import AnnotationStatus
 from layered_span_studio_backend.models.annotations import AnnotationOut
 from layered_span_studio_backend.models.common import APIModel, Meta
 
@@ -25,6 +26,21 @@ class DocumentCreate(APIModel):
 class DocumentUpdate(APIModel):
     document_name: Optional[str] = None
     meta: Meta = None
+
+
+class DocumentBundleAnnotationIn(APIModel):
+    id: Optional[str] = None
+    label_id: str
+    start: int = Field(..., ge=0)
+    end: int = Field(..., gt=0)
+    span_text: str
+    comment: str = ""
+    status: AnnotationStatus
+    meta: Meta = None
+
+
+class DocumentBundleIn(APIModel):
+    annotations: list[DocumentBundleAnnotationIn]
 
 
 class DocumentOut(APIModel):

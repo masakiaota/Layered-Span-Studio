@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import Select, select
@@ -24,6 +24,48 @@ def _project_name(engine) -> Optional[str]:
     return row[0] if row else None
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _document_meta_with_system_fields(
+    incoming_meta: Optional[Dict[str, Any]],
+    existing_meta: Optional[Dict[str, Any]] = None,
+    *,
+    status: Optional[str] = None,
+) -> Dict[str, Any]:
+    now = _utc_now_iso()
+    user_meta = {
+        key: value
+        for key, value in (existing_meta or {}).items()
+        if key not in {"created_at", "updated_at", "status"}
+    }
+    user_meta.update(
+        {
+            key: value
+            for key, value in (incoming_meta or {}).items()
+            if key not in {"created_at", "updated_at", "status"}
+        }
+    )
+    created_at = None
+    if isinstance(existing_meta, dict):
+        existing_created_at = existing_meta.get("created_at")
+        if isinstance(existing_created_at, str) and existing_created_at:
+            created_at = existing_created_at
+    if not created_at:
+        created_at = now
+    next_status = status
+    if next_status is None:
+        existing_status = (existing_meta or {}).get("status")
+        next_status = existing_status if existing_status == "verified" else "pending"
+    return {
+        **user_meta,
+        "created_at": created_at,
+        "updated_at": now,
+        "status": next_status,
+    }
+
+
 def list_documents(
     settings: Settings,
     project_id: str,
@@ -31,7 +73,7 @@ def list_documents(
     limit: int,
     search: str = "",
     sort: str = "created",
-) -> Tuple[List[Dict[str, Any]], int]:
+) -> Tuple[List[Dict[str, Any]], int, int]:
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     project_name = _project_name(engine)
@@ -147,6 +189,7 @@ def create_document(
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     document_id = str(uuid.uuid4())
+    system_meta = _document_meta_with_system_fields(meta, status="pending")
     with engine.begin() as conn:
         conn.execute(
             documents_table.insert().values(
@@ -154,7 +197,7 @@ def create_document(
                 project_id=project_id,
                 document_name=document_name,
                 text=text,
-                meta=encode_meta(meta),
+                meta=encode_meta(system_meta),
             )
         )
     project_name = _project_name(engine)
@@ -164,7 +207,7 @@ def create_document(
         "project_name": project_name,
         "document_name": document_name,
         "text": text,
-        "meta": meta or {},
+        "meta": system_meta,
     }
 
 
@@ -179,7 +222,7 @@ def update_document(
     if not document:
         return None
     new_name = document_name if document_name is not None else document["document_name"]
-    new_meta = meta if meta is not None else document.get("meta")
+    new_meta = _document_meta_with_system_fields(meta, document.get("meta"))
 
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
@@ -196,7 +239,7 @@ def update_document(
         "project_name": document["project_name"],
         "document_name": new_name,
         "text": document["text"],
-        "meta": new_meta or {},
+        "meta": new_meta,
     }
 
 
@@ -278,3 +321,165 @@ def list_document_annotations(settings: Settings, project_id: str, document_id: 
         }
         for row in rows
     ]
+
+
+def _existing_annotations_by_id(conn, project_id: str, document_id: str) -> Dict[str, Dict[str, Any]]:
+    rows = (
+        conn.execute(
+            select(
+                annotations_table.c.id,
+                annotations_table.c.label_id,
+                annotations_table.c.start,
+                annotations_table.c.end,
+                annotations_table.c.span_text,
+                annotations_table.c.comment,
+                annotations_table.c.status,
+                annotations_table.c.meta,
+            )
+            .select_from(
+                annotations_table.join(
+                    documents_table, annotations_table.c.document_id == documents_table.c.id
+                )
+            )
+            .where(
+                annotations_table.c.document_id == document_id,
+                documents_table.c.project_id == project_id,
+            )
+        )
+        .mappings()
+        .all()
+    )
+    return {
+        row["id"]: {
+            "id": row["id"],
+            "label_id": row["label_id"],
+            "start": row["start"],
+            "end": row["end"],
+            "span_text": row["span_text"],
+            "comment": row["comment"],
+            "status": row["status"],
+            "meta": decode_meta(row["meta"]),
+        }
+        for row in rows
+    }
+
+
+def _final_document_status(items: List[Dict[str, Any]], submitted: bool) -> str:
+    if submitted:
+        return "verified"
+    return "verified" if items and all(item["status"] == "verified" for item in items) else "pending"
+
+
+def _save_document_bundle_internal(
+    settings: Settings,
+    project_id: str,
+    document_id: str,
+    items: List[Dict[str, Any]],
+    *,
+    submitted: bool,
+) -> Optional[Dict[str, Any]]:
+    document = get_document(settings, project_id, document_id)
+    if not document:
+        return None
+
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    final_status = _final_document_status(items, submitted)
+
+    with engine.begin() as conn:
+        existing_annotations = _existing_annotations_by_id(conn, project_id, document_id)
+        requested_existing_ids = {item["id"] for item in items if item.get("id")}
+        if requested_existing_ids - set(existing_annotations):
+            raise ValueError("Annotation not found")
+
+        for item in items:
+            annotation_id = item.get("id")
+            if not annotation_id:
+                continue
+            existing = existing_annotations[annotation_id]
+            immutable_fields = ("label_id", "start", "end", "span_text")
+            if any(existing[field] != item[field] for field in immutable_fields):
+                raise ValueError("Existing annotation immutable fields do not match bundle")
+
+        omitted_ids = set(existing_annotations) - requested_existing_ids
+        if omitted_ids:
+            conn.execute(annotations_table.delete().where(annotations_table.c.id.in_(sorted(omitted_ids))))
+
+        for item in items:
+            next_status = "verified" if submitted else item["status"]
+            annotation_id = item.get("id")
+            if annotation_id:
+                conn.execute(
+                    annotations_table.update()
+                    .where(
+                        annotations_table.c.id == annotation_id,
+                        annotations_table.c.document_id == document_id,
+                    )
+                    .values(
+                        comment=item["comment"],
+                        status=next_status,
+                        meta=encode_meta(item.get("meta")),
+                    )
+                )
+                continue
+
+            conn.execute(
+                annotations_table.insert().values(
+                    id=str(uuid.uuid4()),
+                    document_id=document_id,
+                    label_id=item["label_id"],
+                    start=item["start"],
+                    end=item["end"],
+                    span_text=item["span_text"],
+                    comment=item["comment"],
+                    status=next_status,
+                    meta=encode_meta(item.get("meta")),
+                )
+            )
+
+        conn.execute(
+            documents_table.update()
+            .where(
+                documents_table.c.project_id == project_id,
+                documents_table.c.id == document_id,
+            )
+            .values(
+                meta=encode_meta(
+                    _document_meta_with_system_fields(
+                        document.get("meta"),
+                        document.get("meta"),
+                        status=final_status,
+                    )
+                )
+            )
+        )
+
+    refreshed = get_document(settings, project_id, document_id)
+    if not refreshed:
+        return None
+    refreshed["annotations"] = list_document_annotations(settings, project_id, document_id)
+    return refreshed
+
+
+def save_document_bundle(
+    settings: Settings,
+    project_id: str,
+    document_id: str,
+    items: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    result = _save_document_bundle_internal(settings, project_id, document_id, items, submitted=False)
+    if not result:
+        raise ValueError("Document not found")
+    return result
+
+
+def submit_document_bundle(
+    settings: Settings,
+    project_id: str,
+    document_id: str,
+    items: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    result = _save_document_bundle_internal(settings, project_id, document_id, items, submitted=True)
+    if not result:
+        raise ValueError("Document not found")
+    return result

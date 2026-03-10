@@ -43,6 +43,8 @@
 - `GET /projects/{project_id}/documents` - ドキュメント一覧を取得（`offset/limit/search/sort`）
 - `POST /projects/{project_id}/documents` - ドキュメントを作成（`text` は作成時のみ）
 - `GET /projects/{project_id}/documents/{document_id}` - ドキュメント詳細を取得（`annotations` 全件含む）
+- `PUT /projects/{project_id}/documents/{document_id}/bundle` - 現在 document の annotation 一覧を一括保存
+- `POST /projects/{project_id}/documents/{document_id}/submit` - 現在 document を submit し、annotation を一括で `verified` 化
 - `PATCH /projects/{project_id}/documents/{document_id}` - ドキュメントの `document_name` / `meta` を更新（`text` は更新不可）
 - `DELETE /projects/{project_id}/documents/{document_id}` - ドキュメントを削除（関連アノテも連動削除）
 
@@ -767,6 +769,77 @@ Authorization: Bearer <token>
 **注記:**
 - `text` フィールドは更新不可（既存のアノテーションが壊れるため）
 - `document_name` と `meta` のみ更新可能
+
+---
+
+### PUT /projects/{project_id}/documents/{document_id}/bundle
+
+現在の document に対する annotation 一覧を一括保存する。request の `annotations` はその document の最終状態全件を表す。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "annotations": [
+    {
+      "id": "uuid",
+      "label_id": "uuid",
+      "start": 0,
+      "end": 5,
+      "span_text": "Hello",
+      "comment": "updated",
+      "status": "verified",
+      "meta": {
+        "source": "bundle"
+      }
+    },
+    {
+      "id": null,
+      "label_id": "uuid",
+      "start": 6,
+      "end": 11,
+      "span_text": "world",
+      "comment": "",
+      "status": "pending",
+      "meta": {}
+    }
+  ]
+}
+```
+
+**Response (200 OK):**
+- `GET /projects/{project_id}/documents/{document_id}` と同じ full document を返す
+
+**注記:**
+- request に含まれない既存 annotation は削除される
+- `id: null` は新規 annotation として作成される
+- 既存 annotation の `label_id/start/end/span_text` は変更不可
+- `meta.updated_at` と document `meta.status` は backend が管理する
+
+---
+
+### POST /projects/{project_id}/documents/{document_id}/submit
+
+現在の document を submit する。request 形は `bundle` と同じで、保存後に backend が annotation 全件と document を `verified` に確定する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+- `PUT /projects/{project_id}/documents/{document_id}/bundle` と同じ
+
+**Response (200 OK):**
+- `GET /projects/{project_id}/documents/{document_id}` と同じ full document を返す
+
+**注記:**
+- backend が annotation 全件の `status` を `verified` に上書きする
+- document `meta.status` も `verified` になる
 
 ---
 
