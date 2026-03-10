@@ -440,7 +440,7 @@ export function DocumentCanvas({
               setMarkerTooltip(null);
             }}
             sx={{
-              fontSize: 17,
+              fontSize: 18,
               lineHeight: 1.95,
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
