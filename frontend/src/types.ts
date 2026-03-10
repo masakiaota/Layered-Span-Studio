@@ -95,7 +95,6 @@ export interface LabelSurfaceGroupRepresentativeRecord {
 
 export interface LabelSurfaceGroupRecord {
   surface_text: string;
-  surface_norm: string;
   duplicate_count: number;
   representative: LabelSurfaceGroupRepresentativeRecord;
 }
@@ -131,7 +130,6 @@ export interface AnnotationSearchResponse {
   offset: number;
   limit: number;
   text: string;
-  match: "exact" | "normalized";
   status: string;
   context_window: number;
   label_id?: string | null;

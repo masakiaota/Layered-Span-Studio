@@ -3,10 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from layered_span_studio_backend.core.dependencies import get_current_user, get_settings
-from layered_span_studio_backend.models.annotations import (
-    AnnotationSearchMatchMode,
-    AnnotationSearchResponse,
-)
+from layered_span_studio_backend.models.annotations import AnnotationSearchResponse
 from layered_span_studio_backend.models.labels import LabelExamplesStatusFilter
 from layered_span_studio_backend.services import annotations_service
 
@@ -21,7 +18,6 @@ router = APIRouter(
 def search_annotations(
     project_id: str,
     text: str = Query(..., min_length=1),
-    match: AnnotationSearchMatchMode = Query(AnnotationSearchMatchMode.normalized),
     status_filter: LabelExamplesStatusFilter = Query(LabelExamplesStatusFilter.verified, alias="status"),
     label_id: str | None = Query(None),
     exclude_annotation_id: str | None = Query(None),
@@ -35,7 +31,6 @@ def search_annotations(
             settings,
             project_id,
             text,
-            match.value,
             status_filter.value,
             label_id,
             exclude_annotation_id,

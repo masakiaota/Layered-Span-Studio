@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from enum import Enum
 from typing import Optional
 
 from pydantic import Field
@@ -42,11 +41,6 @@ class AnnotationOut(APIModel):
     meta: Meta = None
 
 
-class AnnotationSearchMatchMode(str, Enum):
-    exact = "exact"
-    normalized = "normalized"
-
-
 class AnnotationSearchItemOut(APIModel):
     annotation_id: str
     document_id: str
@@ -68,7 +62,6 @@ class AnnotationSearchResponse(APIModel):
     offset: int
     limit: int
     text: str
-    match: AnnotationSearchMatchMode
     status: AnnotationStatus | str
     context_window: int
     label_id: Optional[str] = None

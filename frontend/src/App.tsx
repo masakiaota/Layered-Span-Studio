@@ -605,7 +605,6 @@ function ProjectShell({
     try {
       const response = await api.searchAnnotations(token, bundle.project.id, {
         text: sameSurfaceTarget.text,
-        match: "normalized",
         status: "all",
         labelId: sameSurfaceTarget.labelId ?? null,
         excludeAnnotationId: sameSurfaceTarget.annotationId ?? null,
@@ -630,7 +629,6 @@ function ProjectShell({
     try {
       const response = await api.searchAnnotations(token, bundle.project.id, {
         text: surfaceText,
-        match: "normalized",
         status: "all",
         labelId: focusedLabel.id,
         excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
@@ -1403,12 +1401,12 @@ function ProjectShell({
                         sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}
                       >
                         {sameLabelExamples.map((item) => {
-                          const detailItems = sameLabelExampleDetails[item.surface_norm];
+                          const detailItems = sameLabelExampleDetails[item.surface_text];
                           const representative = item.representative;
                           const emphasisColor = focusedLabel?.color ?? "#1a73e8";
                           return (
                             <Tooltip
-                              key={item.surface_norm}
+                              key={item.surface_text}
                               placement="left-start"
                               arrow
                               slotProps={{
@@ -1427,7 +1425,7 @@ function ProjectShell({
                                 },
                               }}
                               onOpen={() =>
-                                void ensureSameLabelDetails(item.surface_norm, item.surface_text, item.duplicate_count)
+                                void ensureSameLabelDetails(item.surface_text, item.surface_text, item.duplicate_count)
                               }
                               title={
                                 <Box sx={{ maxWidth: 460, p: 0.75 }}>

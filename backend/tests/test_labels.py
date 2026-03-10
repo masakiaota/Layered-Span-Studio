@@ -379,3 +379,59 @@ def test_label_surface_groups_exclude_annotation_id(client: TestClient, auth_hea
     payload = response.json()
     surfaces = {item["surface_text"] for item in payload["items"]}
     assert surfaces == {"bravo"}
+
+
+def test_label_surface_groups_do_not_normalize_surface_text(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Surface Group Project", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Disease", "color": "#AA1122", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    doc = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "Doc1", "text": "COVID-19 / COVID 19", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 0,
+            "end": 8,
+            "span_text": "COVID-19",
+            "comment": "",
+            "status": "verified",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 11,
+            "end": 19,
+            "span_text": "COVID 19",
+            "comment": "",
+            "status": "verified",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+
+    response = client.get(
+        f"/projects/{project['id']}/labels/{label['id']}/surface-groups?status=all",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 2
+    assert [item["surface_text"] for item in payload["items"]] == ["COVID-19", "COVID 19"]

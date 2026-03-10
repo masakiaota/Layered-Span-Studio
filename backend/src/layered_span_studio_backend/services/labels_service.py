@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories import labels as labels_repo
 from layered_span_studio_backend.repositories import projects as projects_repo
-from layered_span_studio_backend.utils.text_utils import normalize_search_text
 
 
 def _ensure_project(settings: Settings, project_id: str) -> None:
@@ -146,14 +145,13 @@ def list_label_surface_groups(
 
     grouped: Dict[str, Dict[str, Any]] = {}
     for row in rows:
-        surface_norm = normalize_search_text(row["span_text"])
-        if not surface_norm:
+        surface_text = row["span_text"]
+        if not surface_text:
             continue
-        current = grouped.get(surface_norm)
+        current = grouped.get(surface_text)
         if not current:
-            grouped[surface_norm] = {
-                "surface_text": row["span_text"],
-                "surface_norm": surface_norm,
+            grouped[surface_text] = {
+                "surface_text": surface_text,
                 "duplicate_count": 1,
                 "representative": row,
             }
@@ -188,7 +186,6 @@ def list_label_surface_groups(
         items.append(
             {
                 "surface_text": item["surface_text"],
-                "surface_norm": item["surface_norm"],
                 "duplicate_count": item["duplicate_count"],
                 "representative": {
                     "annotation_id": row["annotation_id"],

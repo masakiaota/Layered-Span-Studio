@@ -106,7 +106,6 @@ class LabelSurfaceGroupRepresentativeOut(APIModel):
 
 class LabelSurfaceGroupOut(APIModel):
     surface_text: str
-    surface_norm: str
     duplicate_count: int
     representative: LabelSurfaceGroupRepresentativeOut
 

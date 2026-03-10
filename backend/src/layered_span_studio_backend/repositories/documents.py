@@ -16,7 +16,6 @@ from layered_span_studio_backend.storage.project_db import (
     project_table,
 )
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
-from layered_span_studio_backend.utils.text_utils import normalize_search_text
 
 
 def _project_name(engine) -> Optional[str]:
@@ -52,12 +51,12 @@ def list_documents(
     ]
     pending_total = sum(1 for document in documents if (document.get("meta") or {}).get("status") != "verified")
 
-    normalized_search = normalize_search_text(search)
-    if normalized_search:
+    simple_search = search.strip().lower()
+    if simple_search:
         documents = [
             document
             for document in documents
-            if normalized_search in document["text"].lower()
+            if simple_search in document["text"].lower()
         ]
 
     original_index_by_id = {document["id"]: index for index, document in enumerate(documents)}

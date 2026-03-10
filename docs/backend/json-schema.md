@@ -85,7 +85,6 @@
 ```json
 {
   "surface_text": "糖尿病",
-  "surface_norm": "糖尿病",
   "duplicate_count": 12,
   "representative": {
     "annotation_id": "uuid",
@@ -101,8 +100,7 @@
 }
 ```
 
-- `surface_norm` は `trim -> lowercase -> 連続する空白/ハイフン/アンダースコアを1つの空白へ畳み込み` した値
-- `duplicate_count` は同一 `surface_norm` に属する annotation 件数
+- `duplicate_count` は同一 `surface_text` に完全一致する annotation 件数
 - `representative` は一覧表示用の代表事例
 
 ---
@@ -127,7 +125,7 @@
 ```
 
 - `label_color` は frontend でバッジ強調に使うために含める
-- `match=normalized` の場合は `surface_norm` 相当の比較でヒットする
+- `span_text` と検索語 `text` は完全一致で比較する
 
 ---
 

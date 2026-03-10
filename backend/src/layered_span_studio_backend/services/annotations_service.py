@@ -7,7 +7,6 @@ from layered_span_studio_backend.repositories import annotations as annotations_
 from layered_span_studio_backend.repositories import documents as documents_repo
 from layered_span_studio_backend.repositories import labels as labels_repo
 from layered_span_studio_backend.repositories import projects as projects_repo
-from layered_span_studio_backend.utils.text_utils import normalize_search_text
 
 
 def _ensure_project(settings: Settings, project_id: str) -> None:
@@ -106,7 +105,6 @@ def search_annotations(
     settings: Settings,
     project_id: str,
     text: str,
-    match: str,
     status_filter: str,
     label_id: Optional[str],
     exclude_annotation_id: Optional[str],
@@ -123,13 +121,7 @@ def search_annotations(
     if exclude_annotation_id:
         rows = [row for row in rows if row["annotation_id"] != exclude_annotation_id]
 
-    if match == "exact":
-        matched = [row for row in rows if row["span_text"] == text]
-    else:
-        normalized_target = normalize_search_text(text)
-        matched = [
-            row for row in rows if normalize_search_text(row["span_text"]) == normalized_target
-        ]
+    matched = [row for row in rows if row["span_text"] == text]
 
     matched.sort(
         key=lambda row: (
@@ -173,7 +165,6 @@ def search_annotations(
         "offset": offset,
         "limit": limit,
         "text": text,
-        "match": match,
         "status": status_filter,
         "context_window": context_window,
         "label_id": label_id,

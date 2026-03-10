@@ -450,7 +450,7 @@ Authorization: Bearer <token>
 
 ### GET /projects/{project_id}/labels/{label_id}/surface-groups
 
-指定ラベルのアノテーションを、正規化済み表層ごとに集約して取得する。Workspace 右ペインの `同一ラベルの他アノテーション` 向けの API である。
+指定ラベルのアノテーションを、`span_text` の完全一致ごとに集約して取得する。Workspace 右ペインの `同一ラベルの他アノテーション` 向けの API である。
 
 **Headers:**
 ```
@@ -470,7 +470,6 @@ Authorization: Bearer <token>
   "items": [
     {
       "surface_text": "糖尿病",
-      "surface_norm": "糖尿病",
       "duplicate_count": 12,
       "representative": {
         "annotation_id": "uuid",
@@ -495,8 +494,7 @@ Authorization: Bearer <token>
 ```
 
 **注記:**
-- 表層の正規化は `trim -> lowercase -> 連続する空白/ハイフン/アンダースコアを1つの空白へ畳み込み` で行う
-- `duplicate_count` は同一 `surface_norm` に属する annotation 件数
+- `duplicate_count` は同一 `surface_text` に完全一致する annotation 件数
 - `representative` は該当グループの表示代表であり、優先順は `verified`、次に `document_name ASC`
 
 ---
@@ -805,7 +803,6 @@ Authorization: Bearer <token>
 
 **Query Parameters:**
 - `text` (string, required): 検索対象の表層
-- `match` (string, optional): `exact` / `normalized`（デフォルト: `normalized`）
 - `status` (string, optional): `pending` / `verified` / `all`（デフォルト: `verified`）
 - `label_id` (string, optional): 指定時は他ラベル事例を上位に寄せるための比較基準として使う
 - `exclude_annotation_id` (string, optional): 現在選択中 annotation を除外したいときに使う
@@ -836,7 +833,6 @@ Authorization: Bearer <token>
   "offset": 0,
   "limit": 50,
   "text": "糖尿病",
-  "match": "normalized",
   "status": "all",
   "context_window": 20,
   "label_id": "uuid",
@@ -845,8 +841,7 @@ Authorization: Bearer <token>
 ```
 
 **注記:**
-- `match=exact` は `span_text` 完全一致
-- `match=normalized` は `trim -> lowercase -> 連続する空白/ハイフン/アンダースコアを1つの空白へ畳み込み` した一致
+- `text` は `span_text` への完全一致として扱う
 - `label_id` 指定時は、同一表層の中で「他ラベルの事例」を先に返す
 
 ---

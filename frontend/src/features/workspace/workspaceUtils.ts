@@ -1,5 +1,4 @@
 import type { AnnotationRecord, DocumentListItem, DocumentRecord, LabelRecord, ProjectBundle } from "../../types";
-import { normalizeSearchText } from "../../utils";
 
 export function contextSnippet(text: string, start: number, end: number, size = 16) {
   return {
@@ -70,7 +69,7 @@ export function getSameLabelSurfaceExamples(
     }
   >();
   entries.forEach((entry) => {
-    const key = normalizeSearchText(entry.annotation.span_text);
+    const key = entry.annotation.span_text;
     if (!key) {
       return;
     }
@@ -98,11 +97,11 @@ export function getSameSurfaceAnnotationExamples(bundle: ProjectBundle, selected
   if (!selectedAnnotation) {
     return [];
   }
-  const target = normalizeSearchText(selectedAnnotation.span_text);
+  const target = selectedAnnotation.span_text;
   return bundle.documents
     .flatMap((document) =>
       document.annotations
-        .filter((annotation) => normalizeSearchText(annotation.span_text) === target)
+        .filter((annotation) => annotation.span_text === target)
         .filter((annotation) => annotation.id !== selectedAnnotation.id)
         .map((annotation) => ({ document, annotation })),
     )
@@ -127,14 +126,14 @@ export function getSameSurfaceExamplesByText(
   if (!target?.text.trim()) {
     return [];
   }
-  const normalizedTarget = normalizeSearchText(target.text);
-  if (!normalizedTarget) {
+  const exactTarget = target.text;
+  if (!exactTarget) {
     return [];
   }
   return bundle.documents
     .flatMap((document) =>
       document.annotations
-        .filter((annotation) => normalizeSearchText(annotation.span_text) === normalizedTarget)
+        .filter((annotation) => annotation.span_text === exactTarget)
         .filter((annotation) => !target.annotationId || annotation.id !== target.annotationId)
         .map((annotation) => ({ document, annotation })),
     )

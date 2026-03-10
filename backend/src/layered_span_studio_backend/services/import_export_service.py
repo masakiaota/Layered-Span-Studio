@@ -240,7 +240,7 @@ def export_project(
         raise ValueError("Project not found")
 
     labels = labels_repo.list_labels(settings, project_id)
-    documents, _ = documents_repo.list_documents(settings, project_id, 0, 1000000)
+    documents, _, _ = documents_repo.list_documents(settings, project_id, 0, 1000000)
     allowed_statuses = set()
     if include_pending:
         allowed_statuses.add("pending")
@@ -265,7 +265,7 @@ def import_project(settings: Settings, project_id: str, payload: Dict[str, Any])
     _, incoming_labels, incoming_documents, incoming_meta = _extract_import_payload(payload)
     existing_labels = labels_repo.list_labels(settings, project_id)
     existing_label_by_name = {label["name"]: label for label in existing_labels}
-    existing_documents, _ = documents_repo.list_documents(settings, project_id, 0, 1000000)
+    existing_documents, _, _ = documents_repo.list_documents(settings, project_id, 0, 1000000)
     existing_document_names = {doc["document_name"] for doc in existing_documents}
     _validate_import_payload(
         existing_label_by_name,

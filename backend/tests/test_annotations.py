@@ -333,11 +333,63 @@ def test_search_annotations_exact_match(client: TestClient, auth_headers: dict[s
     )
 
     response = client.get(
-        f"/projects/{project['id']}/annotations/search?text=hello&match=exact&status=all",
+        f"/projects/{project['id']}/annotations/search?text=hello&status=all",
         headers=auth_headers,
     )
     assert response.status_code == 200
     assert response.json()["items"] == []
+
+
+def test_search_annotations_does_not_normalize_surface_text(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project = client.post(
+        "/projects", json={"name": "Exact Search Project", "description": "desc"}, headers=auth_headers
+    ).json()
+    label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Disease", "color": "#FF5733", "description": "desc"},
+        headers=auth_headers,
+    ).json()
+    doc = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "Doc1", "text": "COVID-19 / COVID 19"},
+        headers=auth_headers,
+    ).json()
+
+    client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 0,
+            "end": 8,
+            "span_text": "COVID-19",
+            "comment": "",
+            "status": "verified",
+        },
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 11,
+            "end": 19,
+            "span_text": "COVID 19",
+            "comment": "",
+            "status": "verified",
+        },
+        headers=auth_headers,
+    )
+
+    response = client.get(
+        f"/projects/{project['id']}/annotations/search?text=COVID-19&status=all",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["span_text"] == "COVID-19"
 
 
 def test_bulk_same_label_overlap_with_existing_returns_400(

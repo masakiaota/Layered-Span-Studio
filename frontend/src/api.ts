@@ -283,7 +283,6 @@ export class ApiClient {
     projectId: string,
     options: {
       text: string;
-      match?: "exact" | "normalized";
       status?: string;
       labelId?: string | null;
       excludeAnnotationId?: string | null;
@@ -294,7 +293,6 @@ export class ApiClient {
   ) {
     const query = new URLSearchParams({
       text: options.text,
-      match: options.match ?? "normalized",
       status: options.status ?? "verified",
       offset: String(options.offset ?? 0),
       limit: String(options.limit ?? 50),
