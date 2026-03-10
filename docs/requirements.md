@@ -66,7 +66,6 @@ Layered Span Studioは、multi-labelなNER（Named Entity Recognition）タス�
 ### 協働作業系
 - 複数アノテーターのサポート
 - アノテーター間の一致率（IAA）計算
-- レビュー機能（アノテーションの承認/却下ワークフロー）
 
 ### UI設定
 - テーマ・カラースキーマ（ダークモード）
