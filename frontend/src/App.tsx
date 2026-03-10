@@ -819,9 +819,7 @@ function ProjectShell({
     setSaving(true);
     try {
       const payload = buildDocumentBundlePayload(currentDocument, forceVerified);
-      const savedDocument = forceVerified
-        ? await api.submitDocumentBundle(token, bundle.project.id, currentDocument.id, payload)
-        : await api.saveDocumentBundle(token, bundle.project.id, currentDocument.id, payload);
+      const savedDocument = await api.saveDocumentBundle(token, bundle.project.id, currentDocument.id, payload);
       setBundle((current) =>
         current
           ? {

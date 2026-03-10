@@ -221,29 +221,6 @@ export class ApiClient {
     return parseResponse<DocumentRecord>(response);
   }
 
-  async submitDocumentBundle(
-    token: string,
-    projectId: string,
-    documentId: string,
-    annotations: Array<
-      Pick<AnnotationRecord, "label_id" | "start" | "end" | "span_text" | "comment" | "status" | "meta"> & {
-        id: string | null;
-      }
-    >,
-  ) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents/${documentId}/submit`, {
-      method: "POST",
-      headers: headers(token, "application/json"),
-      body: JSON.stringify({
-        annotations: annotations.map((annotation) => ({
-          ...annotation,
-          meta: toJsonObject(annotation.meta),
-        })),
-      }),
-    });
-    return parseResponse<DocumentRecord>(response);
-  }
-
   async createDocument(token: string, projectId: string, document: DocumentRecord) {
     const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents`, {
       method: "POST",

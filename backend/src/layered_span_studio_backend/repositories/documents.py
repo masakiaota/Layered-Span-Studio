@@ -364,27 +364,23 @@ def _existing_annotations_by_id(conn, project_id: str, document_id: str) -> Dict
     }
 
 
-def _final_document_status(items: List[Dict[str, Any]], submitted: bool) -> str:
-    if submitted:
-        return "verified"
+def _final_document_status(items: List[Dict[str, Any]]) -> str:
     return "verified" if items and all(item["status"] == "verified" for item in items) else "pending"
 
 
-def _save_document_bundle_internal(
+def save_document_bundle(
     settings: Settings,
     project_id: str,
     document_id: str,
     items: List[Dict[str, Any]],
-    *,
-    submitted: bool,
-) -> Optional[Dict[str, Any]]:
+) -> Dict[str, Any]:
     document = get_document(settings, project_id, document_id)
     if not document:
-        return None
+        raise ValueError("Document not found")
 
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
-    final_status = _final_document_status(items, submitted)
+    final_status = _final_document_status(items)
 
     with engine.begin() as conn:
         existing_annotations = _existing_annotations_by_id(conn, project_id, document_id)
@@ -406,7 +402,6 @@ def _save_document_bundle_internal(
             conn.execute(annotations_table.delete().where(annotations_table.c.id.in_(sorted(omitted_ids))))
 
         for item in items:
-            next_status = "verified" if submitted else item["status"]
             annotation_id = item.get("id")
             if annotation_id:
                 conn.execute(
@@ -417,7 +412,7 @@ def _save_document_bundle_internal(
                     )
                     .values(
                         comment=item["comment"],
-                        status=next_status,
+                        status=item["status"],
                         meta=encode_meta(item.get("meta")),
                     )
                 )
@@ -432,7 +427,7 @@ def _save_document_bundle_internal(
                     end=item["end"],
                     span_text=item["span_text"],
                     comment=item["comment"],
-                    status=next_status,
+                    status=item["status"],
                     meta=encode_meta(item.get("meta")),
                 )
             )
@@ -456,30 +451,6 @@ def _save_document_bundle_internal(
 
     refreshed = get_document(settings, project_id, document_id)
     if not refreshed:
-        return None
+        raise ValueError("Document not found")
     refreshed["annotations"] = list_document_annotations(settings, project_id, document_id)
     return refreshed
-
-
-def save_document_bundle(
-    settings: Settings,
-    project_id: str,
-    document_id: str,
-    items: List[Dict[str, Any]],
-) -> Dict[str, Any]:
-    result = _save_document_bundle_internal(settings, project_id, document_id, items, submitted=False)
-    if not result:
-        raise ValueError("Document not found")
-    return result
-
-
-def submit_document_bundle(
-    settings: Settings,
-    project_id: str,
-    document_id: str,
-    items: List[Dict[str, Any]],
-) -> Dict[str, Any]:
-    result = _save_document_bundle_internal(settings, project_id, document_id, items, submitted=True)
-    if not result:
-        raise ValueError("Document not found")
-    return result

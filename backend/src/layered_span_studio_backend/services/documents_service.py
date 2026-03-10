@@ -113,14 +113,3 @@ def save_document_bundle(
     _ensure_project(settings, project_id)
     _validate_document_bundle(settings, project_id, document_id, items)
     return documents_repo.save_document_bundle(settings, project_id, document_id, items)
-
-
-def submit_document_bundle(
-    settings: Settings,
-    project_id: str,
-    document_id: str,
-    items: List[Dict[str, Any]],
-) -> Dict[str, Any]:
-    _ensure_project(settings, project_id)
-    _validate_document_bundle(settings, project_id, document_id, items)
-    return documents_repo.submit_document_bundle(settings, project_id, document_id, items)

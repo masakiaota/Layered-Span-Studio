@@ -56,13 +56,6 @@ export function getDocumentStatus(document: DocumentListCompatible): StatusValue
   return status === "verified" ? "verified" : "pending";
 }
 
-export function setDocumentStatus(document: DocumentRecord, status: StatusValue) {
-  document.meta = {
-    ...toJsonObject(document.meta),
-    status,
-  };
-}
-
 export function getProjectGuideline(project: ProjectRecord): string {
   const guideline = toJsonObject(project.meta).guideline;
   return typeof guideline === "string" ? guideline : "";

@@ -99,28 +99,6 @@ def save_document_bundle(
         raise HTTPException(status_code=status_code, detail=message)
 
 
-@router.post("/{document_id}/submit", response_model=DocumentDetailOut)
-def submit_document_bundle(
-    project_id: str,
-    document_id: str,
-    payload: DocumentBundleIn,
-    settings=Depends(get_settings),
-):
-    try:
-        return documents_service.submit_document_bundle(
-            settings,
-            project_id,
-            document_id,
-            [annotation.model_dump(mode="json") for annotation in payload.annotations],
-        )
-    except ValueError as exc:
-        message = str(exc)
-        status_code = status.HTTP_400_BAD_REQUEST
-        if "not found" in message.lower():
-            status_code = status.HTTP_404_NOT_FOUND
-        raise HTTPException(status_code=status_code, detail=message)
-
-
 @router.patch("/{document_id}", response_model=DocumentOut)
 def update_document(
     project_id: str, document_id: str, payload: DocumentUpdate, settings=Depends(get_settings)

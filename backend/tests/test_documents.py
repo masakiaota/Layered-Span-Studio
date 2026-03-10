@@ -259,7 +259,9 @@ def test_document_bundle_rejects_existing_immutable_change(client: TestClient, a
     assert response.status_code == 400
 
 
-def test_document_submit_marks_all_verified(client: TestClient, auth_headers: dict[str, str]) -> None:
+def test_document_bundle_marks_document_verified_when_all_annotations_are_verified(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
     project_id = _create_project(client, auth_headers)
     label1 = client.post(
         f"/projects/{project_id}/labels",
@@ -291,8 +293,8 @@ def test_document_submit_marks_all_verified(client: TestClient, auth_headers: di
         headers=auth_headers,
     ).json()
 
-    response = client.post(
-        f"/projects/{project_id}/documents/{document['id']}/submit",
+    response = client.put(
+        f"/projects/{project_id}/documents/{document['id']}/bundle",
         json={
             "annotations": [
                 {
@@ -302,7 +304,7 @@ def test_document_submit_marks_all_verified(client: TestClient, auth_headers: di
                     "end": 5,
                     "span_text": "Hello",
                     "comment": "done",
-                    "status": "pending",
+                    "status": "verified",
                     "meta": {},
                 },
                 {
@@ -312,7 +314,7 @@ def test_document_submit_marks_all_verified(client: TestClient, auth_headers: di
                     "end": 11,
                     "span_text": "world",
                     "comment": "",
-                    "status": "pending",
+                    "status": "verified",
                     "meta": {},
                 },
             ]

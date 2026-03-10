@@ -293,7 +293,9 @@
 - request に含まれない既存 annotation は削除される
 - response は full `Document` を返す
 - document `meta.created_at` / `meta.updated_at` / `meta.status` は backend 管理
-- `submit` API では保存後に annotation 全件と document `meta.status` が `verified` になる
+- Save は現在状態をそのまま送る
+- Submit は frontend が annotation `status` を `verified` にした request を同じ API に送る
+- document `meta.status` は保存後の annotation 一覧から backend が再計算する
 
 ## 組み合わせ（Exportの基本形）
 
