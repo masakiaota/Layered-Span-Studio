@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, select
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.projects import project_db_path
@@ -15,6 +16,7 @@ from layered_span_studio_backend.storage.project_db import (
     project_table,
 )
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
+from layered_span_studio_backend.utils.text_utils import normalize_search_text
 
 
 def _project_name(engine) -> Optional[str]:
@@ -28,20 +30,14 @@ def list_documents(
     project_id: str,
     offset: int,
     limit: int,
+    search: str = "",
+    sort: str = "created",
 ) -> Tuple[List[Dict[str, Any]], int]:
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     project_name = _project_name(engine)
     with engine.connect() as conn:
-        total = conn.execute(
-            select(func.count()).select_from(documents_table).where(documents_table.c.project_id == project_id)
-        ).scalar_one()
-        query: Select = (
-            select(documents_table)
-            .where(documents_table.c.project_id == project_id)
-            .offset(offset)
-            .limit(limit)
-        )
+        query: Select = select(documents_table).where(documents_table.c.project_id == project_id)
         rows = conn.execute(query).mappings().all()
     documents = [
         {
@@ -54,7 +50,65 @@ def list_documents(
         }
         for row in rows
     ]
-    return documents, total
+    pending_total = sum(1 for document in documents if (document.get("meta") or {}).get("status") != "verified")
+
+    normalized_search = normalize_search_text(search)
+    if normalized_search:
+        documents = [
+            document
+            for document in documents
+            if normalized_search in document["text"].lower()
+        ]
+
+    original_index_by_id = {document["id"]: index for index, document in enumerate(documents)}
+
+    def _parse_timestamp(value: Any) -> Optional[float]:
+        if not isinstance(value, str):
+            return None
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            return None
+
+    def _document_status(document: Dict[str, Any]) -> str:
+        status = (document.get("meta") or {}).get("status")
+        return "verified" if status == "verified" else "pending"
+
+    def _created_at(document: Dict[str, Any]) -> Optional[float]:
+        return _parse_timestamp((document.get("meta") or {}).get("created_at"))
+
+    def _updated_at(document: Dict[str, Any]) -> Optional[float]:
+        meta = document.get("meta") or {}
+        return _parse_timestamp(meta.get("updated_at")) or _parse_timestamp(meta.get("created_at"))
+
+    if sort == "name":
+        documents.sort(key=lambda item: item["document_name"])
+    elif sort == "pending":
+        documents.sort(
+            key=lambda item: (
+                0 if _document_status(item) == "pending" else 1,
+                item["document_name"],
+            )
+        )
+    elif sort == "updated":
+        documents.sort(
+            key=lambda item: (
+                _updated_at(item) is None,
+                -(_updated_at(item) or 0),
+                original_index_by_id[item["id"]],
+            )
+        )
+    else:
+        documents.sort(
+            key=lambda item: (
+                _created_at(item) is None,
+                _created_at(item) or 0,
+                original_index_by_id[item["id"]],
+            )
+        )
+
+    total = len(documents)
+    return documents[offset : offset + limit], total, pending_total
 
 
 def get_document(settings: Settings, project_id: str, document_id: str) -> Optional[Dict[str, Any]]:

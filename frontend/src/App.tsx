@@ -54,8 +54,6 @@ import { DocumentCanvas } from "./components/DocumentCanvas";
 import {
   contextSnippet,
   getDocumentHoverPreview,
-  getSameLabelSurfaceExamples,
-  getSameSurfaceExamplesByText,
   sortAnnotationsInPanelOrder,
 } from "./features/workspace/workspaceUtils";
 import { useToast } from "./hooks/useToast";
@@ -63,9 +61,12 @@ import { LoginPage } from "./pages/LoginPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import type {
   AnnotationRecord,
+  AnnotationSearchItemRecord,
   DocumentRecord,
+  DocumentListItem,
   JsonObject,
   LabelRecord,
+  LabelSurfaceGroupRecord,
   ProjectBundle,
   StatusValue,
   UserRecord,
@@ -75,7 +76,6 @@ import {
   deepClone,
   documentMatchesSearch,
   downloadJson,
-  findNextPendingDocumentId,
   getDocumentSnippetParts,
   getDocumentStatus,
   getProjectGuideline,
@@ -85,7 +85,6 @@ import {
   readJsonFile,
   setDocumentStatus,
   setProjectGuideline,
-  sortDocuments,
   toJsonObject,
 } from "./utils";
 
@@ -103,6 +102,8 @@ type SelectionPreview = {
 
 const TOKEN_KEY = "layered-span-studio/token";
 const EXAMPLES_BATCH_SIZE = 8;
+const DOCUMENT_PAGE_SIZE = 40;
+const DOCUMENT_WINDOW_SIZE = 120;
 
 function ProjectShell({
   token,
@@ -149,21 +150,30 @@ function ProjectShell({
   const [settingsImportFile, setSettingsImportFile] = useState<File | null>(null);
   const [exportPending, setExportPending] = useState(true);
   const [exportVerified, setExportVerified] = useState(true);
-  const [visibleSameLabelExamplesCount, setVisibleSameLabelExamplesCount] = useState(EXAMPLES_BATCH_SIZE);
-  const [visibleSameSurfaceExamplesCount, setVisibleSameSurfaceExamplesCount] = useState(EXAMPLES_BATCH_SIZE);
+  const [documentList, setDocumentList] = useState<DocumentListItem[]>([]);
+  const [documentTotal, setDocumentTotal] = useState(0);
+  const [pendingDocumentTotal, setPendingDocumentTotal] = useState(0);
+  const [documentNextOffset, setDocumentNextOffset] = useState(0);
+  const [documentsLoadingMore, setDocumentsLoadingMore] = useState(false);
+  const [sameLabelExamples, setSameLabelExamples] = useState<LabelSurfaceGroupRecord[]>([]);
+  const [sameLabelExamplesTotal, setSameLabelExamplesTotal] = useState(0);
+  const [sameLabelExamplesOffset, setSameLabelExamplesOffset] = useState(0);
   const [sameLabelExamplesLoadingMore, setSameLabelExamplesLoadingMore] = useState(false);
+  const [sameLabelExampleDetails, setSameLabelExampleDetails] = useState<Record<string, AnnotationSearchItemRecord[]>>({});
+  const [sameSurfaceExamples, setSameSurfaceExamples] = useState<AnnotationSearchItemRecord[]>([]);
+  const [sameSurfaceExamplesTotal, setSameSurfaceExamplesTotal] = useState(0);
+  const [sameSurfaceExamplesOffset, setSameSurfaceExamplesOffset] = useState(0);
   const [sameSurfaceExamplesLoadingMore, setSameSurfaceExamplesLoadingMore] = useState(false);
   const shortcutButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingActionConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
+  const documentListScrollRef = useRef<HTMLDivElement | null>(null);
   const sameLabelExamplesScrollRef = useRef<HTMLDivElement | null>(null);
   const sameSurfaceExamplesScrollRef = useRef<HTMLDivElement | null>(null);
-  const loadMoreTimerRef = useRef<{ sameLabel: number | null; sameSurface: number | null }>({
-    sameLabel: null,
-    sameSurface: null,
-  });
   const shortcutDragStateRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+  const documentListRequestIdRef = useRef(0);
   const [shortcutPanelOffset, setShortcutPanelOffset] = useState({ x: 0, y: 0 });
   const [shortcutDragging, setShortcutDragging] = useState(false);
+  const initialDocumentListLoadedRef = useRef(false);
   const canUndo = historyState.index > 0;
   const canRedo = historyState.index >= 0 && historyState.index < historyState.entries.length - 1;
 
@@ -174,14 +184,80 @@ function ProjectShell({
     return JSON.stringify(bundle) !== JSON.stringify(snapshot);
   }, [bundle, snapshot]);
 
+  function toDocumentListItem(document: DocumentRecord): DocumentListItem {
+    return {
+      id: document.id,
+      project_id: document.project_id,
+      project_name: document.project_name,
+      document_name: document.document_name,
+      text: document.text,
+      meta: document.meta,
+    };
+  }
+
+  function trimDocumentWindow(items: DocumentListItem[], selectedId: string | null) {
+    if (items.length <= DOCUMENT_WINDOW_SIZE) {
+      return items;
+    }
+    let overflow = items.length - DOCUMENT_WINDOW_SIZE;
+    return items.filter((item) => {
+      if (overflow > 0 && item.id !== selectedId) {
+        overflow -= 1;
+        return false;
+      }
+      return true;
+    });
+  }
+
+  function mergeDocumentWindow(existing: DocumentListItem[], incoming: DocumentListItem[], selectedId: string | null) {
+    const merged = [...existing];
+    incoming.forEach((item) => {
+      const index = merged.findIndex((candidate) => candidate.id === item.id);
+      if (index >= 0) {
+        merged[index] = item;
+      } else {
+        merged.push(item);
+      }
+    });
+    return trimDocumentWindow(merged, selectedId);
+  }
+
   async function loadBundle() {
     setLoading(true);
+    const requestId = ++documentListRequestIdRef.current;
     try {
-      const nextBundle = await api.loadProjectBundle(token, projectId);
+      const [project, { labels }, documentsResponse] = await Promise.all([
+        api.getProject(token, projectId),
+        api.listLabels(token, projectId),
+        api.listDocuments(token, projectId, {
+          offset: 0,
+          limit: DOCUMENT_PAGE_SIZE,
+          search: searchQuery,
+          sort: sortMode,
+        }),
+      ]);
+      if (requestId !== documentListRequestIdRef.current) {
+        return;
+      }
+      const firstDocId = documentsResponse.documents[0]?.id ?? null;
+      const loadedDocuments = firstDocId ? [await api.getDocument(token, projectId, firstDocId)] : [];
+      if (requestId !== documentListRequestIdRef.current) {
+        return;
+      }
+      const nextBundle = {
+        project,
+        labels,
+        documents: loadedDocuments,
+      } satisfies ProjectBundle;
       setBundle(nextBundle);
       setSnapshot(deepClone(nextBundle));
       setHistoryState({ entries: [deepClone(nextBundle)], index: 0 });
-      setSelectedDocId(nextBundle.documents[0]?.id ?? null);
+      setDocumentList(trimDocumentWindow(documentsResponse.documents, firstDocId));
+      setDocumentTotal(documentsResponse.total);
+      setPendingDocumentTotal(documentsResponse.pending_total);
+      setDocumentNextOffset(documentsResponse.offset + documentsResponse.documents.length);
+      initialDocumentListLoadedRef.current = true;
+      setSelectedDocId(firstDocId);
       setFocusedLabelId(nextBundle.labels[0]?.id ?? null);
       setSelectedAnnotationId(null);
       setSelectionPreview(null);
@@ -199,6 +275,98 @@ function ProjectShell({
     void loadBundle();
   }, [projectId, token]);
 
+  useEffect(() => {
+    if (!bundle || !selectedDocId || bundle.documents.some((document) => document.id === selectedDocId)) {
+      return;
+    }
+    let active = true;
+    void api
+      .getDocument(token, projectId, selectedDocId)
+      .then((document) => {
+        if (!active) {
+          return;
+        }
+        setBundle((current) =>
+          current
+            ? {
+                ...current,
+                documents: [...current.documents.filter((item) => item.id !== document.id), document],
+              }
+            : current,
+        );
+        setSnapshot((current) =>
+          current
+            ? {
+                ...current,
+                documents: [...current.documents.filter((item) => item.id !== document.id), deepClone(document)],
+              }
+            : current,
+        );
+      })
+      .catch((error) => {
+        if (active) {
+          showToast(error instanceof Error ? error.message : "Document の取得に失敗した", "error");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [bundle, projectId, selectedDocId, token]);
+
+  async function fetchDocumentPage(
+    reset: boolean,
+    selectedIdOverride?: string | null,
+  ): Promise<DocumentListItem[]> {
+    const requestId = ++documentListRequestIdRef.current;
+    if (!reset) {
+      setDocumentsLoadingMore(true);
+    }
+    try {
+      const response = await api.listDocuments(token, projectId, {
+        offset: reset ? 0 : documentNextOffset,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: searchQuery,
+        sort: sortMode,
+      });
+      if (requestId !== documentListRequestIdRef.current) {
+        return [];
+      }
+      setDocumentTotal(response.total);
+      setPendingDocumentTotal(response.pending_total);
+      setDocumentNextOffset(response.offset + response.documents.length);
+      setDocumentList((current) =>
+        reset
+          ? trimDocumentWindow(response.documents, selectedIdOverride ?? selectedDocId)
+          : mergeDocumentWindow(current, response.documents, selectedIdOverride ?? selectedDocId),
+      );
+      return response.documents;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Document 一覧の取得に失敗した", "error");
+      return [];
+    } finally {
+      setDocumentsLoadingMore(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!bundle || !initialDocumentListLoadedRef.current) {
+      return;
+    }
+    void fetchDocumentPage(true);
+  }, [searchQuery, sortMode]);
+
+  useEffect(() => {
+    if (!bundle) {
+      return;
+    }
+    setDocumentList((current) =>
+      current.map((item) => {
+        const loaded = bundle.documents.find((document) => document.id === item.id);
+        return loaded ? toDocumentListItem(loaded) : item;
+      }),
+    );
+  }, [bundle]);
+
   const currentDocument = useMemo(
     () => bundle?.documents.find((document) => document.id === selectedDocId) ?? bundle?.documents[0] ?? null,
     [bundle, selectedDocId],
@@ -214,18 +382,26 @@ function ProjectShell({
     [currentDocument, selectedAnnotationId],
   );
 
-  const visibleDocuments = useMemo(() => {
-    if (!bundle) {
-      return [];
-    }
-    return sortDocuments(
-      bundle.documents.filter((document) => documentMatchesSearch(document, searchQuery)),
-      sortMode,
-    );
-  }, [bundle, searchQuery, sortMode]);
-
   const currentHiddenBySearch = Boolean(
-    currentDocument && searchQuery.trim() && !visibleDocuments.some((document) => document.id === currentDocument.id),
+    currentDocument && searchQuery.trim() && !documentMatchesSearch(currentDocument, searchQuery),
+  );
+
+  const pinnedCurrentDocument = useMemo(() => {
+    if (!currentDocument) {
+      return null;
+    }
+    if (documentList.some((document) => document.id === currentDocument.id)) {
+      return null;
+    }
+    if (searchQuery.trim() && !documentMatchesSearch(currentDocument, searchQuery)) {
+      return null;
+    }
+    return toDocumentListItem(currentDocument);
+  }, [currentDocument, documentList, searchQuery]);
+
+  const visibleDocuments = useMemo(
+    () => (pinnedCurrentDocument ? [pinnedCurrentDocument, ...documentList] : documentList),
+    [documentList, pinnedCurrentDocument],
   );
 
   function isShortcutBlockedTarget(target: HTMLElement | null) {
@@ -307,12 +483,12 @@ function ProjectShell({
       }
       if (keyLower === "j") {
         event.preventDefault();
-        moveDocumentByDirection(1, event.shiftKey);
+        void moveDocumentByDirection(1, event.shiftKey);
         return;
       }
       if (keyLower === "k") {
         event.preventDefault();
-        moveDocumentByDirection(-1, event.shiftKey);
+        void moveDocumentByDirection(-1, event.shiftKey);
         return;
       }
       if (keyLower === "h" || event.key === "ArrowLeft") {
@@ -379,36 +555,12 @@ function ProjectShell({
     return () => cancelAnimationFrame(focusTimer);
   }, [pendingAction]);
 
-  useEffect(() => {
-    return () => {
-      if (loadMoreTimerRef.current.sameLabel !== null) {
-        window.clearTimeout(loadMoreTimerRef.current.sameLabel);
-      }
-      if (loadMoreTimerRef.current.sameSurface !== null) {
-        window.clearTimeout(loadMoreTimerRef.current.sameSurface);
-      }
-    };
-  }, []);
-
-  const sameLabelExamples = useMemo(() => {
-    if (!bundle || !focusedLabel) {
-      return [];
-    }
-    return getSameLabelSurfaceExamples(bundle, focusedLabel, selectedAnnotation);
-  }, [bundle, focusedLabel, selectedAnnotation]);
-  const visibleSameLabelExamples = useMemo(
-    () => sameLabelExamples.slice(0, visibleSameLabelExamplesCount),
-    [sameLabelExamples, visibleSameLabelExamplesCount],
-  );
-
   const sameSurfaceTarget = useMemo(() => {
-    if (!bundle) {
-      return null;
-    }
     return (
       selectionPreview && selectionPreview.text.trim()
         ? {
             text: selectionPreview.text,
+            annotationId: null,
             labelId: focusedLabel?.id ?? null,
           }
         : selectedAnnotation
@@ -419,89 +571,96 @@ function ProjectShell({
             }
           : null
     );
-  }, [bundle, focusedLabel?.id, selectedAnnotation, selectionPreview]);
+  }, [focusedLabel?.id, selectedAnnotation, selectionPreview]);
 
-  const sameSurfaceExamples = useMemo(() => {
-    if (!bundle) {
-      return [];
-    }
-    return getSameSurfaceExamplesByText(bundle, sameSurfaceTarget);
-  }, [bundle, sameSurfaceTarget]);
-  const visibleSameSurfaceExamples = useMemo(
-    () => sameSurfaceExamples.slice(0, visibleSameSurfaceExamplesCount),
-    [sameSurfaceExamples, visibleSameSurfaceExamplesCount],
-  );
-
-  function clearLoadMoreTimer(kind: "sameLabel" | "sameSurface") {
-    const timerId = loadMoreTimerRef.current[kind];
-    if (timerId !== null) {
-      window.clearTimeout(timerId);
-      loadMoreTimerRef.current[kind] = null;
-    }
-  }
-
-  function scheduleLoadMoreExamples(kind: "sameLabel" | "sameSurface") {
-    const totalCount = kind === "sameLabel" ? sameLabelExamples.length : sameSurfaceExamples.length;
-    const visibleCount = kind === "sameLabel" ? visibleSameLabelExamplesCount : visibleSameSurfaceExamplesCount;
-    const loading = kind === "sameLabel" ? sameLabelExamplesLoadingMore : sameSurfaceExamplesLoadingMore;
-    if (loading || visibleCount >= totalCount) {
+  async function loadSameLabelExamples(reset: boolean) {
+    if (!focusedLabel || !bundle) {
+      setSameLabelExamples([]);
+      setSameLabelExamplesTotal(0);
+      setSameLabelExamplesOffset(0);
       return;
     }
-    clearLoadMoreTimer(kind);
-    if (kind === "sameLabel") {
-      setSameLabelExamplesLoadingMore(true);
-    } else {
-      setSameSurfaceExamplesLoadingMore(true);
-    }
-    loadMoreTimerRef.current[kind] = window.setTimeout(() => {
-      if (kind === "sameLabel") {
-        setVisibleSameLabelExamplesCount((current) => Math.min(current + EXAMPLES_BATCH_SIZE, totalCount));
-        setSameLabelExamplesLoadingMore(false);
-      } else {
-        setVisibleSameSurfaceExamplesCount((current) => Math.min(current + EXAMPLES_BATCH_SIZE, totalCount));
-        setSameSurfaceExamplesLoadingMore(false);
+    setSameLabelExamplesLoadingMore(true);
+    try {
+      const response = await api.listLabelSurfaceGroups(token, bundle.project.id, focusedLabel.id, {
+        offset: reset ? 0 : sameLabelExamplesOffset,
+        limit: EXAMPLES_BATCH_SIZE,
+        status: "all",
+        contextWindow: 16,
+        excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
+      });
+      setSameLabelExamples((current) => (reset ? response.items : [...current, ...response.items]));
+      setSameLabelExamplesTotal(response.total);
+      setSameLabelExamplesOffset(response.offset + response.items.length);
+      if (reset) {
+        setSameLabelExampleDetails({});
       }
-      loadMoreTimerRef.current[kind] = null;
-    }, 120);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "関連例の取得に失敗した", "error");
+    } finally {
+      setSameLabelExamplesLoadingMore(false);
+    }
+  }
+
+  async function loadSameSurfaceExamples(reset: boolean) {
+    if (!sameSurfaceTarget || !bundle) {
+      setSameSurfaceExamples([]);
+      setSameSurfaceExamplesTotal(0);
+      setSameSurfaceExamplesOffset(0);
+      return;
+    }
+    setSameSurfaceExamplesLoadingMore(true);
+    try {
+      const response = await api.searchAnnotations(token, bundle.project.id, {
+        text: sameSurfaceTarget.text,
+        match: "normalized",
+        status: "all",
+        labelId: sameSurfaceTarget.labelId ?? null,
+        excludeAnnotationId: sameSurfaceTarget.annotationId ?? null,
+        offset: reset ? 0 : sameSurfaceExamplesOffset,
+        limit: EXAMPLES_BATCH_SIZE,
+        contextWindow: 16,
+      });
+      setSameSurfaceExamples((current) => (reset ? response.items : [...current, ...response.items]));
+      setSameSurfaceExamplesTotal(response.total);
+      setSameSurfaceExamplesOffset(response.offset + response.items.length);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "同一表層事例の取得に失敗した", "error");
+    } finally {
+      setSameSurfaceExamplesLoadingMore(false);
+    }
+  }
+
+  async function ensureSameLabelDetails(surfaceKey: string, surfaceText: string, duplicateCount: number) {
+    if (!bundle || !focusedLabel || sameLabelExampleDetails[surfaceKey]) {
+      return;
+    }
+    try {
+      const response = await api.searchAnnotations(token, bundle.project.id, {
+        text: surfaceText,
+        match: "normalized",
+        status: "all",
+        labelId: focusedLabel.id,
+        excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
+        limit: Math.min(Math.max(duplicateCount, 8), 24),
+        contextWindow: 42,
+      });
+      setSameLabelExampleDetails((current) => ({
+        ...current,
+        [surfaceKey]: response.items,
+      }));
+    } catch {
+      // hover 時の補助表示なので失敗は黙って握る
+    }
   }
 
   useEffect(() => {
-    clearLoadMoreTimer("sameLabel");
-    setSameLabelExamplesLoadingMore(false);
-    setVisibleSameLabelExamplesCount(EXAMPLES_BATCH_SIZE);
-  }, [focusedLabel?.id, selectedAnnotation?.id, bundle?.project.id]);
+    void loadSameLabelExamples(true);
+  }, [bundle?.project.id, focusedLabel?.id, selectedAnnotation?.id]);
 
   useEffect(() => {
-    clearLoadMoreTimer("sameSurface");
-    setSameSurfaceExamplesLoadingMore(false);
-    setVisibleSameSurfaceExamplesCount(EXAMPLES_BATCH_SIZE);
-  }, [selectionPreview?.text, selectedAnnotation?.id, focusedLabel?.id, bundle?.project.id]);
-
-  useEffect(() => {
-    const element = sameLabelExamplesScrollRef.current;
-    if (!element || sameLabelExamplesLoadingMore) {
-      return;
-    }
-    if (visibleSameLabelExamplesCount >= sameLabelExamples.length) {
-      return;
-    }
-    if (element.scrollHeight <= element.clientHeight + 1) {
-      scheduleLoadMoreExamples("sameLabel");
-    }
-  }, [sameLabelExamples.length, sameLabelExamplesLoadingMore, visibleSameLabelExamplesCount]);
-
-  useEffect(() => {
-    const element = sameSurfaceExamplesScrollRef.current;
-    if (!element || sameSurfaceExamplesLoadingMore) {
-      return;
-    }
-    if (visibleSameSurfaceExamplesCount >= sameSurfaceExamples.length) {
-      return;
-    }
-    if (element.scrollHeight <= element.clientHeight + 1) {
-      scheduleLoadMoreExamples("sameSurface");
-    }
-  }, [sameSurfaceExamples.length, sameSurfaceExamplesLoadingMore, visibleSameSurfaceExamplesCount]);
+    void loadSameSurfaceExamples(true);
+  }, [bundle?.project.id, sameSurfaceTarget?.text, sameSurfaceTarget?.annotationId, sameSurfaceTarget?.labelId]);
 
   function stampChangedDocuments(previousBundle: ProjectBundle, nextBundle: ProjectBundle) {
     const previousDocumentsById = new Map(previousBundle.documents.map((document) => [document.id, document]));
@@ -580,20 +739,53 @@ function ProjectShell({
     setHistoryState((current) => ({ ...current, index: nextIndex }));
   }
 
+  function resolvePersistedDocument(
+    savedBundle: ProjectBundle,
+    previousDocument: Pick<DocumentRecord, "id" | "document_name" | "text"> | null,
+  ) {
+    if (!previousDocument) {
+      return savedBundle.documents[0] ?? null;
+    }
+    return (
+      savedBundle.documents.find((document) => document.id === previousDocument.id) ??
+      savedBundle.documents.find(
+        (document) =>
+          document.document_name === previousDocument.document_name && document.text === previousDocument.text,
+      ) ??
+      savedBundle.documents[0] ??
+      null
+    );
+  }
+
   async function saveBundle(nextBundle: ProjectBundle, successMessage: string | null = "保存した") {
     if (!snapshot) {
       return null;
     }
     setSaving(true);
     try {
+      const previousDocument = currentDocument
+        ? {
+            id: currentDocument.id,
+            document_name: currentDocument.document_name,
+            text: currentDocument.text,
+          }
+        : null;
       const saved = await api.saveProjectBundle(token, snapshot, nextBundle);
+      const persistedCurrentDocument = resolvePersistedDocument(saved, previousDocument);
       setBundle(saved);
       setSnapshot(deepClone(saved));
       setHistoryState({ entries: [deepClone(saved)], index: 0 });
+      setSelectedDocId(persistedCurrentDocument?.id ?? null);
+      if (persistedCurrentDocument) {
+        setSelectedAnnotationId(null);
+      }
       if (successMessage) {
         showToast(successMessage, "success");
       }
-      return saved;
+      return {
+        saved,
+        persistedSelectedDocId: persistedCurrentDocument?.id ?? null,
+      };
     } catch (error) {
       showToast(error instanceof Error ? error.message : "保存に失敗した", "error");
       return null;
@@ -602,7 +794,7 @@ function ProjectShell({
     }
   }
 
-  function moveDocumentByDirection(direction: number, pendingOnly: boolean) {
+  async function moveDocumentByDirection(direction: number, pendingOnly: boolean) {
     if (!bundle || visibleDocuments.length === 0 || !currentDocument) {
       return;
     }
@@ -622,6 +814,14 @@ function ProjectShell({
         return;
       }
       index += direction;
+    }
+    if (direction > 0 && documentNextOffset < documentTotal) {
+      const appendedDocuments = await fetchDocumentPage(false);
+      const nextCandidate = appendedDocuments.find((document) => !pendingOnly || getDocumentStatus(document) === "pending");
+      if (nextCandidate) {
+        requestAction({ type: "doc", docId: nextCandidate.id });
+        return;
+      }
     }
     showToast(pendingOnly ? "移動先の pending doc がない" : "移動先の doc がない", "info");
   }
@@ -705,10 +905,14 @@ function ProjectShell({
 
   async function handleSave() {
     if (!bundle || !snapshot) {
-      return false;
+      return null;
     }
-    const saved = await saveBundle(bundle);
-    return Boolean(saved);
+    const result = await saveBundle(bundle);
+    if (!result) {
+      return null;
+    }
+    await fetchDocumentPage(true, result.persistedSelectedDocId);
+    return result.saved;
   }
 
   async function handleSubmit() {
@@ -724,11 +928,18 @@ function ProjectShell({
     document.annotations.forEach((annotation) => {
       annotation.status = "verified";
     });
-    const saved = await saveBundle(submittedBundle, null);
-    if (!saved) {
+    const result = await saveBundle(submittedBundle, null);
+    if (!result) {
       return;
     }
-    const nextId = findNextPendingDocumentId(saved, currentDocument.id);
+    const refreshedDocuments = await fetchDocumentPage(true, result.persistedSelectedDocId);
+    const currentIndex = refreshedDocuments.findIndex((document) => document.id === result.persistedSelectedDocId);
+    const forwardPending =
+      currentIndex >= 0
+        ? refreshedDocuments.slice(currentIndex + 1).find((document) => getDocumentStatus(document) === "pending")
+        : null;
+    const fallbackPending = refreshedDocuments.find((document) => getDocumentStatus(document) === "pending") ?? null;
+    const nextId = forwardPending?.id ?? fallbackPending?.id ?? null;
     if (nextId) {
       setSelectedDocId(nextId);
       setSelectedAnnotationId(null);
@@ -915,7 +1126,7 @@ function ProjectShell({
                     color="text.secondary"
                     sx={{ fontWeight: 600, letterSpacing: "0.01em" }}
                   >
-                    {bundle.documents.filter((document) => getDocumentStatus(document) === "pending").length} pending / {bundle.documents.length} docs
+                    {pendingDocumentTotal} pending / {documentTotal} docs
                   </Typography>
                 </Box>
                 <Tooltip title="Create Document">
@@ -945,7 +1156,20 @@ function ProjectShell({
               </TextField>
             </Box>
             <Divider />
-            <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1, overflow: "auto" }}>
+            <Box
+              ref={documentListScrollRef}
+              onScroll={(event) => {
+                const element = event.currentTarget;
+                if (
+                  !documentsLoadingMore &&
+                  documentNextOffset < documentTotal &&
+                  element.scrollTop + element.clientHeight >= element.scrollHeight - 32
+                ) {
+                  void fetchDocumentPage(false);
+                }
+              }}
+              sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1, overflow: "auto" }}
+            >
               {currentHiddenBySearch ? (
                 <Alert severity="info">
                   <Typography variant="body2">現在表示中の Document は検索結果外である。</Typography>
@@ -965,6 +1189,13 @@ function ProjectShell({
                     検索条件を見直すか、新しい Document を作成する。
                   </Typography>
                 </Paper>
+              ) : null}
+              {pinnedCurrentDocument ? (
+                <Alert severity="info" sx={{ alignItems: "flex-start" }}>
+                  <Typography variant="body2">
+                    現在表示中の Document は一覧ウィンドウ外にあるため、先頭に固定表示している。
+                  </Typography>
+                </Alert>
               ) : null}
               {visibleDocuments.map((document) => (
                 <Tooltip
@@ -1026,6 +1257,16 @@ function ProjectShell({
                   </ListItemButton>
                 </Tooltip>
               ))}
+              {documentsLoadingMore ? (
+                <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.75 }}>
+                  さらに読み込み中
+                </Typography>
+              ) : null}
+              {!documentsLoadingMore && documentNextOffset >= documentTotal && visibleDocuments.length > 0 ? (
+                <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.75 }}>
+                  以上で全て
+                </Typography>
+              ) : null}
             </Box>
           </Paper>
         ) : null}
@@ -1159,21 +1400,23 @@ function ProjectShell({
                         spacing={1.25}
                         onScroll={(event) => {
                           const element = event.currentTarget;
-                          if (element.scrollTop + element.clientHeight >= element.scrollHeight - 24) {
-                            scheduleLoadMoreExamples("sameLabel");
+                          if (
+                            !sameLabelExamplesLoadingMore &&
+                            sameLabelExamplesOffset < sameLabelExamplesTotal &&
+                            element.scrollTop + element.clientHeight >= element.scrollHeight - 24
+                          ) {
+                            void loadSameLabelExamples(false);
                           }
                         }}
                         sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}
                       >
-                        {visibleSameLabelExamples.map(({ document, annotation, duplicateCount, duplicates }) => {
-                          const snippet = contextSnippet(document.text, annotation.start, annotation.end);
-                          const emphasisColor =
-                            bundle.labels.find((label) => label.id === annotation.label_id)?.color ??
-                            focusedLabel?.color ??
-                            "#1a73e8";
+                        {sameLabelExamples.map((item) => {
+                          const detailItems = sameLabelExampleDetails[item.surface_norm];
+                          const representative = item.representative;
+                          const emphasisColor = focusedLabel?.color ?? "#1a73e8";
                           return (
                             <Tooltip
-                              key={annotation.id}
+                              key={item.surface_norm}
                               placement="left-start"
                               arrow
                               slotProps={{
@@ -1191,26 +1434,34 @@ function ProjectShell({
                                   },
                                 },
                               }}
+                              onOpen={() =>
+                                void ensureSameLabelDetails(item.surface_norm, item.surface_text, item.duplicate_count)
+                              }
                               title={
                                 <Box sx={{ maxWidth: 460, p: 0.75 }}>
                                   <Typography variant="subtitle2">
-                                    {annotation.span_text} / {duplicateCount}件の事例
+                                    {item.surface_text} / {item.duplicate_count}件の事例
                                   </Typography>
                                   <Stack spacing={1.25} sx={{ mt: 1.25 }}>
-                                    {duplicates.map((item) => (
-                                      <Box key={item.annotation.id}>
+                                    {!detailItems ? (
+                                      <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                        取得中
+                                      </Typography>
+                                    ) : null}
+                                    {detailItems?.map((detail) => (
+                                      <Box key={detail.annotation_id}>
                                         <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.72)" }}>
-                                          {item.document.document_name}
+                                          {detail.document_name}
                                         </Typography>
                                         <Typography variant="body2" sx={{ lineHeight: 1.9, mt: 0.35 }}>
                                           <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
-                                            {contextSnippet(item.document.text, item.annotation.start, item.annotation.end, 42).before}
+                                            {detail.context_before}
                                           </Box>
                                           <Box component="span" sx={{ fontWeight: 700 }}>
-                                            {item.annotation.span_text}
+                                            {detail.span_text}
                                           </Box>
                                           <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
-                                            {contextSnippet(item.document.text, item.annotation.start, item.annotation.end, 42).after}
+                                            {detail.context_after}
                                           </Box>
                                         </Typography>
                                       </Box>
@@ -1225,16 +1476,20 @@ function ProjectShell({
                               >
                                 <Stack direction="row" justifyContent="space-between" spacing={1}>
                                   <Typography variant="caption" color="text.secondary">
-                                    {document.document_name}
+                                    {representative.document_name}
                                   </Typography>
-                                  <Chip size="small" label={annotation.status} color={annotation.status === "verified" ? "success" : "warning"} />
+                                  <Chip
+                                    size="small"
+                                    label={representative.status}
+                                    color={representative.status === "verified" ? "success" : "warning"}
+                                  />
                                 </Stack>
                                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                                  {annotation.span_text} / {duplicateCount}件の事例
+                                  {item.surface_text} / {item.duplicate_count}件の事例
                                 </Typography>
                                 <Typography variant="body2" sx={{ mt: 1 }}>
                                   <Box component="span" sx={{ color: "text.secondary" }}>
-                                    {snippet.before}
+                                    {representative.context_before}
                                   </Box>
                                   <Box
                                     component="span"
@@ -1246,10 +1501,10 @@ function ProjectShell({
                                       bgcolor: alpha(emphasisColor, 0.18),
                                     }}
                                   >
-                                    {snippet.focus}
+                                    {representative.span_text}
                                   </Box>
                                   <Box component="span" sx={{ color: "text.secondary" }}>
-                                    {snippet.after}
+                                    {representative.context_after}
                                   </Box>
                                 </Typography>
                               </Paper>
@@ -1261,7 +1516,7 @@ function ProjectShell({
                             さらに読み込み中
                           </Typography>
                         ) : sameLabelExamples.length > 0 &&
-                          visibleSameLabelExamples.length >= sameLabelExamples.length ? (
+                          sameLabelExamplesOffset >= sameLabelExamplesTotal ? (
                           <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
                             以上で全て
                           </Typography>
@@ -1284,97 +1539,97 @@ function ProjectShell({
                         spacing={1.25}
                         onScroll={(event) => {
                           const element = event.currentTarget;
-                          if (element.scrollTop + element.clientHeight >= element.scrollHeight - 24) {
-                            scheduleLoadMoreExamples("sameSurface");
+                          if (
+                            !sameSurfaceExamplesLoadingMore &&
+                            sameSurfaceExamplesOffset < sameSurfaceExamplesTotal &&
+                            element.scrollTop + element.clientHeight >= element.scrollHeight - 24
+                          ) {
+                            void loadSameSurfaceExamples(false);
                           }
                         }}
                         sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}
                       >
-                        {visibleSameSurfaceExamples.map(({ document, annotation }) => (
-                          (() => {
-                            const snippet = contextSnippet(document.text, annotation.start, annotation.end);
-                            const labelColor =
-                              bundle.labels.find((label) => label.id === annotation.label_id)?.color ?? "#1a73e8";
-                            const highlightDifferentLabel =
-                              Boolean(sameSurfaceTarget?.labelId) && annotation.label_id !== sameSurfaceTarget?.labelId;
-                            return (
-                              <Tooltip
-                                key={annotation.id}
-                                placement="left-start"
-                                arrow
-                                slotProps={{
-                                  tooltip: {
-                                    sx: {
-                                      bgcolor: "#646872",
-                                      color: "#fff",
-                                      border: "1px solid rgba(255,255,255,0.08)",
-                                      boxShadow: "0 14px 30px rgba(15, 23, 42, 0.18)",
-                                    },
+                        {sameSurfaceExamples.map((item) => {
+                          const labelColor = item.label_color ?? "#1a73e8";
+                          const highlightDifferentLabel =
+                            Boolean(sameSurfaceTarget?.labelId) && item.label_id !== sameSurfaceTarget?.labelId;
+                          return (
+                            <Tooltip
+                              key={item.annotation_id}
+                              placement="left-start"
+                              arrow
+                              slotProps={{
+                                tooltip: {
+                                  sx: {
+                                    bgcolor: "#646872",
+                                    color: "#fff",
+                                    border: "1px solid rgba(255,255,255,0.08)",
+                                    boxShadow: "0 14px 30px rgba(15, 23, 42, 0.18)",
                                   },
-                                  arrow: {
-                                    sx: {
-                                      color: "#646872",
-                                    },
+                                },
+                                arrow: {
+                                  sx: {
+                                    color: "#646872",
                                   },
-                                }}
-                                title={
-                                  <Box sx={{ maxWidth: 460, p: 0.75 }}>
-                                    <Typography variant="subtitle2">{document.document_name}</Typography>
-                                    <Typography variant="body2" sx={{ mt: 1, lineHeight: 1.9 }}>
-                                      <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
-                                        {contextSnippet(document.text, annotation.start, annotation.end, 42).before}
-                                      </Box>
-                                      <Box component="span" sx={{ fontWeight: 700 }}>
-                                        {annotation.span_text}
-                                      </Box>
-                                      <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
-                                        {contextSnippet(document.text, annotation.start, annotation.end, 42).after}
-                                      </Box>
-                                    </Typography>
-                                  </Box>
-                                }
-                              >
-                                <Paper variant="outlined" sx={{ p: 1.5 }}>
-                                  <Stack direction="row" justifyContent="space-between">
-                                    <Typography variant="caption" color="text.secondary">
-                                      {document.document_name}
-                                    </Typography>
-                                    <Chip
-                                      size="small"
-                                      label={annotation.label_name}
-                                      sx={{
-                                        color: labelColor,
-                                        bgcolor: alpha(labelColor, highlightDifferentLabel ? 0.22 : 0.12),
-                                        border: `1px solid ${alpha(labelColor, highlightDifferentLabel ? 0.34 : 0.18)}`,
-                                        fontWeight: highlightDifferentLabel ? 700 : 500,
-                                        boxShadow: highlightDifferentLabel
-                                          ? `0 0 0 2px ${alpha(labelColor, 0.08)}`
-                                          : "none",
-                                      }}
-                                    />
-                                  </Stack>
-                                  <Typography variant="body2" sx={{ mt: 1 }}>
-                                    <Box component="span" sx={{ color: "text.secondary" }}>
-                                      {snippet.before}
+                                },
+                              }}
+                              title={
+                                <Box sx={{ maxWidth: 460, p: 0.75 }}>
+                                  <Typography variant="subtitle2">{item.document_name}</Typography>
+                                  <Typography variant="body2" sx={{ mt: 1, lineHeight: 1.9 }}>
+                                    <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                      {item.context_before}
                                     </Box>
                                     <Box component="span" sx={{ fontWeight: 700 }}>
-                                      {snippet.focus}
+                                      {item.span_text}
                                     </Box>
-                                    <Box component="span" sx={{ color: "text.secondary" }}>
-                                      {snippet.after}
+                                    <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                      {item.context_after}
                                     </Box>
                                   </Typography>
-                                </Paper>
-                              </Tooltip>
-                            );
-                          })()
-                        ))}
+                                </Box>
+                              }
+                            >
+                              <Paper variant="outlined" sx={{ p: 1.5 }}>
+                                <Stack direction="row" justifyContent="space-between">
+                                  <Typography variant="caption" color="text.secondary">
+                                    {item.document_name}
+                                  </Typography>
+                                  <Chip
+                                    size="small"
+                                    label={item.label_name}
+                                    sx={{
+                                      color: labelColor,
+                                      bgcolor: alpha(labelColor, highlightDifferentLabel ? 0.22 : 0.12),
+                                      border: `1px solid ${alpha(labelColor, highlightDifferentLabel ? 0.34 : 0.18)}`,
+                                      fontWeight: highlightDifferentLabel ? 700 : 500,
+                                      boxShadow: highlightDifferentLabel
+                                        ? `0 0 0 2px ${alpha(labelColor, 0.08)}`
+                                        : "none",
+                                    }}
+                                  />
+                                </Stack>
+                                <Typography variant="body2" sx={{ mt: 1 }}>
+                                  <Box component="span" sx={{ color: "text.secondary" }}>
+                                    {item.context_before}
+                                  </Box>
+                                  <Box component="span" sx={{ fontWeight: 700 }}>
+                                    {item.span_text}
+                                  </Box>
+                                  <Box component="span" sx={{ color: "text.secondary" }}>
+                                    {item.context_after}
+                                  </Box>
+                                </Typography>
+                              </Paper>
+                            </Tooltip>
+                          );
+                        })}
                         {sameSurfaceExamplesLoadingMore ? (
                           <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
                             さらに読み込み中
                           </Typography>
                         ) : sameSurfaceExamples.length > 0 &&
-                          visibleSameSurfaceExamples.length >= sameSurfaceExamples.length ? (
+                          sameSurfaceExamplesOffset >= sameSurfaceExamplesTotal ? (
                           <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
                             以上で全て
                           </Typography>
@@ -1780,6 +2035,14 @@ function ProjectShell({
               mutateBundle((draft) => {
                 draft.documents.push(nextDocument);
               });
+              setDocumentList((current) =>
+                trimDocumentWindow(
+                  [toDocumentListItem(nextDocument), ...current.filter((document) => document.id !== nextDocument.id)],
+                  nextDocument.id,
+                ),
+              );
+              setDocumentTotal((current) => current + 1);
+              setPendingDocumentTotal((current) => current + 1);
               setSelectedDocId(nextDocument.id);
               setAnnotationEditCollapsed(true);
               setCreateDocOpen(false);

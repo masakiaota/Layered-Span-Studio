@@ -12,9 +12,16 @@ def _ensure_project(settings: Settings, project_id: str) -> None:
         raise ValueError("Project not found")
 
 
-def list_documents(settings: Settings, project_id: str, offset: int, limit: int) -> Tuple[List[Dict[str, Any]], int]:
+def list_documents(
+    settings: Settings,
+    project_id: str,
+    offset: int,
+    limit: int,
+    search: str,
+    sort: str,
+) -> Tuple[List[Dict[str, Any]], int, int]:
     _ensure_project(settings, project_id)
-    return documents_repo.list_documents(settings, project_id, offset, limit)
+    return documents_repo.list_documents(settings, project_id, offset, limit, search, sort)
 
 
 def get_document(settings: Settings, project_id: str, document_id: str) -> Optional[Dict[str, Any]]:

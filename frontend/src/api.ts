@@ -1,10 +1,13 @@
 import type {
   AnnotationRecord,
+  AnnotationSearchResponse,
   DocumentRecord,
+  DocumentListResponse,
   ExportResponse,
   ImportResponse,
   JsonObject,
   LabelExampleRecord,
+  LabelSurfaceGroupsResponse,
   LabelRecord,
   LoginResponse,
   ProjectBundle,
@@ -136,11 +139,21 @@ export class ApiClient {
     }
   }
 
-  async listDocuments(token: string, projectId: string) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents?offset=0&limit=100`, {
+  async listDocuments(
+    token: string,
+    projectId: string,
+    options?: { offset?: number; limit?: number; search?: string; sort?: string },
+  ) {
+    const query = new URLSearchParams({
+      offset: String(options?.offset ?? 0),
+      limit: String(options?.limit ?? 100),
+      search: options?.search ?? "",
+      sort: options?.sort ?? "created",
+    });
+    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents?${query.toString()}`, {
       headers: headers(token),
     });
-    return parseResponse<{ documents: Omit<DocumentRecord, "annotations">[]; total: number }>(response);
+    return parseResponse<DocumentListResponse>(response);
   }
 
   async getDocument(token: string, projectId: string, documentId: string) {
@@ -239,6 +252,64 @@ export class ApiClient {
       },
     );
     return parseResponse<{ examples: LabelExampleRecord[] }>(response);
+  }
+
+  async listLabelSurfaceGroups(
+    token: string,
+    projectId: string,
+    labelId: string,
+    options?: { offset?: number; limit?: number; status?: string; contextWindow?: number; excludeAnnotationId?: string | null },
+  ) {
+    const query = new URLSearchParams({
+      offset: String(options?.offset ?? 0),
+      limit: String(options?.limit ?? 50),
+      status: options?.status ?? "verified",
+      context_window: String(options?.contextWindow ?? 20),
+    });
+    if (options?.excludeAnnotationId) {
+      query.set("exclude_annotation_id", options.excludeAnnotationId);
+    }
+    const response = await fetch(
+      `${this.baseUrl}/projects/${projectId}/labels/${labelId}/surface-groups?${query.toString()}`,
+      {
+        headers: headers(token),
+      },
+    );
+    return parseResponse<LabelSurfaceGroupsResponse>(response);
+  }
+
+  async searchAnnotations(
+    token: string,
+    projectId: string,
+    options: {
+      text: string;
+      match?: "exact" | "normalized";
+      status?: string;
+      labelId?: string | null;
+      excludeAnnotationId?: string | null;
+      offset?: number;
+      limit?: number;
+      contextWindow?: number;
+    },
+  ) {
+    const query = new URLSearchParams({
+      text: options.text,
+      match: options.match ?? "normalized",
+      status: options.status ?? "verified",
+      offset: String(options.offset ?? 0),
+      limit: String(options.limit ?? 50),
+      context_window: String(options.contextWindow ?? 20),
+    });
+    if (options.labelId) {
+      query.set("label_id", options.labelId);
+    }
+    if (options.excludeAnnotationId) {
+      query.set("exclude_annotation_id", options.excludeAnnotationId);
+    }
+    const response = await fetch(`${this.baseUrl}/projects/${projectId}/annotations/search?${query.toString()}`, {
+      headers: headers(token),
+    });
+    return parseResponse<AnnotationSearchResponse>(response);
   }
 
   async importProjectAsNew(token: string, payload: JsonObject) {
@@ -382,7 +453,16 @@ export class ApiClient {
       }
     }
 
-    return this.loadProjectBundle(token, current.project.id);
+    const project = await this.getProject(token, current.project.id);
+    const { labels } = await this.listLabels(token, current.project.id);
+    const persistedDocuments = await Promise.all(
+      working.documents.map((document) => this.getDocument(token, current.project.id, document.id)),
+    );
+    return {
+      project,
+      labels,
+      documents: persistedDocuments,
+    };
   }
 }
 

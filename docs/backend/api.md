@@ -34,12 +34,13 @@
 - `POST /projects/{project_id}/labels` - ラベルを作成
 - `GET /projects/{project_id}/labels/{label_id}` - ラベル詳細を取得
 - `GET /projects/{project_id}/labels/{label_id}/examples` - ラベルの使用例をドキュメント横断で取得
+- `GET /projects/{project_id}/labels/{label_id}/surface-groups` - ラベル配下の同一表層グループをドキュメント横断で取得
 - `PATCH /projects/{project_id}/labels/{label_id}` - ラベルを更新（色/説明/ショートカット等）
 - `DELETE /projects/{project_id}/labels/{label_id}` - ラベルを削除（関連アノテも連動削除）
 
 ### Documents
 
-- `GET /projects/{project_id}/documents` - ドキュメント一覧を取得（`offset/limit`）
+- `GET /projects/{project_id}/documents` - ドキュメント一覧を取得（`offset/limit/search/sort`）
 - `POST /projects/{project_id}/documents` - ドキュメントを作成（`text` は作成時のみ）
 - `GET /projects/{project_id}/documents/{document_id}` - ドキュメント詳細を取得（`annotations` 全件含む）
 - `PATCH /projects/{project_id}/documents/{document_id}` - ドキュメントの `document_name` / `meta` を更新（`text` は更新不可）
@@ -47,6 +48,7 @@
 
 ### Annotations
 
+- `GET /projects/{project_id}/annotations/search` - 表層条件でアノテーションをプロジェクト横断検索
 - `POST /projects/{project_id}/documents/{document_id}/annotations` - アノテーションを1件作成
 - `POST /projects/{project_id}/documents/{document_id}/annotations/bulk` - アノテーションを一括作成（事前アノテ投入向け）
 - `GET /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}` - アノテーション詳細を取得
@@ -446,6 +448,59 @@ Authorization: Bearer <token>
 
 ---
 
+### GET /projects/{project_id}/labels/{label_id}/surface-groups
+
+指定ラベルのアノテーションを、正規化済み表層ごとに集約して取得する。Workspace 右ペインの `同一ラベルの他アノテーション` 向けの API である。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `offset` (integer, optional): スキップする件数（デフォルト: 0）
+- `limit` (integer, optional): 取得上限（デフォルト: 50, 最小: 1, 最大: 100）
+- `status` (string, optional): `pending` / `verified` / `all`（デフォルト: `verified`）
+- `context_window` (integer, optional): representative 事例の前後文脈文字数（デフォルト: 20, 最小: 0, 最大: 200）
+- `exclude_annotation_id` (string, optional): 現在選択中 annotation を一覧から除外したいときに使う
+
+**Response (200 OK):**
+```json
+{
+  "items": [
+    {
+      "surface_text": "糖尿病",
+      "surface_norm": "糖尿病",
+      "duplicate_count": 12,
+      "representative": {
+        "annotation_id": "uuid",
+        "document_id": "uuid",
+        "document_name": "患者記録_001",
+        "span_text": "糖尿病",
+        "start": 24,
+        "end": 27,
+        "status": "verified",
+        "context_before": "既往歴に",
+        "context_after": "あり。"
+      }
+    }
+  ],
+  "total": 36,
+  "offset": 0,
+  "limit": 50,
+  "status": "verified",
+  "context_window": 20,
+  "exclude_annotation_id": null
+}
+```
+
+**注記:**
+- 表層の正規化は `trim -> lowercase -> 連続する空白/ハイフン/アンダースコアを1つの空白へ畳み込み` で行う
+- `duplicate_count` は同一 `surface_norm` に属する annotation 件数
+- `representative` は該当グループの表示代表であり、優先順は `verified`、次に `document_name ASC`
+
+---
+
 ### PATCH /projects/{project_id}/labels/{label_id}
 
 ラベル情報を更新する。
@@ -513,6 +568,8 @@ Authorization: Bearer <token>
 **Query Parameters:**
 - `offset` (integer, optional): スキップする件数（デフォルト: 0）
 - `limit` (integer, optional): 取得する最大件数（デフォルト: 50, 最大: 100）
+- `search` (string, optional): `Document.text` に対する部分一致検索。大文字小文字差は無視する
+- `sort` (string, optional): `created` / `pending` / `updated` / `name`（デフォルト: `created`）
 
 **Response (200 OK):**
 ```json
@@ -539,13 +596,18 @@ Authorization: Bearer <token>
   ],
   "total": 120,
   "offset": 0,
-  "limit": 50
+  "limit": 50,
+  "search": "",
+  "sort": "created"
 }
 ```
 
 **注記:**
 - `offset/limit` 方式のページングを採用（シンプルさを優先）
-- 将来的に検索条件やソート機能を追加する可能性がある
+- `search` は `document_name` ではなく `text` にのみ適用する
+- `sort=pending` は `pending` を先頭に寄せ、その後 `document_name ASC` で並べる
+- `sort=updated` は `meta.updated_at` 降順、未設定時は `meta.created_at` を使う
+- `sort=created` は `meta.created_at` 昇順を基本とする
 
 ---
 
@@ -731,6 +793,63 @@ Authorization: Bearer <token>
 ---
 
 ## Annotation API
+
+### GET /projects/{project_id}/annotations/search
+
+表層文字列を条件に、annotation をプロジェクト横断で検索する。Workspace 右ペインの `同一表層の他アノテーション` 向け API である。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `text` (string, required): 検索対象の表層
+- `match` (string, optional): `exact` / `normalized`（デフォルト: `normalized`）
+- `status` (string, optional): `pending` / `verified` / `all`（デフォルト: `verified`）
+- `label_id` (string, optional): 指定時は他ラベル事例を上位に寄せるための比較基準として使う
+- `exclude_annotation_id` (string, optional): 現在選択中 annotation を除外したいときに使う
+- `offset` (integer, optional): スキップする件数（デフォルト: 0）
+- `limit` (integer, optional): 取得上限（デフォルト: 50, 最小: 1, 最大: 100）
+- `context_window` (integer, optional): 前後文脈の文字数（デフォルト: 20, 最小: 0, 最大: 200）
+
+**Response (200 OK):**
+```json
+{
+  "items": [
+    {
+      "annotation_id": "uuid",
+      "document_id": "uuid",
+      "document_name": "患者記録_002",
+      "label_id": "uuid",
+      "label_name": "所見",
+      "label_color": "#33AA44",
+      "start": 12,
+      "end": 15,
+      "span_text": "糖尿病",
+      "status": "verified",
+      "context_before": "母に",
+      "context_after": "の既往あり"
+    }
+  ],
+  "total": 14,
+  "offset": 0,
+  "limit": 50,
+  "text": "糖尿病",
+  "match": "normalized",
+  "status": "all",
+  "context_window": 20,
+  "label_id": "uuid",
+  "exclude_annotation_id": null
+}
+```
+
+**注記:**
+- `match=exact` は `span_text` 完全一致
+- `match=normalized` は `trim -> lowercase -> 連続する空白/ハイフン/アンダースコアを1つの空白へ畳み込み` した一致
+- `label_id` 指定時は、同一表層の中で「他ラベルの事例」を先に返す
+
+---
 
 ### POST /projects/{project_id}/documents/{document_id}/annotations
 
@@ -1282,6 +1401,8 @@ Authorization: Bearer <token>
 ### ページング
 
 - Document一覧には `offset/limit` 方式を採用
+- Document一覧は `search` / `sort` を同時指定可能
+- 右ペイン向けの `surface-groups` / `annotations/search` も `offset/limit` を持つ
 - シンプルさを優先し、将来的に cursor 方式への移行も検討可能
 
 ### データの不変性

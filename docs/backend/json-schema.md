@@ -80,6 +80,57 @@
 
 ---
 
+### Label Surface Group（同一ラベルの表層集約）
+
+```json
+{
+  "surface_text": "糖尿病",
+  "surface_norm": "糖尿病",
+  "duplicate_count": 12,
+  "representative": {
+    "annotation_id": "uuid",
+    "document_id": "uuid",
+    "document_name": "患者記録_001",
+    "span_text": "糖尿病",
+    "start": 24,
+    "end": 27,
+    "status": "verified",
+    "context_before": "既往歴に",
+    "context_after": "あり。"
+  }
+}
+```
+
+- `surface_norm` は `trim -> lowercase -> 連続する空白/ハイフン/アンダースコアを1つの空白へ畳み込み` した値
+- `duplicate_count` は同一 `surface_norm` に属する annotation 件数
+- `representative` は一覧表示用の代表事例
+
+---
+
+### Annotation Search Item（同一表層検索）
+
+```json
+{
+  "annotation_id": "uuid",
+  "document_id": "uuid",
+  "document_name": "患者記録_002",
+  "label_id": "uuid",
+  "label_name": "所見",
+  "label_color": "#33AA44",
+  "start": 12,
+  "end": 15,
+  "span_text": "糖尿病",
+  "status": "verified",
+  "context_before": "母に",
+  "context_after": "の既往あり"
+}
+```
+
+- `label_color` は frontend でバッジ強調に使うために含める
+- `match=normalized` の場合は `surface_norm` 相当の比較でヒットする
+
+---
+
 ### Project
 
 ```json
@@ -176,6 +227,12 @@
 
 - **必須**: `id`, `project_id`, `project_name`, `document_name`, `text`, `annotations`
 - **任意**: `meta`
+
+#### Document List API の派生ルール
+
+- 一覧 API も基本の `Document` 形を使うが、`annotations` は含めない
+- 一覧 API は `offset/limit/search/sort` を持つ
+- `search` は `text` にのみ適用し、`document_name` は検索対象に含めない
 
 ## 組み合わせ（Exportの基本形）
 

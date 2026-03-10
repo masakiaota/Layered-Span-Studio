@@ -7,6 +7,7 @@ from layered_span_studio_backend.repositories import annotations as annotations_
 from layered_span_studio_backend.repositories import documents as documents_repo
 from layered_span_studio_backend.repositories import labels as labels_repo
 from layered_span_studio_backend.repositories import projects as projects_repo
+from layered_span_studio_backend.utils.text_utils import normalize_search_text
 
 
 def _ensure_project(settings: Settings, project_id: str) -> None:
@@ -99,3 +100,82 @@ def delete_annotation(settings: Settings, project_id: str, document_id: str, ann
     _ensure_project(settings, project_id)
     _ensure_document(settings, project_id, document_id)
     return annotations_repo.delete_annotation(settings, project_id, document_id, annotation_id)
+
+
+def search_annotations(
+    settings: Settings,
+    project_id: str,
+    text: str,
+    match: str,
+    status_filter: str,
+    label_id: Optional[str],
+    exclude_annotation_id: Optional[str],
+    offset: int,
+    limit: int,
+    context_window: int,
+) -> Dict[str, Any]:
+    _ensure_project(settings, project_id)
+    if label_id:
+        _ensure_label(settings, project_id, label_id)
+
+    statuses = ["pending", "verified"] if status_filter == "all" else [status_filter]
+    rows = annotations_repo.list_project_annotations(settings, project_id, statuses)
+    if exclude_annotation_id:
+        rows = [row for row in rows if row["annotation_id"] != exclude_annotation_id]
+
+    if match == "exact":
+        matched = [row for row in rows if row["span_text"] == text]
+    else:
+        normalized_target = normalize_search_text(text)
+        matched = [
+            row for row in rows if normalize_search_text(row["span_text"]) == normalized_target
+        ]
+
+    matched.sort(
+        key=lambda row: (
+            0 if label_id and row["label_id"] != label_id else 1,
+            0 if row["status"] == "verified" else 1,
+            row["document_name"],
+            row["start"],
+            row["annotation_id"],
+        )
+    )
+
+    total = len(matched)
+    picked = matched[offset : offset + limit]
+    items: List[Dict[str, Any]] = []
+    for row in picked:
+        text_body = row["document_text"]
+        start = row["start"]
+        end = row["end"]
+        before_start = max(0, start - context_window)
+        after_end = min(len(text_body), end + context_window)
+        items.append(
+            {
+                "annotation_id": row["annotation_id"],
+                "document_id": row["document_id"],
+                "document_name": row["document_name"],
+                "label_id": row["label_id"],
+                "label_name": row["label_name"],
+                "label_color": row["label_color"],
+                "start": start,
+                "end": end,
+                "span_text": row["span_text"],
+                "status": row["status"],
+                "context_before": text_body[before_start:start],
+                "context_after": text_body[end:after_end],
+            }
+        )
+
+    return {
+        "items": items,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "text": text,
+        "match": match,
+        "status": status_filter,
+        "context_window": context_window,
+        "label_id": label_id,
+        "exclude_annotation_id": exclude_annotation_id,
+    }

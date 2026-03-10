@@ -7,6 +7,7 @@ from layered_span_studio_backend.models.documents import (
     DocumentCreate,
     DocumentDetailOut,
     DocumentListResponse,
+    DocumentListSort,
     DocumentOut,
     DocumentUpdate,
 )
@@ -24,13 +25,30 @@ def list_documents(
     project_id: str,
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    search: str = Query(""),
+    sort: DocumentListSort = Query(DocumentListSort.created),
     settings=Depends(get_settings),
 ):
     try:
-        documents, total = documents_service.list_documents(settings, project_id, offset, limit)
+        documents, total, pending_total = documents_service.list_documents(
+            settings,
+            project_id,
+            offset,
+            limit,
+            search,
+            sort.value,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    return {"documents": documents, "total": total, "offset": offset, "limit": limit}
+    return {
+        "documents": documents,
+        "total": total,
+        "pending_total": pending_total,
+        "offset": offset,
+        "limit": limit,
+        "search": search,
+        "sort": sort,
+    }
 
 
 @router.post("", response_model=DocumentOut, status_code=status.HTTP_201_CREATED)

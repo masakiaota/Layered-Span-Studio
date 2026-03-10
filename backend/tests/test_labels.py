@@ -333,3 +333,49 @@ def test_label_examples_not_found(client: TestClient, auth_headers: dict[str, st
         headers=auth_headers,
     )
     assert response.status_code == 404
+
+
+def test_label_surface_groups_are_grouped_and_paginated(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    data = _setup_examples_fixture(client, auth_headers)
+    response = client.get(
+        (
+            f"/projects/{data['project_id']}/labels/{data['target_label_id']}/surface-groups"
+            "?status=all&limit=1"
+        ),
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 2
+    assert payload["limit"] == 1
+    assert payload["items"][0]["surface_text"] == "alpha"
+    assert payload["items"][0]["duplicate_count"] == 1
+
+    second_page = client.get(
+        (
+            f"/projects/{data['project_id']}/labels/{data['target_label_id']}/surface-groups"
+            "?status=all&offset=1&limit=1"
+        ),
+        headers=auth_headers,
+    )
+    assert second_page.status_code == 200
+    second_payload = second_page.json()
+    assert second_payload["items"][0]["surface_text"] == "bravo"
+    assert second_payload["items"][0]["duplicate_count"] == 2
+
+
+def test_label_surface_groups_exclude_annotation_id(client: TestClient, auth_headers: dict[str, str]) -> None:
+    data = _setup_examples_fixture(client, auth_headers)
+    response = client.get(
+        (
+            f"/projects/{data['project_id']}/labels/{data['target_label_id']}/surface-groups"
+            f"?status=all&exclude_annotation_id={data['target_annotation_ids_in_sequential_order'][0]}"
+        ),
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    surfaces = {item["surface_text"] for item in payload["items"]}
+    assert surfaces == {"bravo"}

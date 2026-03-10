@@ -207,3 +207,38 @@ def delete_annotation(settings: Settings, project_id: str, document_id: str, ann
             )
         )
     return result.rowcount > 0
+
+
+def list_project_annotations(settings: Settings, project_id: str, statuses: List[str]) -> List[Dict[str, Any]]:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    with engine.connect() as conn:
+        rows = (
+            conn.execute(
+                select(
+                    annotations_table.c.id.label("annotation_id"),
+                    annotations_table.c.document_id,
+                    annotations_table.c.label_id,
+                    annotations_table.c.start,
+                    annotations_table.c.end,
+                    annotations_table.c.span_text,
+                    annotations_table.c.status,
+                    documents_table.c.document_name,
+                    documents_table.c.text.label("document_text"),
+                    labels_table.c.name.label("label_name"),
+                    labels_table.c.color.label("label_color"),
+                )
+                .select_from(
+                    annotations_table.join(
+                        documents_table, annotations_table.c.document_id == documents_table.c.id
+                    ).join(labels_table, annotations_table.c.label_id == labels_table.c.id)
+                )
+                .where(
+                    documents_table.c.project_id == project_id,
+                    annotations_table.c.status.in_(statuses),
+                )
+            )
+            .mappings()
+            .all()
+        )
+    return [dict(row) for row in rows]

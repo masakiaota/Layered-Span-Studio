@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import Optional
 
 from pydantic import Field
 
 from layered_span_studio_backend.models.annotations import AnnotationOut
 from layered_span_studio_backend.models.common import APIModel, Meta
+
+
+class DocumentListSort(str, Enum):
+    created = "created"
+    pending = "pending"
+    updated = "updated"
+    name = "name"
 
 
 class DocumentCreate(APIModel):
@@ -35,5 +43,8 @@ class DocumentDetailOut(DocumentOut):
 class DocumentListResponse(APIModel):
     documents: list[DocumentOut]
     total: int
+    pending_total: int
     offset: int
     limit: int
+    search: str
+    sort: DocumentListSort

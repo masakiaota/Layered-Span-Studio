@@ -57,6 +57,18 @@ export interface DocumentRecord {
   meta: JsonObject | null;
 }
 
+export type DocumentListItem = Omit<DocumentRecord, "annotations">;
+
+export interface DocumentListResponse {
+  documents: DocumentListItem[];
+  total: number;
+  pending_total: number;
+  offset: number;
+  limit: number;
+  search: string;
+  sort: string;
+}
+
 export interface LabelExampleRecord {
   annotation_id: string;
   document_id: string;
@@ -67,6 +79,63 @@ export interface LabelExampleRecord {
   status: StatusValue;
   context_before: string;
   context_after: string;
+}
+
+export interface LabelSurfaceGroupRepresentativeRecord {
+  annotation_id: string;
+  document_id: string;
+  document_name: string;
+  span_text: string;
+  start: number;
+  end: number;
+  status: StatusValue;
+  context_before: string;
+  context_after: string;
+}
+
+export interface LabelSurfaceGroupRecord {
+  surface_text: string;
+  surface_norm: string;
+  duplicate_count: number;
+  representative: LabelSurfaceGroupRepresentativeRecord;
+}
+
+export interface LabelSurfaceGroupsResponse {
+  items: LabelSurfaceGroupRecord[];
+  total: number;
+  offset: number;
+  limit: number;
+  status: string;
+  context_window: number;
+  exclude_annotation_id?: string | null;
+}
+
+export interface AnnotationSearchItemRecord {
+  annotation_id: string;
+  document_id: string;
+  document_name: string;
+  label_id: string;
+  label_name: string;
+  label_color: string;
+  start: number;
+  end: number;
+  span_text: string;
+  status: StatusValue;
+  context_before: string;
+  context_after: string;
+}
+
+export interface AnnotationSearchResponse {
+  items: AnnotationSearchItemRecord[];
+  total: number;
+  offset: number;
+  limit: number;
+  text: string;
+  match: "exact" | "normalized";
+  status: string;
+  context_window: number;
+  label_id?: string | null;
+  exclude_annotation_id?: string | null;
 }
 
 export interface ProjectBundle {

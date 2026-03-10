@@ -1,6 +1,7 @@
 import type {
   AnnotationRecord,
   DocumentRecord,
+  DocumentListItem,
   JsonObject,
   JsonValue,
   LabelRecord,
@@ -48,7 +49,9 @@ export function documentMatchesSearch(document: DocumentRecord, query: string): 
   return !query.trim() || findSimpleSearchMatchRange(document.text, query) !== null;
 }
 
-export function getDocumentStatus(document: DocumentRecord): StatusValue {
+type DocumentListCompatible = Pick<DocumentListItem, "text" | "meta" | "document_name" | "id">;
+
+export function getDocumentStatus(document: DocumentListCompatible): StatusValue {
   const status = toJsonObject(document.meta).status;
   return status === "verified" ? "verified" : "pending";
 }
@@ -119,7 +122,7 @@ export type DocumentSnippetPart = {
   highlighted: boolean;
 };
 
-function buildDocumentSnippetWindow(document: DocumentRecord, query: string): DocumentSnippetWindow {
+function buildDocumentSnippetWindow(document: DocumentListCompatible, query: string): DocumentSnippetWindow {
   if (!query.trim()) {
     return {
       content: document.text.slice(0, 120),
@@ -150,12 +153,12 @@ function buildDocumentSnippetWindow(document: DocumentRecord, query: string): Do
   };
 }
 
-export function getDocumentSnippet(document: DocumentRecord, query: string): string {
+export function getDocumentSnippet(document: DocumentListCompatible, query: string): string {
   const snippet = buildDocumentSnippetWindow(document, query);
   return `${snippet.hasLeadingEllipsis ? "…" : ""}${snippet.content}${snippet.hasTrailingEllipsis ? "…" : ""}`;
 }
 
-export function getDocumentSnippetParts(document: DocumentRecord, query: string): DocumentSnippetPart[] {
+export function getDocumentSnippetParts(document: DocumentListCompatible, query: string): DocumentSnippetPart[] {
   const snippet = buildDocumentSnippetWindow(document, query);
   const parts: DocumentSnippetPart[] = [];
   if (snippet.hasLeadingEllipsis) {

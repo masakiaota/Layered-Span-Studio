@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories import labels as labels_repo
 from layered_span_studio_backend.repositories import projects as projects_repo
+from layered_span_studio_backend.utils.text_utils import normalize_search_text
 
 
 def _ensure_project(settings: Settings, project_id: str) -> None:
@@ -121,4 +122,94 @@ def list_label_examples(
         "sample": sample,
         "seed": seed,
         "context_window": context_window,
+    }
+
+
+def list_label_surface_groups(
+    settings: Settings,
+    project_id: str,
+    label_id: str,
+    offset: int,
+    limit: int,
+    status_filter: str,
+    context_window: int,
+    exclude_annotation_id: Optional[str],
+) -> Dict[str, Any]:
+    _ensure_project(settings, project_id)
+    if not labels_repo.get_label(settings, project_id, label_id):
+        raise ValueError("Label not found")
+
+    statuses = ["pending", "verified"] if status_filter == "all" else [status_filter]
+    rows = labels_repo.list_label_examples(settings, project_id, label_id, statuses)
+    if exclude_annotation_id:
+        rows = [row for row in rows if row["annotation_id"] != exclude_annotation_id]
+
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        surface_norm = normalize_search_text(row["span_text"])
+        if not surface_norm:
+            continue
+        current = grouped.get(surface_norm)
+        if not current:
+            grouped[surface_norm] = {
+                "surface_text": row["span_text"],
+                "surface_norm": surface_norm,
+                "duplicate_count": 1,
+                "representative": row,
+            }
+            continue
+        current["duplicate_count"] += 1
+        representative = current["representative"]
+        if representative["status"] != "verified" and row["status"] == "verified":
+            current["representative"] = row
+        elif representative["status"] == row["status"] and row["document_name"] < representative["document_name"]:
+            current["representative"] = row
+
+    ordered = sorted(
+        grouped.values(),
+        key=lambda item: (
+            0 if item["representative"]["status"] == "verified" else 1,
+            item["representative"]["document_name"],
+            item["representative"]["start"],
+            item["representative"]["annotation_id"],
+        ),
+    )
+    total = len(ordered)
+    picked = ordered[offset : offset + limit]
+
+    items: List[Dict[str, Any]] = []
+    for item in picked:
+        row = item["representative"]
+        text = row["document_text"]
+        start = row["start"]
+        end = row["end"]
+        before_start = max(0, start - context_window)
+        after_end = min(len(text), end + context_window)
+        items.append(
+            {
+                "surface_text": item["surface_text"],
+                "surface_norm": item["surface_norm"],
+                "duplicate_count": item["duplicate_count"],
+                "representative": {
+                    "annotation_id": row["annotation_id"],
+                    "document_id": row["document_id"],
+                    "document_name": row["document_name"],
+                    "span_text": row["span_text"],
+                    "start": start,
+                    "end": end,
+                    "status": row["status"],
+                    "context_before": text[before_start:start],
+                    "context_after": text[end:after_end],
+                },
+            }
+        )
+
+    return {
+        "items": items,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "status": status_filter,
+        "context_window": context_window,
+        "exclude_annotation_id": exclude_annotation_id,
     }

@@ -90,3 +90,32 @@ class LabelExamplesResponse(APIModel):
     sample: LabelExamplesSampleMode
     seed: Optional[int] = None
     context_window: int
+
+
+class LabelSurfaceGroupRepresentativeOut(APIModel):
+    annotation_id: str
+    document_id: str
+    document_name: str
+    span_text: str
+    start: int
+    end: int
+    status: AnnotationStatus
+    context_before: str
+    context_after: str
+
+
+class LabelSurfaceGroupOut(APIModel):
+    surface_text: str
+    surface_norm: str
+    duplicate_count: int
+    representative: LabelSurfaceGroupRepresentativeOut
+
+
+class LabelSurfaceGroupsResponse(APIModel):
+    items: list[LabelSurfaceGroupOut]
+    total: int
+    offset: int
+    limit: int
+    status: LabelExamplesStatusFilter
+    context_window: int
+    exclude_annotation_id: Optional[str] = None

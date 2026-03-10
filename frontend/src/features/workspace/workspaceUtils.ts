@@ -1,4 +1,4 @@
-import type { AnnotationRecord, DocumentRecord, LabelRecord, ProjectBundle } from "../../types";
+import type { AnnotationRecord, DocumentListItem, DocumentRecord, LabelRecord, ProjectBundle } from "../../types";
 import { normalizeSearchText } from "../../utils";
 
 export function contextSnippet(text: string, start: number, end: number, size = 16) {
@@ -9,7 +9,7 @@ export function contextSnippet(text: string, start: number, end: number, size = 
   };
 }
 
-export function getDocumentHoverPreview(document: DocumentRecord, query: string, size = 180) {
+export function getDocumentHoverPreview(document: DocumentRecord | DocumentListItem, query: string, size = 180) {
   if (!query.trim()) {
     return document.text.slice(0, size);
   }
