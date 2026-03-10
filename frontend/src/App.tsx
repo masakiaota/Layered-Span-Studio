@@ -401,11 +401,11 @@ function ProjectShell({
     [sameLabelExamples, visibleSameLabelExamplesCount],
   );
 
-  const sameSurfaceExamples = useMemo(() => {
+  const sameSurfaceTarget = useMemo(() => {
     if (!bundle) {
-      return [];
+      return null;
     }
-    const target =
+    return (
       selectionPreview && selectionPreview.text.trim()
         ? {
             text: selectionPreview.text,
@@ -417,9 +417,16 @@ function ProjectShell({
               annotationId: selectedAnnotation.id,
               labelId: selectedAnnotation.label_id,
             }
-          : null;
-    return getSameSurfaceExamplesByText(bundle, target);
+          : null
+    );
   }, [bundle, focusedLabel?.id, selectedAnnotation, selectionPreview]);
+
+  const sameSurfaceExamples = useMemo(() => {
+    if (!bundle) {
+      return [];
+    }
+    return getSameSurfaceExamplesByText(bundle, sameSurfaceTarget);
+  }, [bundle, sameSurfaceTarget]);
   const visibleSameSurfaceExamples = useMemo(
     () => sameSurfaceExamples.slice(0, visibleSameSurfaceExamplesCount),
     [sameSurfaceExamples, visibleSameSurfaceExamplesCount],
@@ -1285,6 +1292,8 @@ function ProjectShell({
                             const snippet = contextSnippet(document.text, annotation.start, annotation.end);
                             const labelColor =
                               bundle.labels.find((label) => label.id === annotation.label_id)?.color ?? "#1a73e8";
+                            const highlightDifferentLabel =
+                              Boolean(sameSurfaceTarget?.labelId) && annotation.label_id !== sameSurfaceTarget?.labelId;
                             return (
                               <Tooltip
                                 key={annotation.id}
@@ -1332,7 +1341,12 @@ function ProjectShell({
                                       label={annotation.label_name}
                                       sx={{
                                         color: labelColor,
-                                        bgcolor: alpha(labelColor, 0.12),
+                                        bgcolor: alpha(labelColor, highlightDifferentLabel ? 0.22 : 0.12),
+                                        border: `1px solid ${alpha(labelColor, highlightDifferentLabel ? 0.34 : 0.18)}`,
+                                        fontWeight: highlightDifferentLabel ? 700 : 500,
+                                        boxShadow: highlightDifferentLabel
+                                          ? `0 0 0 2px ${alpha(labelColor, 0.08)}`
+                                          : "none",
                                       }}
                                     />
                                   </Stack>
