@@ -102,6 +102,7 @@ type SelectionPreview = {
 };
 
 const TOKEN_KEY = "layered-span-studio/token";
+const EXAMPLES_BATCH_SIZE = 8;
 
 function ProjectShell({
   token,
@@ -148,8 +149,18 @@ function ProjectShell({
   const [settingsImportFile, setSettingsImportFile] = useState<File | null>(null);
   const [exportPending, setExportPending] = useState(true);
   const [exportVerified, setExportVerified] = useState(true);
+  const [visibleSameLabelExamplesCount, setVisibleSameLabelExamplesCount] = useState(EXAMPLES_BATCH_SIZE);
+  const [visibleSameSurfaceExamplesCount, setVisibleSameSurfaceExamplesCount] = useState(EXAMPLES_BATCH_SIZE);
+  const [sameLabelExamplesLoadingMore, setSameLabelExamplesLoadingMore] = useState(false);
+  const [sameSurfaceExamplesLoadingMore, setSameSurfaceExamplesLoadingMore] = useState(false);
   const shortcutButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingActionConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
+  const sameLabelExamplesScrollRef = useRef<HTMLDivElement | null>(null);
+  const sameSurfaceExamplesScrollRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreTimerRef = useRef<{ sameLabel: number | null; sameSurface: number | null }>({
+    sameLabel: null,
+    sameSurface: null,
+  });
   const shortcutDragStateRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const [shortcutPanelOffset, setShortcutPanelOffset] = useState({ x: 0, y: 0 });
   const [shortcutDragging, setShortcutDragging] = useState(false);
@@ -368,12 +379,27 @@ function ProjectShell({
     return () => cancelAnimationFrame(focusTimer);
   }, [pendingAction]);
 
+  useEffect(() => {
+    return () => {
+      if (loadMoreTimerRef.current.sameLabel !== null) {
+        window.clearTimeout(loadMoreTimerRef.current.sameLabel);
+      }
+      if (loadMoreTimerRef.current.sameSurface !== null) {
+        window.clearTimeout(loadMoreTimerRef.current.sameSurface);
+      }
+    };
+  }, []);
+
   const sameLabelExamples = useMemo(() => {
     if (!bundle || !focusedLabel) {
       return [];
     }
     return getSameLabelSurfaceExamples(bundle, focusedLabel, selectedAnnotation);
   }, [bundle, focusedLabel, selectedAnnotation]);
+  const visibleSameLabelExamples = useMemo(
+    () => sameLabelExamples.slice(0, visibleSameLabelExamplesCount),
+    [sameLabelExamples, visibleSameLabelExamplesCount],
+  );
 
   const sameSurfaceExamples = useMemo(() => {
     if (!bundle) {
@@ -394,6 +420,81 @@ function ProjectShell({
           : null;
     return getSameSurfaceExamplesByText(bundle, target);
   }, [bundle, focusedLabel?.id, selectedAnnotation, selectionPreview]);
+  const visibleSameSurfaceExamples = useMemo(
+    () => sameSurfaceExamples.slice(0, visibleSameSurfaceExamplesCount),
+    [sameSurfaceExamples, visibleSameSurfaceExamplesCount],
+  );
+
+  function clearLoadMoreTimer(kind: "sameLabel" | "sameSurface") {
+    const timerId = loadMoreTimerRef.current[kind];
+    if (timerId !== null) {
+      window.clearTimeout(timerId);
+      loadMoreTimerRef.current[kind] = null;
+    }
+  }
+
+  function scheduleLoadMoreExamples(kind: "sameLabel" | "sameSurface") {
+    const totalCount = kind === "sameLabel" ? sameLabelExamples.length : sameSurfaceExamples.length;
+    const visibleCount = kind === "sameLabel" ? visibleSameLabelExamplesCount : visibleSameSurfaceExamplesCount;
+    const loading = kind === "sameLabel" ? sameLabelExamplesLoadingMore : sameSurfaceExamplesLoadingMore;
+    if (loading || visibleCount >= totalCount) {
+      return;
+    }
+    clearLoadMoreTimer(kind);
+    if (kind === "sameLabel") {
+      setSameLabelExamplesLoadingMore(true);
+    } else {
+      setSameSurfaceExamplesLoadingMore(true);
+    }
+    loadMoreTimerRef.current[kind] = window.setTimeout(() => {
+      if (kind === "sameLabel") {
+        setVisibleSameLabelExamplesCount((current) => Math.min(current + EXAMPLES_BATCH_SIZE, totalCount));
+        setSameLabelExamplesLoadingMore(false);
+      } else {
+        setVisibleSameSurfaceExamplesCount((current) => Math.min(current + EXAMPLES_BATCH_SIZE, totalCount));
+        setSameSurfaceExamplesLoadingMore(false);
+      }
+      loadMoreTimerRef.current[kind] = null;
+    }, 120);
+  }
+
+  useEffect(() => {
+    clearLoadMoreTimer("sameLabel");
+    setSameLabelExamplesLoadingMore(false);
+    setVisibleSameLabelExamplesCount(EXAMPLES_BATCH_SIZE);
+  }, [focusedLabel?.id, selectedAnnotation?.id, bundle?.project.id]);
+
+  useEffect(() => {
+    clearLoadMoreTimer("sameSurface");
+    setSameSurfaceExamplesLoadingMore(false);
+    setVisibleSameSurfaceExamplesCount(EXAMPLES_BATCH_SIZE);
+  }, [selectionPreview?.text, selectedAnnotation?.id, focusedLabel?.id, bundle?.project.id]);
+
+  useEffect(() => {
+    const element = sameLabelExamplesScrollRef.current;
+    if (!element || sameLabelExamplesLoadingMore) {
+      return;
+    }
+    if (visibleSameLabelExamplesCount >= sameLabelExamples.length) {
+      return;
+    }
+    if (element.scrollHeight <= element.clientHeight + 1) {
+      scheduleLoadMoreExamples("sameLabel");
+    }
+  }, [sameLabelExamples.length, sameLabelExamplesLoadingMore, visibleSameLabelExamplesCount]);
+
+  useEffect(() => {
+    const element = sameSurfaceExamplesScrollRef.current;
+    if (!element || sameSurfaceExamplesLoadingMore) {
+      return;
+    }
+    if (visibleSameSurfaceExamplesCount >= sameSurfaceExamples.length) {
+      return;
+    }
+    if (element.scrollHeight <= element.clientHeight + 1) {
+      scheduleLoadMoreExamples("sameSurface");
+    }
+  }, [sameSurfaceExamples.length, sameSurfaceExamplesLoadingMore, visibleSameSurfaceExamplesCount]);
 
   function stampChangedDocuments(previousBundle: ProjectBundle, nextBundle: ProjectBundle) {
     const previousDocumentsById = new Map(previousBundle.documents.map((document) => [document.id, document]));
@@ -1043,8 +1144,18 @@ function ProjectShell({
 
                     <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
                       <Typography variant="subtitle2">同一ラベルの他アノテーション</Typography>
-                      <Stack spacing={1.25} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
-                        {sameLabelExamples.map(({ document, annotation, duplicateCount, duplicates }) => {
+                      <Stack
+                        ref={sameLabelExamplesScrollRef}
+                        spacing={1.25}
+                        onScroll={(event) => {
+                          const element = event.currentTarget;
+                          if (element.scrollTop + element.clientHeight >= element.scrollHeight - 24) {
+                            scheduleLoadMoreExamples("sameLabel");
+                          }
+                        }}
+                        sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}
+                      >
+                        {visibleSameLabelExamples.map(({ document, annotation, duplicateCount, duplicates }) => {
                           const snippet = contextSnippet(document.text, annotation.start, annotation.end);
                           const emphasisColor =
                             bundle.labels.find((label) => label.id === annotation.label_id)?.color ??
@@ -1135,6 +1246,16 @@ function ProjectShell({
                             </Tooltip>
                           );
                         })}
+                        {sameLabelExamplesLoadingMore ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
+                            さらに読み込み中
+                          </Typography>
+                        ) : sameLabelExamples.length > 0 &&
+                          visibleSameLabelExamples.length >= sameLabelExamples.length ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
+                            以上で全て
+                          </Typography>
+                        ) : null}
                         {sameLabelExamples.length === 0 ? <Typography color="text.secondary">該当なし</Typography> : null}
                       </Stack>
                     </Paper>
@@ -1148,8 +1269,18 @@ function ProjectShell({
                             ? `対象: ${selectedAnnotation.span_text}`
                             : "範囲選択または Annotation 選択で表示される"}
                       </Typography>
-                      <Stack spacing={1.25} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
-                        {sameSurfaceExamples.map(({ document, annotation }) => (
+                      <Stack
+                        ref={sameSurfaceExamplesScrollRef}
+                        spacing={1.25}
+                        onScroll={(event) => {
+                          const element = event.currentTarget;
+                          if (element.scrollTop + element.clientHeight >= element.scrollHeight - 24) {
+                            scheduleLoadMoreExamples("sameSurface");
+                          }
+                        }}
+                        sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}
+                      >
+                        {visibleSameSurfaceExamples.map(({ document, annotation }) => (
                           (() => {
                             const snippet = contextSnippet(document.text, annotation.start, annotation.end);
                             const labelColor =
@@ -1221,6 +1352,16 @@ function ProjectShell({
                             );
                           })()
                         ))}
+                        {sameSurfaceExamplesLoadingMore ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
+                            さらに読み込み中
+                          </Typography>
+                        ) : sameSurfaceExamples.length > 0 &&
+                          visibleSameSurfaceExamples.length >= sameSurfaceExamples.length ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
+                            以上で全て
+                          </Typography>
+                        ) : null}
                         {!selectionPreview && !selectedAnnotation ? (
                           <Typography color="text.secondary">範囲選択または Annotation を選択すると同一表層の事例が出る。</Typography>
                         ) : null}

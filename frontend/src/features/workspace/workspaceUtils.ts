@@ -91,8 +91,7 @@ export function getSameLabelSurfaceExamples(
         return left.annotation.status === "verified" ? -1 : 1;
       }
       return right.document.document_name.localeCompare(left.document.document_name, "ja");
-    })
-    .slice(0, 8);
+    });
 }
 
 export function getSameSurfaceAnnotationExamples(bundle: ProjectBundle, selectedAnnotation: AnnotationRecord | null) {
@@ -149,6 +148,5 @@ export function getSameSurfaceExamplesByText(
         return left.annotation.status === "verified" ? -1 : 1;
       }
       return right.document.document_name.localeCompare(left.document.document_name, "ja");
-    })
-    .slice(0, 8);
+    });
 }
