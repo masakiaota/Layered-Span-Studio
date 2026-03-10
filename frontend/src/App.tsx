@@ -909,9 +909,12 @@ function ProjectShell({
           <Paper sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
             <Box sx={{ p: 2, display: "grid", gap: 2 }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography variant="subtitle1">Documents</Typography>
-                  <Typography variant="body2" color="text.secondary">
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ fontWeight: 600, letterSpacing: "0.01em" }}
+                  >
                     {bundle.documents.filter((document) => getDocumentStatus(document) === "pending").length} pending / {bundle.documents.length} docs
                   </Typography>
                 </Box>
