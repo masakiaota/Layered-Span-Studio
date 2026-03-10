@@ -1379,7 +1379,7 @@ function ProjectShell({
                     <Paper variant="outlined" sx={{ p: 2 }}>
                       <Typography variant="subtitle2">{focusedLabel?.name ?? "Label"} アノテーション基準</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1.2, whiteSpace: "pre-wrap" }}>
-                        {focusedLabel?.description || getProjectGuideline(bundle.project) || "ガイドライン未設定"}
+                        {focusedLabel?.description || "アノテーション基準未設定"}
                       </Typography>
                     </Paper>
 
