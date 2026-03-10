@@ -233,13 +233,14 @@ export function DocumentCanvas({
 
   useLayoutEffect(() => {
     const root = textRef.current;
+    const canvas = canvasRef.current;
     if (!root) {
       setMarkerBoxes([]);
       setOverlayLines([]);
       setSelectionBoxes([]);
       return;
     }
-    const baseRect = root.getBoundingClientRect();
+    const baseRect = canvas?.getBoundingClientRect() ?? root.getBoundingClientRect();
     const rectsByAnnotationId: Record<
       string,
       Array<{ left: number; right: number; top: number; bottom: number; width: number; height: number }>
@@ -332,7 +333,7 @@ export function DocumentCanvas({
   const moveMarkerTooltip = (annotationId: string) => {
     const annotation = document.annotations.find((item) => item.id === annotationId);
     const label = annotation ? labelsById.get(annotation.label_id) : null;
-    const rootRect = textRef.current?.getBoundingClientRect();
+    const rootRect = canvasRef.current?.getBoundingClientRect() ?? textRef.current?.getBoundingClientRect();
     const annotationBoxes = markerBoxes.filter((box) => box.annotationId === annotationId);
     if (!annotation || !label || !rootRect || annotationBoxes.length === 0) {
       setMarkerTooltip(null);
@@ -410,6 +411,7 @@ export function DocumentCanvas({
             flex: 1,
             minHeight: 0,
             overflow: "auto",
+            px: 0.75,
             pr: 0.5,
           }}
         >
