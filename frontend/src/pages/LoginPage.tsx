@@ -19,14 +19,11 @@ export function LoginPage({
         <CardContent sx={{ p: 4 }}>
           <Stack spacing={3}>
             <Box>
-              <Typography variant="overline" color="primary.main">
-                Material Workspace
-              </Typography>
-              <Typography variant="h4" sx={{ mt: 1 }}>
+              <Typography variant="h4">
                 Layered Span Studio
               </Typography>
               <Typography color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
-                Google Workspace 系の読みやすさを土台にした、ドキュメント注釈用フロントエンドである。
+                テキストに注釈を付け、ラベルごとに整理しながら確認するためのツールである。ここではアカウントでサインインして、Project 一覧へ進む。
               </Typography>
             </Box>
             <Stack
