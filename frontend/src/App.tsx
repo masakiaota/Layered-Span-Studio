@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   AppBar,
@@ -6,14 +6,15 @@ import {
   Box,
   Button,
   Chip,
+  ClickAwayListener,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
-  Drawer,
   FormControlLabel,
+  Fade,
   IconButton,
   InputAdornment,
   List,
@@ -21,6 +22,7 @@ import {
   ListItemText,
   MenuItem,
   Paper,
+  Popper,
   Snackbar,
   Stack,
   Switch,
@@ -34,6 +36,7 @@ import {
 } from "@mui/material";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
@@ -145,6 +148,10 @@ function ProjectShell({
   const [settingsImportFile, setSettingsImportFile] = useState<File | null>(null);
   const [exportPending, setExportPending] = useState(true);
   const [exportVerified, setExportVerified] = useState(true);
+  const shortcutButtonRef = useRef<HTMLButtonElement | null>(null);
+  const shortcutDragStateRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+  const [shortcutPanelOffset, setShortcutPanelOffset] = useState({ x: 0, y: 0 });
+  const [shortcutDragging, setShortcutDragging] = useState(false);
   const canUndo = historyState.index > 0;
   const canRedo = historyState.index >= 0 && historyState.index < historyState.entries.length - 1;
 
@@ -217,17 +224,47 @@ function ProjectShell({
     );
   }
 
+  function handleShortcutPanelToggle() {
+    setShortcutOpen((current) => !current);
+  }
+
+  function handleShortcutDragStart(event: React.PointerEvent<HTMLDivElement>) {
+    shortcutDragStateRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: shortcutPanelOffset.x,
+      originY: shortcutPanelOffset.y,
+    };
+    setShortcutDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleShortcutDragMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (!shortcutDragStateRef.current) {
+      return;
+    }
+    const nextX = shortcutDragStateRef.current.originX + (event.clientX - shortcutDragStateRef.current.startX);
+    const nextY = shortcutDragStateRef.current.originY + (event.clientY - shortcutDragStateRef.current.startY);
+    setShortcutPanelOffset({ x: nextX, y: nextY });
+  }
+
+  function handleShortcutDragEnd(event: React.PointerEvent<HTMLDivElement>) {
+    shortcutDragStateRef.current = null;
+    setShortcutDragging(false);
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      const shortcutBlocked = isShortcutBlockedTarget(target);
       const keyLower = event.key.toLowerCase();
+      const shortcutBlocked = isShortcutBlockedTarget(target);
       if (shortcutBlocked) {
         return;
       }
       if (event.key === "?") {
         event.preventDefault();
-        setShortcutOpen((current) => !current);
+        handleShortcutPanelToggle();
         return;
       }
       if ((event.metaKey || event.ctrlKey) && keyLower === "s") {
@@ -728,7 +765,7 @@ function ProjectShell({
             <Tab value="settings" label="Project Settings" icon={<SettingsRoundedIcon />} iconPosition="start" />
           </Tabs>
           <Tooltip title="ショートカット一覧">
-            <IconButton onClick={() => setShortcutOpen(true)}>
+            <IconButton ref={shortcutButtonRef} onClick={handleShortcutPanelToggle}>
               <HelpOutlineRoundedIcon />
             </IconButton>
           </Tooltip>
@@ -957,22 +994,20 @@ function ProjectShell({
                 }}
               >
                 <Button
-                  size="small"
                   variant="outlined"
                   startIcon={<SaveRoundedIcon />}
                   onClick={() => void handleSave()}
                   disabled={!dirty || saving}
-                  sx={{ minWidth: 72, borderRadius: 1.5 }}
+                  sx={{ minWidth: 108, minHeight: 40, px: 2.25, borderRadius: 1.5 }}
                 >
                   Save
                 </Button>
                 <Button
-                  size="small"
                   variant="contained"
                   endIcon={<TaskAltRoundedIcon />}
                   onClick={() => void handleSubmit()}
                   disabled={!currentDocument || saving}
-                  sx={{ minWidth: 84, borderRadius: 1.5 }}
+                  sx={{ minWidth: 126, minHeight: 40, px: 2.5, borderRadius: 1.5 }}
                 >
                   Submit
                 </Button>
@@ -1533,25 +1568,132 @@ function ProjectShell({
         </DialogActions>
       </Dialog>
 
-      <Drawer anchor="right" open={shortcutOpen} onClose={() => setShortcutOpen(false)}>
-        <Box sx={{ width: 360, p: 3, display: "grid", gap: 2 }}>
-          <Typography variant="h6">Keyboard Shortcuts</Typography>
-          <List dense>
-            {[
-              ["Cmd+S", "Save"],
-              ["Cmd+Enter", "Submit"],
-              ["Cmd+Z", "Undo"],
-              ["Cmd+Y / Cmd+Shift+Z", "Redo"],
-              ["?", "ショートカット一覧"],
-              ["J / K", "Doc 移動"],
-              ["H / L", "Label 移動"],
-              ["[ / ]", "右ペインタブ切り替え"],
-            ].map(([key, description]) => (
-              <ListItemText key={key} primary={key} secondary={description} sx={{ my: 0.5 }} />
-            ))}
-          </List>
-        </Box>
-      </Drawer>
+      <Popper
+        open={shortcutOpen}
+        anchorEl={shortcutButtonRef.current}
+        placement="bottom-end"
+        transition
+        sx={{ zIndex: (theme) => theme.zIndex.appBar + 2 }}
+      >
+        {({ TransitionProps }) => (
+          <Fade {...TransitionProps} timeout={120}>
+            <Box
+              sx={{
+                pt: 1.25,
+                transform: `translate(${shortcutPanelOffset.x}px, ${shortcutPanelOffset.y}px)`,
+              }}
+            >
+              <ClickAwayListener onClickAway={() => (!shortcutDragging ? setShortcutOpen(false) : undefined)}>
+                <Paper
+                  elevation={8}
+                  sx={{
+                    width: 380,
+                    maxWidth: "calc(100vw - 32px)",
+                    maxHeight: "min(72vh, 640px)",
+                    overflow: "auto",
+                    borderRadius: 3,
+                    border: "1px solid #d7e2f0",
+                    p: 2.25,
+                    display: "grid",
+                    gap: 2,
+                  }}
+                >
+                  <Stack direction="row" spacing={1} alignItems="flex-start" justifyContent="space-between">
+                    <Box
+                      onPointerDown={handleShortcutDragStart}
+                      onPointerMove={handleShortcutDragMove}
+                      onPointerUp={handleShortcutDragEnd}
+                      onPointerCancel={handleShortcutDragEnd}
+                      sx={{
+                        flex: 1,
+                        minWidth: 0,
+                        cursor: shortcutDragging ? "grabbing" : "grab",
+                        userSelect: "none",
+                      }}
+                    >
+                      <Typography variant="subtitle1">Keyboard Shortcuts</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.6 }}>
+                        この画面を開いたまま操作可能。ドラッグで移動可能。
+                      </Typography>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      aria-label="ショートカット一覧を閉じる"
+                      onClick={() => setShortcutOpen(false)}
+                      sx={{ mt: -0.5, mr: -0.5 }}
+                    >
+                      <CloseRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
+
+                  {[
+                    {
+                      title: "保存と補助",
+                      items: [
+                        ["Cmd+S", "Save"],
+                        ["Cmd+Enter", "Submit"],
+                        ["Cmd+Z", "Undo"],
+                        ["Cmd+Y / Cmd+Shift+Z", "Redo"],
+                        ["?", "Shortcut確認のトグル"],
+                      ],
+                    },
+                    {
+                      title: "移動",
+                      items: [
+                        ["J / K", "Doc 移動"],
+                        ["H / L", "Label 移動"],
+                        ["N / P", "Annotation 移動"],
+                        ["[ / ]", "右ペインタブ切り替え"],
+                      ],
+                    },
+                    {
+                      title: "選択と編集",
+                      items: [
+                        ["Enter", "範囲選択中なら annotation 追加"],
+                        ["Delete", "選択中 annotation を削除"],
+                      ],
+                    },
+                  ].map((section) => (
+                    <Box key={section.title}>
+                      <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 0.4 }}>
+                        {section.title}
+                      </Typography>
+                      <Stack spacing={1} sx={{ mt: 1 }}>
+                        {section.items.map(([key, description]) => (
+                          <Stack key={key} direction="row" spacing={1.25} alignItems="center">
+                            <Box
+                              component="span"
+                              sx={{
+                                minWidth: 132,
+                                px: 1,
+                                py: 0.5,
+                                borderRadius: 1.25,
+                                border: "1px solid #d7e2f0",
+                                bgcolor: "#f8fbff",
+                                fontSize: 12,
+                                fontWeight: 700,
+                                lineHeight: 1.4,
+                                color: "text.primary",
+                                textAlign: "center",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {key}
+                            </Box>
+                            <Typography variant="body2" color="text.secondary">
+                              {description}
+                            </Typography>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    </Box>
+                  ))}
+                </Paper>
+              </ClickAwayListener>
+            </Box>
+          </Fade>
+        )}
+      </Popper>
 
       <Snackbar open={toast.open} autoHideDuration={3000} onClose={closeToast}>
         <Alert onClose={closeToast} severity={toast.severity} variant="filled">
