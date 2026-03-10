@@ -149,6 +149,7 @@ function ProjectShell({
   const [exportPending, setExportPending] = useState(true);
   const [exportVerified, setExportVerified] = useState(true);
   const shortcutButtonRef = useRef<HTMLButtonElement | null>(null);
+  const pendingActionConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
   const shortcutDragStateRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const [shortcutPanelOffset, setShortcutPanelOffset] = useState({ x: 0, y: 0 });
   const [shortcutDragging, setShortcutDragging] = useState(false);
@@ -357,6 +358,16 @@ function ProjectShell({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [bundle, canRedo, canUndo, currentDocument, focusedLabelId, rightTab, selectedAnnotationId, searchQuery, sortMode, snapshot]);
 
+  useEffect(() => {
+    if (!pendingAction) {
+      return;
+    }
+    const focusTimer = requestAnimationFrame(() => {
+      pendingActionConfirmButtonRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(focusTimer);
+  }, [pendingAction]);
+
   const sameLabelExamples = useMemo(() => {
     if (!bundle || !focusedLabel) {
       return [];
@@ -489,22 +500,17 @@ function ProjectShell({
     }
     const currentIndex = visibleDocuments.findIndex((document) => document.id === currentDocument.id);
     if (currentIndex < 0) {
-      setSelectedDocId(direction > 0 ? visibleDocuments[0].id : visibleDocuments[visibleDocuments.length - 1].id);
-      setSelectedAnnotationId(null);
-      setSelectionPreview(null);
-      setRightTab("examples");
-      setAnnotationEditCollapsed(true);
+      requestAction({
+        type: "doc",
+        docId: direction > 0 ? visibleDocuments[0].id : visibleDocuments[visibleDocuments.length - 1].id,
+      });
       return;
     }
     let index = currentIndex + direction;
     while (index >= 0 && index < visibleDocuments.length) {
       const candidate = visibleDocuments[index];
       if (!pendingOnly || getDocumentStatus(candidate) === "pending") {
-        setSelectedDocId(candidate.id);
-        setSelectedAnnotationId(null);
-        setSelectionPreview(null);
-        setRightTab("examples");
-        setAnnotationEditCollapsed(true);
+        requestAction({ type: "doc", docId: candidate.id });
         return;
       }
       index += direction;
@@ -1573,8 +1579,12 @@ function ProjectShell({
         <DialogActions>
           <Button onClick={() => setPendingAction(null)}>キャンセル</Button>
           <Button onClick={() => void resolvePendingAction("discard")}>破棄して移動</Button>
-          <Button variant="contained" onClick={() => void resolvePendingAction("save")}>
-            保存して移動
+          <Button
+            ref={pendingActionConfirmButtonRef}
+            variant="outlined"
+            onClick={() => void resolvePendingAction("save")}
+          >
+            保存して移動 ↵
           </Button>
         </DialogActions>
       </Dialog>

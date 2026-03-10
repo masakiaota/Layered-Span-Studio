@@ -13,20 +13,24 @@
 
 ## 2. 画面一覧
 
-1. Project List
-2. Workspace
-3. Project Settings（Import / Export を内包）
+1. Login
+2. Project List
+3. Workspace
+4. Project Settings（Import / Export を内包）
 
 ## 3. 遷移フロー
 
-1. Project List で既存 Project を選択する、または Import Project を実行して新規 Project を作成する。
-2. 既存 Project を選んだ場合は `"/projects/:projectId"` の Workspace を開く。
-3. 新規 Project Import 完了時も、作成された `"/projects/:projectId"` の Workspace を開く。
-4. 上部ナビゲーションで以下を切り替える。
+1. `"/login"` で username / password を入力してサインインする。
+2. サインイン後は Project List を開く。
+3. Project List で既存 Project を選択する、または Import Project を実行して新規 Project を作成する。
+4. 既存 Project を選んだ場合は `"/projects/:projectId"` の Workspace を開く。
+5. 新規 Project Import 完了時も、作成された `"/projects/:projectId"` の Workspace を開く。
+6. Project List からは各 Project の `Settings` 導線で `"/projects/:projectId/settings"` を直接開ける。
+7. 上部ナビゲーションで以下を切り替える。
   - Workspace
   - Project Settings
-5. Workspace では左ペインで Document を選び、中央で Annotation 編集、右ペインで詳細編集を行う。
-6. Project Settings では Label 定義 / ガイドライン / Import・Export を管理する。
+8. Workspace では左ペインで Document を選び、中央で Annotation 編集、右ペインで詳細編集を行う。
+9. Project Settings では Project 名 / 説明 / Label 定義 / ガイドライン / Import・Export を管理する。
 
 ## 4. Document 切り替え時の扱い
 
@@ -39,7 +43,7 @@
 - 左ペインの Doc 検索は画面内状態として扱い、URL には載せない。
 - 左ペインの Doc 検索は本文検索とし、`document_name` は識別用表示名として残す。
 - Doc 検索中の一覧移動（クリック / `J` / `K` / `Shift+J` / `Shift+K`）は、検索結果に含まれる Document のみを候補とする。
-- 検索によって現在選択中 Document が一覧から外れても、編集中の Document は維持する。左ペインには検索結果外である旨と、検索クリアまたは現在 Doc 名での再絞り込み導線を表示する。
+- 検索によって現在選択中 Document が一覧から外れても、編集中の Document は維持する。左ペインには検索結果外である旨と、検索クリア導線を表示する。
 
 ## 5. Project 一覧へ戻る時の扱い
 

@@ -60,7 +60,6 @@ Layered Span Studioは、multi-labelなNER（Named Entity Recognition）タス�
 
 ### バージョン管理系
 - アノテーション履歴・バージョン管理
-- Undo/Redo機能
 - 変更履歴の保存
 - データバックアップ（自動保存、定期バックアップ）
 
