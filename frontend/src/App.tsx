@@ -2118,8 +2118,10 @@ function ProjectShell({
                       title: "移動",
                       items: [
                         ["J / K", "Doc 移動"],
-                        ["H / L", "Label 移動"],
-                        ["N / P", "Annotation 移動"],
+                        ["Shift+J / Shift+K", "pending Doc 移動"],
+                        ["H / L / ← / →", "Label 移動"],
+                        ["N / P", "現在 Label 内で Annotation 移動"],
+                        ["↑ / ↓", "一覧順で Annotation 移動"],
                         ["[ / ]", "右ペインタブ切り替え"],
                       ],
                     },
@@ -2127,7 +2129,8 @@ function ProjectShell({
                       title: "選択と編集",
                       items: [
                         ["Enter", "範囲選択中なら annotation 追加"],
-                        ["Delete", "選択中 annotation を削除"],
+                        ["Esc", "選択中 annotation を解除"],
+                        ["Delete / Backspace", "選択中 annotation を削除"],
                       ],
                     },
                   ].map((section) => (
