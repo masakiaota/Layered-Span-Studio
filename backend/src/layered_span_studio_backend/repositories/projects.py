@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import shutil
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.storage.project_db import (
+    documents_table,
     get_project_engine,
     init_project_db,
+    labels_table,
     project_table,
 )
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
@@ -27,6 +30,26 @@ def _project_db_path(settings: Settings, project_id: str) -> Path:
     return _project_dir(settings, project_id) / PROJECT_DB_FILENAME
 
 
+def _parse_timestamp(value: Any) -> Optional[float]:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def _project_sort_key(project: Dict[str, Any]) -> tuple[Any, ...]:
+    summary = project["summary"]
+    updated_at_timestamp = _parse_timestamp(summary["updated_at"])
+    return (
+        -summary["pending_documents_count"],
+        updated_at_timestamp is None,
+        -(updated_at_timestamp or 0),
+        project["name"],
+    )
+
+
 def list_projects(settings: Settings) -> List[Dict[str, Any]]:
     projects: List[Dict[str, Any]] = []
     if not settings.projects_dir.exists():
@@ -40,15 +63,42 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
         engine = get_project_engine(str(db_path))
         with engine.connect() as conn:
             row = conn.execute(select(project_table)).mappings().first()
-        if row:
-            projects.append(
-                {
-                    "id": row["id"],
-                    "name": row["name"],
-                    "description": row["description"],
-                    "meta": decode_meta(row["meta"]),
-                }
-            )
+            if not row:
+                continue
+
+            labels_count = conn.execute(select(func.count()).select_from(labels_table)).scalar_one()
+            document_rows = conn.execute(select(documents_table.c.meta)).mappings().all()
+
+        pending_documents_count = 0
+        updated_at: Optional[str] = None
+        updated_at_timestamp: Optional[float] = None
+        for document_row in document_rows:
+            meta = decode_meta(document_row["meta"])
+            if meta.get("status") != "verified":
+                pending_documents_count += 1
+            candidate = meta.get("updated_at") or meta.get("created_at")
+            candidate_timestamp = _parse_timestamp(candidate)
+            if candidate_timestamp is None:
+                continue
+            if updated_at_timestamp is None or candidate_timestamp > updated_at_timestamp:
+                updated_at_timestamp = candidate_timestamp
+                updated_at = candidate
+
+        projects.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "description": row["description"],
+                "meta": decode_meta(row["meta"]),
+                "summary": {
+                    "labels_count": labels_count,
+                    "documents_count": len(document_rows),
+                    "pending_documents_count": pending_documents_count,
+                    "updated_at": updated_at,
+                },
+            }
+        )
+    projects.sort(key=_project_sort_key)
     return projects
 
 

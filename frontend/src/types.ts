@@ -22,6 +22,17 @@ export interface ProjectRecord {
   meta: JsonObject | null;
 }
 
+export interface ProjectSummaryRecord {
+  labels_count: number;
+  documents_count: number;
+  pending_documents_count: number;
+  updated_at: string | null;
+}
+
+export interface ProjectListItemRecord extends ProjectRecord {
+  summary: ProjectSummaryRecord;
+}
+
 export interface LabelRecord {
   id: string;
   project_id: string;

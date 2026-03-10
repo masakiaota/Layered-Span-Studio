@@ -31,35 +31,8 @@ import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useToast } from "../hooks/useToast";
-import type { JsonObject, ProjectRecord, UserRecord } from "../types";
-import { normalizeSearchText, readJsonFile, toJsonObject } from "../utils";
-
-type ProjectSummary = {
-  project: ProjectRecord;
-  labelsCount: number;
-  documentsCount: number;
-  pendingDocumentsCount: number;
-  updatedAt: string | null;
-};
-
-function getDocumentStatusFromMeta(meta: JsonObject | null) {
-  return toJsonObject(meta).status === "verified" ? "verified" : "pending";
-}
-
-function getLatestTimestamp(meta: JsonObject | null) {
-  const json = toJsonObject(meta);
-  const value =
-    typeof json.updated_at === "string"
-      ? json.updated_at
-      : typeof json.created_at === "string"
-        ? json.created_at
-        : null;
-  if (!value) {
-    return null;
-  }
-  const timestamp = Date.parse(value);
-  return Number.isNaN(timestamp) ? null : value;
-}
+import type { ProjectListItemRecord, UserRecord } from "../types";
+import { normalizeSearchText, readJsonFile } from "../utils";
 
 function formatRelativeDate(value: string | null) {
   if (!value) {
@@ -79,14 +52,14 @@ function formatRelativeDate(value: string | null) {
   }).format(date);
 }
 
-function buildProjectSearchText(summary: ProjectSummary) {
+function buildProjectSearchText(project: ProjectListItemRecord) {
   return normalizeSearchText(
     [
-      summary.project.name,
-      summary.project.description ?? "",
-      `${summary.labelsCount} labels`,
-      `${summary.documentsCount} docs`,
-      `${summary.pendingDocumentsCount} pending`,
+      project.name,
+      project.description ?? "",
+      `${project.summary.labels_count} labels`,
+      `${project.summary.documents_count} docs`,
+      `${project.summary.pending_documents_count} pending`,
     ].join(" "),
   );
 }
@@ -103,7 +76,7 @@ export function ProjectsPage({
   const navigate = useNavigate();
   const { toast, showToast, closeToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [projectSummaries, setProjectSummaries] = useState<ProjectSummary[]>([]);
+  const [projects, setProjects] = useState<ProjectListItemRecord[]>([]);
   const [importing, setImporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -111,50 +84,7 @@ export function ProjectsPage({
     setLoading(true);
     try {
       const response = await api.listProjects(token);
-      const summaries = await Promise.all(
-        response.projects.map(async (project) => {
-          const [labelsResponse, documentsResponse] = await Promise.all([
-            api.listLabels(token, project.id),
-            api.listDocuments(token, project.id),
-          ]);
-          const updatedAt = documentsResponse.documents.reduce<string | null>((latest, document) => {
-            const candidate = getLatestTimestamp(document.meta);
-            if (!candidate) {
-              return latest;
-            }
-            if (!latest) {
-              return candidate;
-            }
-            return Date.parse(candidate) > Date.parse(latest) ? candidate : latest;
-          }, null);
-          return {
-            project,
-            labelsCount: labelsResponse.labels.length,
-            documentsCount: documentsResponse.total,
-            pendingDocumentsCount: documentsResponse.documents.filter(
-              (document) => getDocumentStatusFromMeta(document.meta) === "pending",
-            ).length,
-            updatedAt,
-          } satisfies ProjectSummary;
-        }),
-      );
-      summaries.sort((left, right) => {
-        const pendingDiff = right.pendingDocumentsCount - left.pendingDocumentsCount;
-        if (pendingDiff !== 0) {
-          return pendingDiff;
-        }
-        if (left.updatedAt && right.updatedAt && left.updatedAt !== right.updatedAt) {
-          return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
-        }
-        if (left.updatedAt && !right.updatedAt) {
-          return -1;
-        }
-        if (!left.updatedAt && right.updatedAt) {
-          return 1;
-        }
-        return left.project.name.localeCompare(right.project.name, "ja");
-      });
-      setProjectSummaries(summaries);
+      setProjects(response.projects);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Project 一覧の取得に失敗した", "error");
     } finally {
@@ -202,11 +132,11 @@ export function ProjectsPage({
 
   const filteredProjects = useMemo(() => {
     if (!searchQuery.trim()) {
-      return projectSummaries;
+      return projects;
     }
     const normalized = normalizeSearchText(searchQuery);
-    return projectSummaries.filter((summary) => buildProjectSearchText(summary).includes(normalized));
-  }, [projectSummaries, searchQuery]);
+    return projects.filter((project) => buildProjectSearchText(project).includes(normalized));
+  }, [projects, searchQuery]);
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "#f6f8fc" }}>
@@ -277,7 +207,7 @@ export function ProjectsPage({
             <Paper sx={{ p: 8, textAlign: "center", borderRadius: 4 }}>
               <CircularProgress />
             </Paper>
-          ) : projectSummaries.length === 0 ? (
+          ) : projects.length === 0 ? (
             <Paper
               sx={{
                 p: 8,
@@ -318,11 +248,11 @@ export function ProjectsPage({
                 },
               }}
             >
-              {filteredProjects.map((summary, index) => {
-                const hasPending = summary.pendingDocumentsCount > 0;
+              {filteredProjects.map((project, index) => {
+                const hasPending = project.summary.pending_documents_count > 0;
                 return (
                   <Card
-                    key={summary.project.id}
+                    key={project.id}
                     sx={{
                       height: "100%",
                       display: "flex",
@@ -353,35 +283,35 @@ export function ProjectsPage({
                           </Avatar>
                           <Box sx={{ minWidth: 0 }}>
                             <Typography variant="h6" sx={{ lineHeight: 1.25 }}>
-                              {summary.project.name}
+                              {project.name}
                             </Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                              {formatRelativeDate(summary.updatedAt)}
+                              {formatRelativeDate(project.summary.updated_at)}
                             </Typography>
                           </Box>
                         </Stack>
                       </Stack>
 
                       <Typography color="text.secondary" sx={{ minHeight: 66, lineHeight: 1.6 }}>
-                        {summary.project.description || "説明が未設定の project である。Project Settings から補足説明を追加できる。"}
+                        {project.description || "説明が未設定の project である。Project Settings から補足説明を追加できる。"}
                       </Typography>
 
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                         <Chip
                           icon={<LabelRoundedIcon />}
-                          label={`${summary.labelsCount} labels`}
+                          label={`${project.summary.labels_count} labels`}
                           variant="outlined"
                           sx={{ borderColor: "#d9e3f1" }}
                         />
                         <Chip
                           icon={<DescriptionRoundedIcon />}
-                          label={`${summary.documentsCount} docs`}
+                          label={`${project.summary.documents_count} docs`}
                           variant="outlined"
                           sx={{ borderColor: "#d9e3f1" }}
                         />
                         <Chip
                           icon={<PendingActionsRoundedIcon />}
-                          label={`${summary.pendingDocumentsCount} pending`}
+                          label={`${project.summary.pending_documents_count} pending`}
                           variant="outlined"
                           sx={{ borderColor: "#d9e3f1" }}
                         />
@@ -392,14 +322,14 @@ export function ProjectsPage({
                       <Button
                         variant="contained"
                         startIcon={<WorkspacesRoundedIcon />}
-                        onClick={() => navigate(`/projects/${summary.project.id}`)}
+                        onClick={() => navigate(`/projects/${project.id}`)}
                       >
                         Open Workspace
                       </Button>
                       <Button
                         variant="text"
                         startIcon={<SettingsRoundedIcon />}
-                        onClick={() => navigate(`/projects/${summary.project.id}/settings`)}
+                        onClick={() => navigate(`/projects/${project.id}/settings`)}
                       >
                         Settings
                       </Button>

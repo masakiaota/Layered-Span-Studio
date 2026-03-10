@@ -32,5 +32,16 @@ class ProjectOut(APIModel):
     meta: Meta = None
 
 
+class ProjectSummaryOut(APIModel):
+    labels_count: int
+    documents_count: int
+    pending_documents_count: int
+    updated_at: Optional[str] = None
+
+
+class ProjectListItemOut(ProjectOut):
+    summary: ProjectSummaryOut
+
+
 class ProjectListResponse(APIModel):
-    projects: list[ProjectOut]
+    projects: list[ProjectListItemOut]

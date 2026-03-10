@@ -12,6 +12,7 @@ import type {
   LoginResponse,
   ProjectBundle,
   ProjectImportResponse,
+  ProjectListItemRecord,
   ProjectRecord,
   UserRecord,
 } from "./types";
@@ -73,7 +74,7 @@ export class ApiClient {
 
   async listProjects(token: string) {
     const response = await fetch(`${this.baseUrl}/projects`, { headers: headers(token) });
-    return parseResponse<{ projects: ProjectRecord[] }>(response);
+    return parseResponse<{ projects: ProjectListItemRecord[] }>(response);
   }
 
   async getProject(token: string, projectId: string) {

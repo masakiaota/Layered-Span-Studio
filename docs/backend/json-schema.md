@@ -171,6 +171,33 @@
 - `settings` はこの段階では設けません（必要になったときに新規フィールド追加を検討）。
 - `Project` は `labels` を内包しません（後述のExportで別フィールドとして扱う）。
 
+#### Project List API の派生ルール
+
+```json
+{
+  "projects": [
+    {
+      "id": "uuid",
+      "name": "医療文書NER",
+      "description": "医療文書からエンティティ抽出",
+      "meta": {},
+      "summary": {
+        "labels_count": 12,
+        "documents_count": 248,
+        "pending_documents_count": 5,
+        "updated_at": "2026-03-11T01:23:45Z"
+      }
+    }
+  ]
+}
+```
+
+- response の `projects` は一覧用の `summary` を持つ
+- `summary.labels_count`: project 配下 label の総数
+- `summary.documents_count`: project 配下 document の総数
+- `summary.pending_documents_count`: `document.meta.status != "verified"` の document 総数
+- `summary.updated_at`: 各 document の `meta.updated_at ?? meta.created_at` の最大値。document が 0 件なら `null`
+
 #### Project Settings Save API の派生ルール
 
 ```json

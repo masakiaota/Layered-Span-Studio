@@ -146,17 +146,39 @@ Authorization: Bearer <token>
       "id": "uuid",
       "name": "医療文書NER",
       "description": "医療分野の固有表現抽出",
-      "meta": {}
+      "meta": {},
+      "summary": {
+        "labels_count": 12,
+        "documents_count": 248,
+        "pending_documents_count": 5,
+        "updated_at": "2026-03-11T01:23:45Z"
+      }
     },
     {
       "id": "uuid",
       "name": "法律文書NER",
       "description": "法律文書からの固有表現抽出",
-      "meta": {}
+      "meta": {},
+      "summary": {
+        "labels_count": 8,
+        "documents_count": 90,
+        "pending_documents_count": 0,
+        "updated_at": "2026-03-08T10:00:00Z"
+      }
     }
   ]
 }
 ```
+
+**注記:**
+- `summary.labels_count`: project 配下 label の総数
+- `summary.documents_count`: project 配下 document の総数
+- `summary.pending_documents_count`: `document.meta.status != verified` の document 総数
+- `summary.updated_at`: 各 document の `meta.updated_at ?? meta.created_at` の最大値。document が 0 件なら `null`
+- 一覧順は backend の既定ソートで返る
+  - `pending_documents_count` 降順
+  - `updated_at` 降順
+  - `name` 昇順
 
 ---
 
