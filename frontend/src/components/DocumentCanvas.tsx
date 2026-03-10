@@ -170,6 +170,7 @@ export function DocumentCanvas({
 }) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const textRef = useRef<HTMLDivElement | null>(null);
+  const lastSelectionCommitAtRef = useRef(0);
   const [selection, setSelection] = useState<SelectionDraft | null>(null);
   const [hoveredLaneAnnotationId, setHoveredLaneAnnotationId] = useState<string | null>(null);
   const [laneTooltip, setLaneTooltip] = useState<{ text: string; color: string; top: number; left: number } | null>(
@@ -351,6 +352,8 @@ export function DocumentCanvas({
     });
   };
 
+  const selectionJustCommitted = () => performance.now() - lastSelectionCommitAtRef.current < 180;
+
   const commitSelection = () => {
     const root = textRef.current;
     const selectionObj = window.getSelection();
@@ -379,6 +382,7 @@ export function DocumentCanvas({
       top: rect.bottom + window.scrollY + 8,
       left: rect.left + window.scrollX,
     });
+    lastSelectionCommitAtRef.current = performance.now();
   };
 
   useEffect(() => {
@@ -407,6 +411,9 @@ export function DocumentCanvas({
         <Box
           ref={canvasRef}
           onClick={(event) => {
+            if (selectionJustCommitted()) {
+              return;
+            }
             if (!window.getSelection()?.isCollapsed) {
               return;
             }
@@ -453,6 +460,9 @@ export function DocumentCanvas({
                   data-cover-ann-ids={segment.covers.map((annotation) => annotation.id).join(",")}
                   onClick={(event) => {
                     event.stopPropagation();
+                    if (selectionJustCommitted()) {
+                      return;
+                    }
                     if (!window.getSelection()?.isCollapsed) {
                       return;
                     }
