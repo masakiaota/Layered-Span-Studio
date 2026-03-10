@@ -63,42 +63,40 @@ layered-span-studio/
 │   ├── src/
 │   │   ├── components/      # UIコンポーネント
 │   │   ├── features/        # 機能ごとのモジュール
-│   │   ├── services/        # API通信
 │   │   ├── hooks/           # カスタムフック
-│   │   └── types/           # TypeScript型定義
-│   ├── public/
+│   │   ├── pages/           # 画面単位のコンポーネント
+│   │   ├── api.ts           # API通信
+│   │   ├── types.ts         # TypeScript型定義
+│   │   ├── utils.ts         # 共通ユーティリティ
+│   │   └── App.tsx          # 画面全体のルート構成
+│   ├── index.html
 │   └── package.json
 │
 ├── backend/
 │   ├── src/
-│   │   ├── api/            # APIエンドポイント（ルーティング）
-│   │   │   ├── projects
-│   │   │   ├── documents
-│   │   │   ├── annotations
-│   │   │   └── llm
+│   │   └── layered_span_studio_backend/
+│   │       ├── api/            # APIエンドポイント（ルーティング）
+│   │       │   ├── auth.py
+│   │       │   ├── projects.py
+│   │       │   ├── documents.py
+│   │       │   ├── annotations.py
+│   │       │   ├── annotation_search.py
+│   │       │   ├── labels.py
+│   │       │   └── import_export.py
 │   │   │
-│   │   ├── services/       # ビジネスロジック層
-│   │   │   ├── project_service
-│   │   │   ├── annotation_service
-│   │   │   └── llm_service
+│   │       ├── services/       # ビジネスロジック層
+│   │       │   ├── projects_service.py
+│   │       │   ├── documents_service.py
+│   │       │   ├── annotations_service.py
+│   │       │   ├── labels_service.py
+│   │       │   └── import_export_service.py
 │   │   │
-│   │   ├── repositories/   # データアクセス層
-│   │   │   ├── project_repository
-│   │   │   ├── document_repository
-│   │   │   └── annotation_repository
+│   │       ├── repositories/   # データアクセス層
+│   │       ├── models/         # データモデル定義
+│   │       ├── storage/        # SQLite ベースの永続化実装
+│   │       ├── core/           # 設定・依存解決
+│   │       └── utils/          # ユーティリティ
 │   │   │
-│   │   ├── models/         # データモデル定義
-│   │   │   ├── project
-│   │   │   ├── document
-│   │   │   └── annotation
-│   │   │
-│   │   ├── storage/        # 永続化の実装
-│   │   │   ├── json_storage       # JSONファイル実装
-│   │   │   ├── sqlite_storage     # SQLite実装（オプション）
-│   │   │   └── storage_interface  # 抽象インターフェース
-│   │   │
-│   │   └── utils/          # ユーティリティ
-│   │
 │   ├── data/               # データ保存先（gitignore）
 │   │   └── projects/
 │   │       ├── project-001/
@@ -108,7 +106,7 @@ layered-span-studio/
 │   │       │       └── doc-002.json
 │   │       └── project-002/
 │   │
-│   └── package.json / requirements.txt
+│   └── pyproject.toml
 │
 ├── docs/
 │   ├── requirements.md
