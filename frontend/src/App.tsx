@@ -105,6 +105,22 @@ const EXAMPLES_BATCH_SIZE = 8;
 const DOCUMENT_PAGE_SIZE = 40;
 const DOCUMENT_WINDOW_SIZE = 120;
 const DEFAULT_LABEL_COLOR = "#1a73e8";
+const FLOATING_TOOLTIP_BG = "#646872";
+const floatingTooltipSlotProps = {
+  tooltip: {
+    sx: {
+      bgcolor: FLOATING_TOOLTIP_BG,
+      color: "#fff",
+      border: "1px solid rgba(255,255,255,0.08)",
+      boxShadow: "0 14px 30px rgba(15, 23, 42, 0.18)",
+    },
+  },
+  arrow: {
+    sx: {
+      color: FLOATING_TOOLTIP_BG,
+    },
+  },
+} as const;
 
 function normalizeHexColor(value: string) {
   const trimmed = value.trim();
@@ -196,6 +212,21 @@ function ProjectShell({
   const normalizedLabelColor = normalizeHexColor(labelDraft.color);
   const labelColorValid = isHexColor(labelDraft.color);
   const labelColorPreview = labelColorValid ? normalizedLabelColor : DEFAULT_LABEL_COLOR;
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+
+    return () => {
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+    };
+  }, []);
 
   function toDocumentListItem(document: DocumentRecord): DocumentListItem {
     return {
@@ -1256,7 +1287,15 @@ function ProjectShell({
   const groupedAnnotations = currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : [];
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+    <Box
+      sx={{
+        height: "100vh",
+        bgcolor: "background.default",
+        display: "grid",
+        gridTemplateRows: "auto minmax(0,1fr)",
+        overflow: "hidden",
+      }}
+    >
       <AppBar position="sticky" color="transparent" elevation={0} sx={{ backdropFilter: "blur(10px)", borderBottom: "1px solid #d7e2f0" }}>
         <Toolbar sx={{ gap: 2 }}>
           <Button color="inherit" startIcon={<ArrowBackRoundedIcon />} onClick={() => requestAction({ type: "projects" })}>
@@ -1288,11 +1327,11 @@ function ProjectShell({
       <Box
         sx={{
           p: 2,
-          height: "calc(100vh - 81px)",
           boxSizing: "border-box",
           display: "grid",
           gap: 2,
           overflow: "hidden",
+          minHeight: 0,
           gridTemplateColumns: view === "workspace" ? "320px minmax(540px,1fr) 380px" : "minmax(0,1fr)",
         }}
       >
@@ -1382,12 +1421,10 @@ function ProjectShell({
                   key={document.id}
                   placement="right-start"
                   arrow
+                  slotProps={floatingTooltipSlotProps}
                   title={
                     <Box sx={{ maxWidth: 360, p: 0.5 }}>
                       <Typography variant="subtitle2">{document.document_name}</Typography>
-                      <Typography variant="caption" sx={{ display: "block", color: "rgba(255,255,255,0.72)", mb: 1 }}>
-                        Hover preview
-                      </Typography>
                       <Typography variant="body2" sx={{ lineHeight: 1.7 }}>
                         {getDocumentHoverPreview(document, searchQuery)}
                       </Typography>
@@ -1599,21 +1636,7 @@ function ProjectShell({
                               key={item.surface_text}
                               placement="left-start"
                               arrow
-                              slotProps={{
-                                tooltip: {
-                                  sx: {
-                                    bgcolor: "#646872",
-                                    color: "#fff",
-                                    border: "1px solid rgba(255,255,255,0.08)",
-                                    boxShadow: "0 14px 30px rgba(15, 23, 42, 0.18)",
-                                  },
-                                },
-                                arrow: {
-                                  sx: {
-                                    color: "#646872",
-                                  },
-                                },
-                              }}
+                              slotProps={floatingTooltipSlotProps}
                               onOpen={() =>
                                 void ensureSameLabelDetails(item.surface_text, item.surface_text, item.duplicate_count)
                               }
@@ -1738,21 +1761,7 @@ function ProjectShell({
                               key={item.annotation_id}
                               placement="left-start"
                               arrow
-                              slotProps={{
-                                tooltip: {
-                                  sx: {
-                                    bgcolor: "#646872",
-                                    color: "#fff",
-                                    border: "1px solid rgba(255,255,255,0.08)",
-                                    boxShadow: "0 14px 30px rgba(15, 23, 42, 0.18)",
-                                  },
-                                },
-                                arrow: {
-                                  sx: {
-                                    color: "#646872",
-                                  },
-                                },
-                              }}
+                              slotProps={floatingTooltipSlotProps}
                               title={
                                 <Box sx={{ maxWidth: 460, p: 0.75 }}>
                                   <Typography variant="subtitle2">{item.document_name}</Typography>
@@ -1990,247 +1999,265 @@ function ProjectShell({
             </Paper>
           </>
         ) : (
-          <Paper sx={{ height: "100%", minHeight: 0, p: 3, display: "grid", gap: 3, alignContent: "start", overflow: "auto" }}>
-            <Box>
-              <Typography variant="h5">Project Settings</Typography>
-              <Typography color="text.secondary" sx={{ mt: 1 }}>
-                Label 定義、ガイドライン、Import / Export をここで管理する。
-              </Typography>
-            </Box>
+          <Box sx={{ display: "grid", gap: 2, height: "100%", minHeight: 0, gridTemplateRows: "minmax(0,1fr) auto" }}>
+            <Paper sx={{ height: "100%", minHeight: 0, overflow: "auto" }}>
+              <Box sx={{ p: 3, display: "grid", gap: 3, alignContent: "start" }}>
+                <Box>
+                  <Typography variant="h5">Project Settings</Typography>
+                  <Typography color="text.secondary" sx={{ mt: 1 }}>
+                    Label 定義、ガイドライン、Import / Export をここで管理する。
+                  </Typography>
+                </Box>
 
-            <Paper variant="outlined" sx={{ p: 2.5 }}>
-              <Typography variant="subtitle1">Project</Typography>
-              <Stack spacing={2} sx={{ mt: 2 }}>
-                <TextField
-                  label="Project name"
-                  value={bundle.project.name}
-                  onChange={(event) =>
-                    mutateSettingsBundle((draft) => {
-                      draft.project.name = event.target.value;
-                    })
-                  }
-                />
-                <TextField
-                  label="Description"
-                  multiline
-                  minRows={2}
-                  value={bundle.project.description ?? ""}
-                  onChange={(event) =>
-                    mutateSettingsBundle((draft) => {
-                      draft.project.description = event.target.value;
-                    })
-                  }
-                />
-                <TextField
-                  label="Guideline"
-                  multiline
-                  minRows={4}
-                  value={getProjectGuideline(bundle.project)}
-                  onChange={(event) =>
-                    mutateSettingsBundle((draft) => {
-                      setProjectGuideline(draft.project, event.target.value);
-                    })
-                  }
-                />
-              </Stack>
-            </Paper>
-
-            <Paper variant="outlined" sx={{ p: 2.5 }}>
-              <Typography variant="subtitle1">Labels</Typography>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 2, alignItems: "flex-start" }}>
-                <Stack spacing={1.5} sx={{ minWidth: 320, flex: 1 }}>
-                  <TextField label="Name" value={labelDraft.name} onChange={(event) => setLabelDraft((current) => ({ ...current, name: event.target.value }))} />
-                  <TextField
-                    label="Color: 16進カラーコード"
-                    value={labelDraft.color}
-                    onChange={(event) => setLabelDraft((current) => ({ ...current, color: event.target.value }))}
-                    onBlur={() =>
-                      setLabelDraft((current) => {
-                        const nextColor = normalizeHexColor(current.color);
-                        return nextColor === current.color ? current : { ...current, color: nextColor };
-                      })
-                    }
-                    error={labelDraft.color.trim().length > 0 && !labelColorValid}
-                    helperText={labelDraft.color.trim().length > 0 && !labelColorValid ? "Color は #RRGGBB 形式で入力する" : undefined}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 0.2 }}>
-                              色見本
-                            </Typography>
-                            <Box
-                              aria-label="Selected color preview"
-                              sx={{
-                                width: 28,
-                                height: 28,
-                                borderRadius: 1.2,
-                                bgcolor: labelColorPreview,
-                                border: `1px solid ${alpha("#16324f", 0.16)}`,
-                                boxShadow: `inset 0 0 0 1px ${alpha("#ffffff", 0.35)}`,
-                              }}
-                            />
-                          </Stack>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
-                    <Button
-                      variant="outlined"
-                      startIcon={<PaletteRoundedIcon />}
-                      onClick={() => labelColorInputRef.current?.click()}
-                      sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}
-                    >
-                      色を選ぶ
-                    </Button>
-                    <Typography variant="caption" color="text.secondary" sx={{ minHeight: 20, display: "flex", alignItems: "center" }}>
-                      {labelColorValid ? `現在の色: ${normalizedLabelColor}` : "有効なカラーコードを入力すると色見本に反映される"}
-                    </Typography>
-                    <Box
-                      component="input"
-                      ref={labelColorInputRef}
-                      type="color"
-                      aria-label="Pick label color"
-                      value={labelColorPreview}
-                      onChange={(event) => setLabelDraft((current) => ({ ...current, color: event.target.value }))}
-                      sx={{
-                        position: "absolute",
-                        width: 1,
-                        height: 1,
-                        p: 0,
-                        m: -1,
-                        overflow: "hidden",
-                        clip: "rect(0 0 0 0)",
-                        whiteSpace: "nowrap",
-                        border: 0,
-                      }}
-                    />
-                  </Stack>
-                  <TextField label="Description" multiline minRows={3} value={labelDraft.description} onChange={(event) => setLabelDraft((current) => ({ ...current, description: event.target.value }))} />
-                  <Stack direction="row" spacing={1}>
-                    <Button
-                      variant="contained"
-                      startIcon={<AddRoundedIcon />}
-                      onClick={() => {
-                        if (!labelDraft.name.trim() || !bundle) {
-                          return;
-                        }
-                        if (!labelColorValid) {
-                          showToast("Color は #RRGGBB 形式で入力する", "warning");
-                          return;
-                        }
-                        const existing = bundle.labels.find((label) => label.name === labelDraft.name.trim());
-                        const editingLabel = bundle.labels.find((label) => label.id === labelDraft.id);
-                        if (existing && !labelDraft.id) {
-                          showToast("同名 label は追加できない", "warning");
-                          return;
-                        }
+                <Paper variant="outlined" sx={{ p: 2.5 }}>
+                  <Typography variant="subtitle1">Project</Typography>
+                  <Stack spacing={2} sx={{ mt: 2 }}>
+                    <TextField
+                      label="Project name"
+                      value={bundle.project.name}
+                      onChange={(event) =>
                         mutateSettingsBundle((draft) => {
-                          const nextLabel: LabelRecord = {
-                            id: labelDraft.id || makeLocalId("label"),
-                            project_id: draft.project.id,
-                            project_name: draft.project.name,
-                            name: labelDraft.name.trim(),
-                            color: normalizedLabelColor,
-                            description: labelDraft.description,
-                            shortcut: editingLabel?.shortcut ?? null,
-                            meta: {},
-                          };
-                          const index = draft.labels.findIndex((label) => label.id === nextLabel.id);
-                          if (index >= 0) {
-                            draft.labels[index] = nextLabel;
-                          } else {
-                            draft.labels.push(nextLabel);
-                          }
-                        });
-                        setLabelDraft({ id: "", name: "", color: DEFAULT_LABEL_COLOR, description: "" });
-                      }}
-                      disabled={!labelDraft.name.trim() || !labelColorValid}
-                    >
-                      {labelDraft.id ? "Update label" : "Add label"}
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      onClick={() => setLabelDraft({ id: "", name: "", color: DEFAULT_LABEL_COLOR, description: "" })}
-                    >
-                      Clear
-                    </Button>
-                  </Stack>
-                </Stack>
-                <List sx={{ flex: 1, width: "100%", border: "1px solid #d7e2f0", borderRadius: 3, bgcolor: "#fff" }}>
-                  {bundle.labels.map((label) => (
-                    <ListItemButton
-                      key={label.id}
-                      onClick={() =>
-                        setLabelDraft({
-                          id: label.id,
-                          name: label.name,
-                          color: label.color,
-                          description: label.description,
+                          draft.project.name = event.target.value;
                         })
                       }
-                    >
-                      <ListItemText
-                        primary={
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: label.color }} />
-                            <Typography variant="subtitle2">{label.name}</Typography>
-                          </Stack>
+                    />
+                    <TextField
+                      label="Description"
+                      multiline
+                      minRows={2}
+                      value={bundle.project.description ?? ""}
+                      onChange={(event) =>
+                        mutateSettingsBundle((draft) => {
+                          draft.project.description = event.target.value;
+                        })
+                      }
+                    />
+                    <TextField
+                      label="Guideline"
+                      multiline
+                      minRows={4}
+                      value={getProjectGuideline(bundle.project)}
+                      onChange={(event) =>
+                        mutateSettingsBundle((draft) => {
+                          setProjectGuideline(draft.project, event.target.value);
+                        })
+                      }
+                    />
+                  </Stack>
+                </Paper>
+
+                <Paper variant="outlined" sx={{ p: 2.5 }}>
+                  <Typography variant="subtitle1">Labels</Typography>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 2, alignItems: "flex-start" }}>
+                    <Stack spacing={1.5} sx={{ minWidth: 320, flex: 1 }}>
+                      <TextField label="Name" value={labelDraft.name} onChange={(event) => setLabelDraft((current) => ({ ...current, name: event.target.value }))} />
+                      <TextField
+                        label="Color: 16進カラーコード"
+                        value={labelDraft.color}
+                        onChange={(event) => setLabelDraft((current) => ({ ...current, color: event.target.value }))}
+                        onBlur={() =>
+                          setLabelDraft((current) => {
+                            const nextColor = normalizeHexColor(current.color);
+                            return nextColor === current.color ? current : { ...current, color: nextColor };
+                          })
                         }
-                        secondary={label.description}
-                      />
-                      <IconButton
-                        edge="end"
-                        color="error"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          mutateSettingsBundle((draft) => {
-                            draft.labels = draft.labels.filter((item) => item.id !== label.id);
-                          });
-                          if (focusedLabelId === label.id) {
-                            setFocusedLabelId(bundle.labels.find((item) => item.id !== label.id)?.id ?? null);
-                          }
+                        error={labelDraft.color.trim().length > 0 && !labelColorValid}
+                        helperText={labelDraft.color.trim().length > 0 && !labelColorValid ? "Color は #RRGGBB 形式で入力する" : undefined}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 0.2 }}>
+                                  色見本
+                                </Typography>
+                                <Box
+                                  aria-label="Selected color preview"
+                                  sx={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: 1.2,
+                                    bgcolor: labelColorPreview,
+                                    border: `1px solid ${alpha("#16324f", 0.16)}`,
+                                    boxShadow: `inset 0 0 0 1px ${alpha("#ffffff", 0.35)}`,
+                                  }}
+                                />
+                              </Stack>
+                            </InputAdornment>
+                          ),
                         }}
-                      >
-                        <DeleteOutlineRoundedIcon />
-                      </IconButton>
-                    </ListItemButton>
-                  ))}
-                </List>
-              </Stack>
+                      />
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
+                        <Button
+                          variant="outlined"
+                          startIcon={<PaletteRoundedIcon />}
+                          onClick={() => labelColorInputRef.current?.click()}
+                          sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}
+                        >
+                          色を選ぶ
+                        </Button>
+                        <Typography variant="caption" color="text.secondary" sx={{ minHeight: 20, display: "flex", alignItems: "center" }}>
+                          {labelColorValid ? `現在の色: ${normalizedLabelColor}` : "有効なカラーコードを入力すると色見本に反映される"}
+                        </Typography>
+                        <Box
+                          component="input"
+                          ref={labelColorInputRef}
+                          type="color"
+                          aria-label="Pick label color"
+                          value={labelColorPreview}
+                          onChange={(event) => setLabelDraft((current) => ({ ...current, color: event.target.value }))}
+                          sx={{
+                            position: "absolute",
+                            width: 1,
+                            height: 1,
+                            p: 0,
+                            m: -1,
+                            overflow: "hidden",
+                            clip: "rect(0 0 0 0)",
+                            whiteSpace: "nowrap",
+                            border: 0,
+                          }}
+                        />
+                      </Stack>
+                      <TextField label="Description" multiline minRows={3} value={labelDraft.description} onChange={(event) => setLabelDraft((current) => ({ ...current, description: event.target.value }))} />
+                      <Stack direction="row" spacing={1}>
+                        <Button
+                          variant="contained"
+                          startIcon={<AddRoundedIcon />}
+                          onClick={() => {
+                            if (!labelDraft.name.trim() || !bundle) {
+                              return;
+                            }
+                            if (!labelColorValid) {
+                              showToast("Color は #RRGGBB 形式で入力する", "warning");
+                              return;
+                            }
+                            const existing = bundle.labels.find((label) => label.name === labelDraft.name.trim());
+                            const editingLabel = bundle.labels.find((label) => label.id === labelDraft.id);
+                            if (existing && !labelDraft.id) {
+                              showToast("同名 label は追加できない", "warning");
+                              return;
+                            }
+                            mutateSettingsBundle((draft) => {
+                              const nextLabel: LabelRecord = {
+                                id: labelDraft.id || makeLocalId("label"),
+                                project_id: draft.project.id,
+                                project_name: draft.project.name,
+                                name: labelDraft.name.trim(),
+                                color: normalizedLabelColor,
+                                description: labelDraft.description,
+                                shortcut: editingLabel?.shortcut ?? null,
+                                meta: {},
+                              };
+                              const index = draft.labels.findIndex((label) => label.id === nextLabel.id);
+                              if (index >= 0) {
+                                draft.labels[index] = nextLabel;
+                              } else {
+                                draft.labels.push(nextLabel);
+                              }
+                            });
+                            setLabelDraft({ id: "", name: "", color: DEFAULT_LABEL_COLOR, description: "" });
+                          }}
+                          disabled={!labelDraft.name.trim() || !labelColorValid}
+                        >
+                          {labelDraft.id ? "Update label" : "Add label"}
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          onClick={() => setLabelDraft({ id: "", name: "", color: DEFAULT_LABEL_COLOR, description: "" })}
+                        >
+                          Clear
+                        </Button>
+                      </Stack>
+                    </Stack>
+                    <List sx={{ flex: 1, width: "100%", border: "1px solid #d7e2f0", borderRadius: 3, bgcolor: "#fff" }}>
+                      {bundle.labels.map((label) => (
+                        <ListItemButton
+                          key={label.id}
+                          onClick={() =>
+                            setLabelDraft({
+                              id: label.id,
+                              name: label.name,
+                              color: label.color,
+                              description: label.description,
+                            })
+                          }
+                        >
+                          <ListItemText
+                            primary={
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: label.color }} />
+                                <Typography variant="subtitle2">{label.name}</Typography>
+                              </Stack>
+                            }
+                            secondary={label.description}
+                          />
+                          <IconButton
+                            edge="end"
+                            color="error"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              mutateSettingsBundle((draft) => {
+                                draft.labels = draft.labels.filter((item) => item.id !== label.id);
+                              });
+                              if (focusedLabelId === label.id) {
+                                setFocusedLabelId(bundle.labels.find((item) => item.id !== label.id)?.id ?? null);
+                              }
+                            }}
+                          >
+                            <DeleteOutlineRoundedIcon />
+                          </IconButton>
+                        </ListItemButton>
+                      ))}
+                    </List>
+                  </Stack>
+                </Paper>
+
+                <Paper variant="outlined" sx={{ p: 2.5 }}>
+                  <Typography variant="subtitle1">Import / Export</Typography>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 2 }}>
+                    <Stack spacing={1.5} sx={{ flex: 1 }}>
+                      <Typography variant="subtitle2">現在 project への追記 import</Typography>
+                      <Button component="label" variant="outlined" startIcon={<UploadFileRoundedIcon />}>
+                        {settingsImportFile?.name ?? "Select JSON"}
+                        <input hidden type="file" accept=".json,application/json" onChange={(event) => setSettingsImportFile(event.target.files?.[0] ?? null)} />
+                      </Button>
+                      <Button variant="contained" onClick={() => void handleSettingsImport()} disabled={!settingsImportFile}>
+                        Import
+                      </Button>
+                    </Stack>
+                    <Stack spacing={1.5} sx={{ flex: 1 }}>
+                      <Typography variant="subtitle2">Export</Typography>
+                      <FormControlLabel control={<Switch checked={exportPending} onChange={(event) => setExportPending(event.target.checked)} />} label="Include pending" />
+                      <FormControlLabel control={<Switch checked={exportVerified} onChange={(event) => setExportVerified(event.target.checked)} />} label="Include verified" />
+                      <Button variant="outlined" startIcon={<DownloadRoundedIcon />} onClick={() => void handleExport()}>
+                        Export JSON
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </Paper>
+              </Box>
             </Paper>
 
-            <Paper variant="outlined" sx={{ p: 2.5 }}>
-              <Typography variant="subtitle1">Import / Export</Typography>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 2 }}>
-                <Stack spacing={1.5} sx={{ flex: 1 }}>
-                  <Typography variant="subtitle2">現在 project への追記 import</Typography>
-                  <Button component="label" variant="outlined" startIcon={<UploadFileRoundedIcon />}>
-                    {settingsImportFile?.name ?? "Select JSON"}
-                    <input hidden type="file" accept=".json,application/json" onChange={(event) => setSettingsImportFile(event.target.files?.[0] ?? null)} />
-                  </Button>
-                  <Button variant="contained" onClick={() => void handleSettingsImport()} disabled={!settingsImportFile}>
-                    Import
-                  </Button>
-                </Stack>
-                <Stack spacing={1.5} sx={{ flex: 1 }}>
-                  <Typography variant="subtitle2">Export</Typography>
-                  <FormControlLabel control={<Switch checked={exportPending} onChange={(event) => setExportPending(event.target.checked)} />} label="Include pending" />
-                  <FormControlLabel control={<Switch checked={exportVerified} onChange={(event) => setExportVerified(event.target.checked)} />} label="Include verified" />
-                  <Button variant="outlined" startIcon={<DownloadRoundedIcon />} onClick={() => void handleExport()}>
-                    Export JSON
-                  </Button>
-                </Stack>
-              </Stack>
-            </Paper>
-
-            <Stack direction="row" justifyContent="flex-end" spacing={1.5}>
-              <Button variant="outlined" startIcon={<SaveRoundedIcon />} onClick={() => void handleSave()} disabled={!dirty || saving}>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{
+                ml: "auto",
+                alignItems: "center",
+                pb: 1,
+              }}
+            >
+              <Button
+                variant="contained"
+                endIcon={<SaveRoundedIcon />}
+                onClick={() => void handleSave()}
+                disabled={!dirty || saving}
+                sx={{ minWidth: 148, minHeight: 40, px: 2.5, borderRadius: 1.5 }}
+              >
                 Save changes
               </Button>
             </Stack>
-          </Paper>
+          </Box>
         )}
       </Box>
 
