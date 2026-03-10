@@ -1035,28 +1035,51 @@ function ProjectShell({
                       <Stack spacing={1.25} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
                         {sameLabelExamples.map(({ document, annotation, duplicateCount, duplicates }) => {
                           const snippet = contextSnippet(document.text, annotation.start, annotation.end);
+                          const emphasisColor =
+                            bundle.labels.find((label) => label.id === annotation.label_id)?.color ??
+                            focusedLabel?.color ??
+                            "#1a73e8";
                           return (
                             <Tooltip
                               key={annotation.id}
                               placement="left-start"
                               arrow
+                              slotProps={{
+                                tooltip: {
+                                  sx: {
+                                    bgcolor: "#646872",
+                                    color: "#fff",
+                                    border: "1px solid rgba(255,255,255,0.08)",
+                                    boxShadow: "0 14px 30px rgba(15, 23, 42, 0.18)",
+                                  },
+                                },
+                                arrow: {
+                                  sx: {
+                                    color: "#646872",
+                                  },
+                                },
+                              }}
                               title={
-                                <Box sx={{ maxWidth: 360, p: 0.5 }}>
+                                <Box sx={{ maxWidth: 460, p: 0.75 }}>
                                   <Typography variant="subtitle2">
                                     {annotation.span_text} / {duplicateCount}件の事例
                                   </Typography>
-                                  <Stack spacing={1} sx={{ mt: 1 }}>
+                                  <Stack spacing={1.25} sx={{ mt: 1.25 }}>
                                     {duplicates.map((item) => (
                                       <Box key={item.annotation.id}>
                                         <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.72)" }}>
                                           {item.document.document_name}
                                         </Typography>
-                                        <Typography variant="body2" sx={{ lineHeight: 1.7 }}>
-                                          {contextSnippet(item.document.text, item.annotation.start, item.annotation.end, 42).before}
+                                        <Typography variant="body2" sx={{ lineHeight: 1.9, mt: 0.35 }}>
+                                          <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                            {contextSnippet(item.document.text, item.annotation.start, item.annotation.end, 42).before}
+                                          </Box>
                                           <Box component="span" sx={{ fontWeight: 700 }}>
                                             {item.annotation.span_text}
                                           </Box>
-                                          {contextSnippet(item.document.text, item.annotation.start, item.annotation.end, 42).after}
+                                          <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                            {contextSnippet(item.document.text, item.annotation.start, item.annotation.end, 42).after}
+                                          </Box>
                                         </Typography>
                                       </Box>
                                     ))}
@@ -1078,13 +1101,22 @@ function ProjectShell({
                                   {annotation.span_text} / {duplicateCount}件の事例
                                 </Typography>
                                 <Typography variant="body2" sx={{ mt: 1 }}>
-                                  <Box component="span" color="text.disabled">
+                                  <Box component="span" sx={{ color: "text.secondary" }}>
                                     {snippet.before}
                                   </Box>
-                                  <Box component="span" sx={{ fontWeight: 700 }}>
+                                  <Box
+                                    component="span"
+                                    sx={{
+                                      fontWeight: 700,
+                                      px: 0.15,
+                                      py: 0.04,
+                                      borderRadius: 0.75,
+                                      bgcolor: alpha(emphasisColor, 0.18),
+                                    }}
+                                  >
                                     {snippet.focus}
                                   </Box>
-                                  <Box component="span" color="text.disabled">
+                                  <Box component="span" sx={{ color: "text.secondary" }}>
                                     {snippet.after}
                                   </Box>
                                 </Typography>
@@ -1116,15 +1148,34 @@ function ProjectShell({
                                 key={annotation.id}
                                 placement="left-start"
                                 arrow
+                                slotProps={{
+                                  tooltip: {
+                                    sx: {
+                                      bgcolor: "#646872",
+                                      color: "#fff",
+                                      border: "1px solid rgba(255,255,255,0.08)",
+                                      boxShadow: "0 14px 30px rgba(15, 23, 42, 0.18)",
+                                    },
+                                  },
+                                  arrow: {
+                                    sx: {
+                                      color: "#646872",
+                                    },
+                                  },
+                                }}
                                 title={
-                                  <Box sx={{ maxWidth: 360, p: 0.5 }}>
+                                  <Box sx={{ maxWidth: 460, p: 0.75 }}>
                                     <Typography variant="subtitle2">{document.document_name}</Typography>
-                                    <Typography variant="body2" sx={{ mt: 1, lineHeight: 1.7 }}>
-                                      {contextSnippet(document.text, annotation.start, annotation.end, 42).before}
+                                    <Typography variant="body2" sx={{ mt: 1, lineHeight: 1.9 }}>
+                                      <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                        {contextSnippet(document.text, annotation.start, annotation.end, 42).before}
+                                      </Box>
                                       <Box component="span" sx={{ fontWeight: 700 }}>
                                         {annotation.span_text}
                                       </Box>
-                                      {contextSnippet(document.text, annotation.start, annotation.end, 42).after}
+                                      <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                        {contextSnippet(document.text, annotation.start, annotation.end, 42).after}
+                                      </Box>
                                     </Typography>
                                   </Box>
                                 }
@@ -1144,13 +1195,13 @@ function ProjectShell({
                                     />
                                   </Stack>
                                   <Typography variant="body2" sx={{ mt: 1 }}>
-                                    <Box component="span" color="text.disabled">
+                                    <Box component="span" sx={{ color: "text.secondary" }}>
                                       {snippet.before}
                                     </Box>
                                     <Box component="span" sx={{ fontWeight: 700 }}>
                                       {snippet.focus}
                                     </Box>
-                                    <Box component="span" color="text.disabled">
+                                    <Box component="span" sx={{ color: "text.secondary" }}>
                                       {snippet.after}
                                     </Box>
                                   </Typography>
