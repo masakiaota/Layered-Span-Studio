@@ -3,7 +3,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from layered_span_studio_backend.core.dependencies import get_current_user, get_settings
-from layered_span_studio_backend.models.projects import ProjectCreate, ProjectListResponse, ProjectOut, ProjectUpdate
+from layered_span_studio_backend.models.projects import (
+    ProjectCreate,
+    ProjectListResponse,
+    ProjectOut,
+    ProjectSettingsPut,
+    ProjectUpdate,
+)
 from layered_span_studio_backend.services import projects_service
 
 router = APIRouter(prefix="/projects", tags=["projects"], dependencies=[Depends(get_current_user)])
@@ -35,6 +41,23 @@ def get_project(project_id: str, settings=Depends(get_settings)):
 def update_project(project_id: str, payload: ProjectUpdate, settings=Depends(get_settings)):
     try:
         project = projects_service.update_project(settings, project_id, payload.name, payload.description, payload.meta)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    return project
+
+
+@router.put("/{project_id}/settings", response_model=ProjectOut)
+def put_project_settings(project_id: str, payload: ProjectSettingsPut, settings=Depends(get_settings)):
+    try:
+        project = projects_service.update_project(
+            settings,
+            project_id,
+            payload.name,
+            payload.description,
+            payload.meta,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     if not project:

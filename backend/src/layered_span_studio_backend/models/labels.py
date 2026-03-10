@@ -43,6 +43,26 @@ class LabelUpdate(APIModel):
         return value
 
 
+class LabelSyncItemIn(APIModel):
+    id: Optional[str] = None
+    name: str = Field(..., min_length=1)
+    color: str
+    description: str
+    shortcut: Optional[str] = None
+    meta: Meta = None
+
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, value: str) -> str:
+        if not HEX_COLOR_RE.match(value):
+            raise ValueError("color must be a 6-digit hex value")
+        return value
+
+
+class LabelSyncIn(APIModel):
+    labels: list[LabelSyncItemIn]
+
+
 class LabelOut(APIModel):
     id: str
     project_id: str

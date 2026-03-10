@@ -64,6 +64,171 @@ def test_label_color_validation(client: TestClient, auth_headers: dict[str, str]
     assert response.status_code == 422
 
 
+def test_labels_put_syncs_create_update_delete(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+    first = client.post(
+        f"/projects/{project_id}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    second = client.post(
+        f"/projects/{project_id}/labels",
+        json={"name": "Label2", "color": "#33AA44", "description": "desc", "shortcut": "b", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "labels": [
+                {
+                    "id": first["id"],
+                    "name": "Label1Updated",
+                    "color": "#FF6644",
+                    "description": "updated",
+                    "shortcut": "x",
+                    "meta": {"note": "changed"},
+                },
+                {
+                    "id": None,
+                    "name": "Label3",
+                    "color": "#1133AA",
+                    "description": "new",
+                    "shortcut": None,
+                    "meta": {},
+                },
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()["labels"]
+    assert len(payload) == 2
+    assert {label["name"] for label in payload} == {"Label1Updated", "Label3"}
+    assert all(label["id"] != second["id"] for label in payload)
+
+
+def test_labels_put_rejects_duplicate_name_in_payload(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "labels": [
+                {"id": None, "name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": None, "meta": {}},
+                {"id": None, "name": "Label1", "color": "#33AA44", "description": "desc", "shortcut": None, "meta": {}},
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+
+
+def test_labels_put_rejects_duplicate_id_in_payload(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+    first = client.post(
+        f"/projects/{project_id}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "labels": [
+                {"id": first["id"], "name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
+                {"id": first["id"], "name": "Label2", "color": "#33AA44", "description": "desc", "shortcut": "b", "meta": {}},
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+
+
+def test_labels_put_unknown_id_returns_404(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "labels": [
+                {
+                    "id": "00000000-0000-0000-0000-000000000000",
+                    "name": "Label1",
+                    "color": "#FF5733",
+                    "description": "desc",
+                    "shortcut": None,
+                    "meta": {},
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+
+
+def test_labels_put_delete_cascades_annotations(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+    label = client.post(
+        f"/projects/{project_id}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    document = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Doc1", "text": "Hello world", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    client.post(
+        f"/projects/{project_id}/documents/{document['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 0,
+            "end": 5,
+            "span_text": "Hello",
+            "comment": "",
+            "status": "pending",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={"labels": []},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+    document_detail = client.get(
+        f"/projects/{project_id}/documents/{document['id']}",
+        headers=auth_headers,
+    )
+    assert document_detail.status_code == 200
+    assert document_detail.json()["annotations"] == []
+
+
+def test_labels_put_response_uses_latest_project_name(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+    client.put(
+        f"/projects/{project_id}/settings",
+        json={"name": "Project Renamed", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    )
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "labels": [
+                {"id": None, "name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": None, "meta": {}}
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["labels"][0]["project_name"] == "Project Renamed"
+
+
 def _setup_examples_fixture(client: TestClient, auth_headers: dict[str, str]) -> dict[str, Any]:
     project = client.post(
         "/projects",

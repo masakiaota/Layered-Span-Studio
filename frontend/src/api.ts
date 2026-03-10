@@ -94,8 +94,43 @@ export class ApiClient {
     return parseResponse<ProjectRecord>(response);
   }
 
+  async saveProjectSettings(token: string, project: ProjectRecord) {
+    const response = await fetch(`${this.baseUrl}/projects/${project.id}/settings`, {
+      method: "PUT",
+      headers: headers(token, "application/json"),
+      body: JSON.stringify({
+        name: project.name,
+        description: project.description ?? "",
+        meta: toJsonObject(project.meta),
+      }),
+    });
+    return parseResponse<ProjectRecord>(response);
+  }
+
   async listLabels(token: string, projectId: string) {
     const response = await fetch(`${this.baseUrl}/projects/${projectId}/labels`, { headers: headers(token) });
+    return parseResponse<{ labels: LabelRecord[] }>(response);
+  }
+
+  async saveProjectLabels(
+    token: string,
+    projectId: string,
+    labels: Array<
+      Pick<LabelRecord, "name" | "color" | "description" | "shortcut" | "meta"> & {
+        id: string | null;
+      }
+    >,
+  ) {
+    const response = await fetch(`${this.baseUrl}/projects/${projectId}/labels`, {
+      method: "PUT",
+      headers: headers(token, "application/json"),
+      body: JSON.stringify({
+        labels: labels.map((label) => ({
+          ...label,
+          meta: toJsonObject(label.meta),
+        })),
+      }),
+    });
     return parseResponse<{ labels: LabelRecord[] }>(response);
   }
 

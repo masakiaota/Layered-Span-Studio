@@ -19,6 +19,12 @@ class ProjectUpdate(APIModel):
     meta: Meta = None
 
 
+class ProjectSettingsPut(APIModel):
+    name: str = Field(..., min_length=1)
+    description: Optional[str] = None
+    meta: Meta = None
+
+
 class ProjectOut(APIModel):
     id: str
     name: str

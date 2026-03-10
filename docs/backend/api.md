@@ -25,12 +25,14 @@
 - `GET /projects` - プロジェクト一覧を取得
 - `POST /projects` - プロジェクトを作成
 - `GET /projects/{project_id}` - プロジェクト詳細を取得
+- `PUT /projects/{project_id}/settings` - プロジェクト settings を上書き保存
 - `PATCH /projects/{project_id}` - プロジェクトを更新（主に `name` / `description` / `meta`）
 - `DELETE /projects/{project_id}` - プロジェクトを削除（配下も連動削除）
 
 ### Labels
 
 - `GET /projects/{project_id}/labels` - ラベル一覧を取得
+- `PUT /projects/{project_id}/labels` - ラベル一覧を上書き保存
 - `POST /projects/{project_id}/labels` - ラベルを作成
 - `GET /projects/{project_id}/labels/{label_id}` - ラベル詳細を取得
 - `GET /projects/{project_id}/labels/{label_id}/examples` - ラベルの使用例をドキュメント横断で取得
@@ -254,6 +256,44 @@ Authorization: Bearer <token>
 
 ---
 
+### PUT /projects/{project_id}/settings
+
+settings 画面の project フォームを現在値で上書き保存する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "name": "医療文書NER v2",
+  "description": "医療分野の固有表現抽出（改訂版）",
+  "meta": {
+    "guideline": "共通ガイドライン"
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "name": "医療文書NER v2",
+  "description": "医療分野の固有表現抽出（改訂版）",
+  "meta": {
+    "guideline": "共通ガイドライン"
+  }
+}
+```
+
+**注記:**
+- `name` は必須
+- `PATCH /projects/{project_id}` は残るが、settings 画面からはこの API を想定する
+
+---
+
 ### DELETE /projects/{project_id}
 
 プロジェクトを削除する。関連する全てのラベル、ドキュメント、アノテーションも削除される。
@@ -312,6 +352,75 @@ Authorization: Bearer <token>
   ]
 }
 ```
+
+---
+
+### PUT /projects/{project_id}/labels
+
+project 配下の label 一覧を現在値で上書き保存する。request の `labels` は最終状態全件を表す。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "labels": [
+    {
+      "id": "uuid",
+      "name": "疾患名",
+      "color": "#FF6644",
+      "description": "更新後の説明",
+      "shortcut": "d",
+      "meta": {}
+    },
+    {
+      "id": null,
+      "name": "薬剤名",
+      "color": "#33FF57",
+      "description": "薬品や医薬品の名前",
+      "shortcut": "m",
+      "meta": {}
+    }
+  ]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "labels": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "name": "疾患名",
+      "color": "#FF6644",
+      "description": "更新後の説明",
+      "shortcut": "d",
+      "meta": {}
+    },
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "name": "薬剤名",
+      "color": "#33FF57",
+      "description": "薬品や医薬品の名前",
+      "shortcut": "m",
+      "meta": {}
+    }
+  ]
+}
+```
+
+**注記:**
+- `id = null` は新規 label 作成
+- request に含まれない既存 label は削除
+- payload 内 duplicate name / duplicate id は `400`
+- unknown id は `404`
 
 ---
 

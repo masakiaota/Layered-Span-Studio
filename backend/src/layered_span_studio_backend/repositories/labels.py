@@ -200,6 +200,69 @@ def delete_label(settings: Settings, project_id: str, label_id: str) -> bool:
     return result.rowcount > 0
 
 
+def save_labels(settings: Settings, project_id: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+
+    with engine.begin() as conn:
+        rows = conn.execute(
+            select(labels_table).where(labels_table.c.project_id == project_id)
+        ).mappings().all()
+        existing_by_id = {
+            row["id"]: {
+                "id": row["id"],
+                "name": row["name"],
+                "color": row["color"],
+                "description": row["description"],
+                "shortcut": row["shortcut"],
+                "meta": decode_meta(row["meta"]),
+            }
+            for row in rows
+        }
+
+        requested_ids = {item["id"] for item in items if item.get("id")}
+        unknown_ids = requested_ids - set(existing_by_id)
+        if unknown_ids:
+            raise ValueError("Label not found")
+
+        omitted_ids = set(existing_by_id) - requested_ids
+        if omitted_ids:
+            conn.execute(labels_table.delete().where(labels_table.c.id.in_(sorted(omitted_ids))))
+
+        for item in items:
+            label_id = item.get("id")
+            if label_id:
+                conn.execute(
+                    labels_table.update()
+                    .where(
+                        labels_table.c.project_id == project_id,
+                        labels_table.c.id == label_id,
+                    )
+                    .values(
+                        name=item["name"],
+                        color=item["color"],
+                        description=item["description"],
+                        shortcut=item.get("shortcut"),
+                        meta=encode_meta(item.get("meta")),
+                    )
+                )
+                continue
+
+            conn.execute(
+                labels_table.insert().values(
+                    id=str(uuid.uuid4()),
+                    project_id=project_id,
+                    name=item["name"],
+                    color=item["color"],
+                    description=item["description"],
+                    shortcut=item.get("shortcut"),
+                    meta=encode_meta(item.get("meta")),
+                )
+            )
+
+    return list_labels(settings, project_id)
+
+
 def list_label_examples(
     settings: Settings, project_id: str, label_id: str, statuses: List[str]
 ) -> List[Dict[str, Any]]:

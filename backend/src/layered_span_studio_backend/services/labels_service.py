@@ -63,6 +63,29 @@ def delete_label(settings: Settings, project_id: str, label_id: str) -> bool:
     return labels_repo.delete_label(settings, project_id, label_id)
 
 
+def save_labels(
+    settings: Settings,
+    project_id: str,
+    items: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    _ensure_project(settings, project_id)
+
+    seen_ids: set[str] = set()
+    seen_names: set[str] = set()
+    for item in items:
+        label_id = item.get("id")
+        if label_id:
+            if label_id in seen_ids:
+                raise ValueError("Duplicate label id in payload")
+            seen_ids.add(label_id)
+        name = item["name"]
+        if name in seen_names:
+            raise ValueError("Duplicate label name in payload")
+        seen_names.add(name)
+
+    return labels_repo.save_labels(settings, project_id, items)
+
+
 def list_label_examples(
     settings: Settings,
     project_id: str,

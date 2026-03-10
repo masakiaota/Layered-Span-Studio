@@ -103,6 +103,23 @@ const TOKEN_KEY = "layered-span-studio/token";
 const EXAMPLES_BATCH_SIZE = 8;
 const DOCUMENT_PAGE_SIZE = 40;
 const DOCUMENT_WINDOW_SIZE = 120;
+const DEFAULT_LABEL_COLOR = "#1a73e8";
+const HEX_COLOR_PATTERN = /^#?[0-9a-fA-F]{6}$/;
+
+function normalizeHexColor(value: string) {
+  const trimmed = value.trim();
+  if (/^[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return `#${trimmed}`.toLowerCase();
+  }
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  return value;
+}
+
+function isHexColor(value: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(normalizeHexColor(value));
+}
 
 function ProjectShell({
   token,
@@ -145,7 +162,7 @@ function ProjectShell({
   const [labelDraft, setLabelDraft] = useState({
     id: "",
     name: "",
-    color: "#1a73e8",
+    color: DEFAULT_LABEL_COLOR,
     description: "",
   });
   const [settingsImportFile, setSettingsImportFile] = useState<File | null>(null);
@@ -175,6 +192,9 @@ function ProjectShell({
   const [shortcutPanelOffset, setShortcutPanelOffset] = useState({ x: 0, y: 0 });
   const [shortcutDragging, setShortcutDragging] = useState(false);
   const initialDocumentListLoadedRef = useRef(false);
+  const normalizedLabelColor = normalizeHexColor(labelDraft.color);
+  const labelColorValid = isHexColor(labelDraft.color);
+  const labelColorPreview = labelColorValid ? normalizedLabelColor : DEFAULT_LABEL_COLOR;
 
   function toDocumentListItem(document: DocumentRecord): DocumentListItem {
     return {
@@ -837,50 +857,107 @@ function ProjectShell({
     }
     setSaving(true);
     try {
-      const saved = await api.saveProjectBundle(
-        token,
-        {
-          project: deepClone(settingsSnapshot.project),
-          labels: deepClone(settingsSnapshot.labels),
-          documents: deepClone(bundle.documents),
-        },
-        bundle,
-      );
-      const refreshedCurrentDocument = selectedDocId
-        ? await api.getDocument(token, bundle.project.id, selectedDocId).catch(() => null)
-        : null;
-      setBundle((current) =>
-        current
-          ? {
-              ...current,
-              project: saved.project,
-              labels: saved.labels,
-              documents: refreshedCurrentDocument ? [refreshedCurrentDocument] : current.documents,
-            }
-          : current,
-      );
-      setSettingsSnapshot({
-        project: deepClone(saved.project),
-        labels: deepClone(saved.labels),
-      });
-      setDocumentSnapshotsById(
-        refreshedCurrentDocument
-          ? {
-              [refreshedCurrentDocument.id]: deepClone(refreshedCurrentDocument),
-            }
-          : {},
-      );
-      if (refreshedCurrentDocument) {
-        setHistoryState({
-          documentId: refreshedCurrentDocument.id,
-          entries: [deepClone(refreshedCurrentDocument)],
-          index: 0,
-        });
+      const projectDirty = JSON.stringify(bundle.project) !== JSON.stringify(settingsSnapshot.project);
+      const labelsDirty = JSON.stringify(bundle.labels) !== JSON.stringify(settingsSnapshot.labels);
+      let savedProject = bundle.project;
+      let savedLabels = bundle.labels;
+
+      if (projectDirty) {
+        savedProject = await api.saveProjectSettings(token, bundle.project);
+        setBundle((current) =>
+          current
+            ? {
+                ...current,
+                project: savedProject,
+              }
+            : current,
+        );
+        setSettingsSnapshot((current) =>
+          current
+              ? {
+                  ...current,
+                  project: deepClone(savedProject),
+                }
+              : current,
+        );
       }
-      if (successMessage) {
+
+      if (labelsDirty) {
+        try {
+          const labelsResponse = await api.saveProjectLabels(
+            token,
+            bundle.project.id,
+            bundle.labels.map((label) => ({
+              id: isLocalId(label.id) ? null : label.id,
+              name: label.name,
+              color: label.color,
+              description: label.description,
+              shortcut: label.shortcut ?? null,
+              meta: label.meta ?? {},
+            })),
+          );
+          savedLabels = labelsResponse.labels;
+          const refreshedCurrentDocument = selectedDocId
+            ? await api.getDocument(token, bundle.project.id, selectedDocId).catch(() => null)
+            : null;
+          setBundle((current) =>
+            current
+              ? {
+                  ...current,
+                  project: savedProject,
+                  labels: savedLabels,
+                  documents: refreshedCurrentDocument ? [refreshedCurrentDocument] : [],
+                }
+              : current,
+          );
+          setSettingsSnapshot((current) =>
+            current
+              ? {
+                  ...current,
+                  labels: deepClone(savedLabels),
+                }
+              : current,
+          );
+          setDocumentSnapshotsById(
+            refreshedCurrentDocument
+              ? {
+                  [refreshedCurrentDocument.id]: deepClone(refreshedCurrentDocument),
+                }
+              : {},
+          );
+          setHistoryState(
+            refreshedCurrentDocument
+              ? {
+                  documentId: refreshedCurrentDocument.id,
+                  entries: [deepClone(refreshedCurrentDocument)],
+                  index: 0,
+                }
+              : {
+                  documentId: null,
+                  entries: [],
+                  index: -1,
+                },
+          );
+        } catch (error) {
+          showToast(
+            projectDirty
+              ? "Project は保存したが Labels の保存に失敗した"
+              : error instanceof Error
+                ? error.message
+                : "Labels の保存に失敗した",
+            projectDirty ? "warning" : "error",
+          );
+          return null;
+        }
+      }
+
+      if (successMessage && (projectDirty || labelsDirty)) {
         showToast(successMessage, "success");
       }
-      return saved;
+      return {
+        project: savedProject,
+        labels: savedLabels,
+      };
     } catch (error) {
       showToast(error instanceof Error ? error.message : "保存に失敗した", "error");
       return null;
@@ -1964,14 +2041,98 @@ function ProjectShell({
               <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 2, alignItems: "flex-start" }}>
                 <Stack spacing={1.5} sx={{ minWidth: 320, flex: 1 }}>
                   <TextField label="Name" value={labelDraft.name} onChange={(event) => setLabelDraft((current) => ({ ...current, name: event.target.value }))} />
-                  <TextField label="Color" value={labelDraft.color} onChange={(event) => setLabelDraft((current) => ({ ...current, color: event.target.value }))} />
+                  <TextField
+                    label="Color"
+                    value={labelDraft.color}
+                    onChange={(event) => setLabelDraft((current) => ({ ...current, color: event.target.value }))}
+                    onBlur={() =>
+                      setLabelDraft((current) => {
+                        const nextColor = normalizeHexColor(current.color);
+                        return nextColor === current.color ? current : { ...current, color: nextColor };
+                      })
+                    }
+                    error={labelDraft.color.trim().length > 0 && !labelColorValid}
+                    helperText={labelDraft.color.trim().length > 0 && !labelColorValid ? "Color は #RRGGBB 形式で入力する" : "右側のプレビューで確認しつつ、カラーピッカーからも選べる"}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Box
+                              aria-label="Selected color preview"
+                              sx={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: 1.2,
+                                bgcolor: labelColorPreview,
+                                border: `1px solid ${alpha("#16324f", 0.16)}`,
+                                boxShadow: `inset 0 0 0 1px ${alpha("#ffffff", 0.35)}`,
+                              }}
+                            />
+                            <Box
+                              component="input"
+                              type="color"
+                              aria-label="Pick label color"
+                              value={labelColorPreview}
+                              onChange={(event) => setLabelDraft((current) => ({ ...current, color: event.target.value }))}
+                              sx={{
+                                width: 36,
+                                height: 36,
+                                p: 0,
+                                border: "none",
+                                bgcolor: "transparent",
+                                cursor: "pointer",
+                                '&::-webkit-color-swatch-wrapper': { p: 0 },
+                                '&::-webkit-color-swatch': {
+                                  border: `1px solid ${alpha("#16324f", 0.16)}`,
+                                  borderRadius: 1.2,
+                                },
+                                '&::-moz-color-swatch': {
+                                  border: `1px solid ${alpha("#16324f", 0.16)}`,
+                                  borderRadius: 1.2,
+                                },
+                              }}
+                            />
+                          </Stack>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
                   <TextField label="Description" multiline minRows={3} value={labelDraft.description} onChange={(event) => setLabelDraft((current) => ({ ...current, description: event.target.value }))} />
+                  <Box
+                    sx={{
+                      borderRadius: 2,
+                      border: `1px solid ${alpha(labelColorPreview, 0.24)}`,
+                      bgcolor: alpha(labelColorPreview, 0.08),
+                      px: 1.5,
+                      py: 1.25,
+                    }}
+                  >
+                    <Stack direction="row" spacing={1.25} alignItems="center">
+                      <Box
+                        sx={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: "50%",
+                          bgcolor: labelColorPreview,
+                          border: `1px solid ${alpha("#16324f", 0.14)}`,
+                        }}
+                      />
+                      <Typography variant="subtitle2">{labelDraft.name.trim() || "Label preview"}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {labelColorValid ? normalizedLabelColor : "Invalid color"}
+                      </Typography>
+                    </Stack>
+                  </Box>
                   <Stack direction="row" spacing={1}>
                     <Button
                       variant="contained"
                       startIcon={<AddRoundedIcon />}
                       onClick={() => {
                         if (!labelDraft.name.trim() || !bundle) {
+                          return;
+                        }
+                        if (!labelColorValid) {
+                          showToast("Color は #RRGGBB 形式で入力する", "warning");
                           return;
                         }
                         const existing = bundle.labels.find((label) => label.name === labelDraft.name.trim());
@@ -1986,7 +2147,7 @@ function ProjectShell({
                             project_id: draft.project.id,
                             project_name: draft.project.name,
                             name: labelDraft.name.trim(),
-                            color: labelDraft.color,
+                            color: normalizedLabelColor,
                             description: labelDraft.description,
                             shortcut: editingLabel?.shortcut ?? null,
                             meta: {},
@@ -1998,14 +2159,15 @@ function ProjectShell({
                             draft.labels.push(nextLabel);
                           }
                         });
-                        setLabelDraft({ id: "", name: "", color: "#1a73e8", description: "" });
+                        setLabelDraft({ id: "", name: "", color: DEFAULT_LABEL_COLOR, description: "" });
                       }}
+                      disabled={!labelDraft.name.trim() || !labelColorValid}
                     >
                       {labelDraft.id ? "Update label" : "Add label"}
                     </Button>
                     <Button
                       variant="outlined"
-                      onClick={() => setLabelDraft({ id: "", name: "", color: "#1a73e8", description: "" })}
+                      onClick={() => setLabelDraft({ id: "", name: "", color: DEFAULT_LABEL_COLOR, description: "" })}
                     >
                       Clear
                     </Button>

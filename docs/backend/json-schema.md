@@ -42,6 +42,28 @@
 
 - アノテーションガイドラインは `Label.description` に記述します。
 
+#### Label Sync API の派生ルール
+
+```json
+{
+  "labels": [
+    {
+      "id": "uuid or null",
+      "name": "疾患名",
+      "color": "#ff6b6b",
+      "description": "ガイドラインもここに書く",
+      "shortcut": "1",
+      "meta": {}
+    }
+  ]
+}
+```
+
+- request の `labels` は project 配下 label の最終状態全件
+- `id: null` は新規 label
+- request に含まれない既存 label は削除
+- response は `labels: Label[]`
+
 ---
 
 ### Label Example（ラベル横断参照）
@@ -148,6 +170,21 @@
 メモ:
 - `settings` はこの段階では設けません（必要になったときに新規フィールド追加を検討）。
 - `Project` は `labels` を内包しません（後述のExportで別フィールドとして扱う）。
+
+#### Project Settings Save API の派生ルール
+
+```json
+{
+  "name": "医療文書NER",
+  "description": "医療文書からエンティティ抽出",
+  "meta": {
+    "guideline": "共通ガイドライン"
+  }
+}
+```
+
+- settings 画面の project フォーム全体を表す
+- response は通常の `Project`
 
 ---
 

@@ -11,6 +11,7 @@ from layered_span_studio_backend.models.labels import (
     LabelExamplesStatusFilter,
     LabelListResponse,
     LabelOut,
+    LabelSyncIn,
     LabelUpdate,
 )
 from layered_span_studio_backend.services import labels_service
@@ -28,6 +29,23 @@ def list_labels(project_id: str, settings=Depends(get_settings)):
         labels = labels_service.list_labels(settings, project_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return {"labels": labels}
+
+
+@router.put("", response_model=LabelListResponse)
+def save_labels(project_id: str, payload: LabelSyncIn, settings=Depends(get_settings)):
+    try:
+        labels = labels_service.save_labels(
+            settings,
+            project_id,
+            [label.model_dump(mode="json") for label in payload.labels],
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = status.HTTP_400_BAD_REQUEST
+        if "Project not found" in message or "Label not found" in message:
+            status_code = status.HTTP_404_NOT_FOUND
+        raise HTTPException(status_code=status_code, detail=message)
     return {"labels": labels}
 
 
