@@ -381,8 +381,17 @@ export function DocumentCanvas({
   };
 
   return (
-    <Box sx={{ position: "relative" }}>
-      <Paper sx={{ p: 2.5, minHeight: 520 }}>
+    <Box sx={{ position: "relative", height: "100%", minHeight: 0 }}>
+      <Paper
+        sx={{
+          p: 2.5,
+          height: "100%",
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Drag で選択し、現在ラベルへ span を作成する。注目ラベルは塗り、それ以外は下線で表示する。
         </Typography>
@@ -396,7 +405,13 @@ export function DocumentCanvas({
               onClearSelection();
             }
           }}
-          sx={{ position: "relative" }}
+          sx={{
+            position: "relative",
+            flex: 1,
+            minHeight: 0,
+            overflow: "auto",
+            pr: 0.5,
+          }}
         >
           <Box
             ref={textRef}
