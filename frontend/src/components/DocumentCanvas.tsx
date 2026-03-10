@@ -351,7 +351,7 @@ export function DocumentCanvas({
     });
   };
 
-  const handleMouseUp = () => {
+  const commitSelection = () => {
     const root = textRef.current;
     const selectionObj = window.getSelection();
     if (!root || !selectionObj || selectionObj.rangeCount === 0 || selectionObj.isCollapsed) {
@@ -380,6 +380,14 @@ export function DocumentCanvas({
       left: rect.left + window.scrollX,
     });
   };
+
+  useEffect(() => {
+    const handleWindowMouseUp = () => {
+      commitSelection();
+    };
+    window.addEventListener("mouseup", handleWindowMouseUp);
+    return () => window.removeEventListener("mouseup", handleWindowMouseUp);
+  });
 
   return (
     <Box sx={{ position: "relative", height: "100%", minHeight: 0 }}>
@@ -418,7 +426,7 @@ export function DocumentCanvas({
           <Box
             ref={textRef}
             data-testid="doc-text"
-            onMouseUp={handleMouseUp}
+            onMouseUp={commitSelection}
             onMouseLeave={() => {
               setHoveredLaneAnnotationId(null);
               setLaneTooltip(null);
@@ -445,6 +453,9 @@ export function DocumentCanvas({
                   data-cover-ann-ids={segment.covers.map((annotation) => annotation.id).join(",")}
                   onClick={(event) => {
                     event.stopPropagation();
+                    if (!window.getSelection()?.isCollapsed) {
+                      return;
+                    }
                     if (primaryFocused) {
                       onSelectAnnotation(primaryFocused.id);
                       return;
@@ -593,7 +604,7 @@ export function DocumentCanvas({
               setSelection(null);
             }}
           >
-            Add annotation
+            Add annotation ↵
           </Button>
         </Paper>
       ) : null}
