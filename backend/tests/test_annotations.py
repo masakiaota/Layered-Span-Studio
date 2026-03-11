@@ -392,6 +392,132 @@ def test_search_annotations_does_not_normalize_surface_text(
     assert payload["items"][0]["span_text"] == "COVID-19"
 
 
+def test_search_annotations_pages_and_sorts_in_sql(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project = client.post(
+        "/projects", json={"name": "Paged Search Project", "description": "desc"}, headers=auth_headers
+    ).json()
+    label_a = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "LabelA", "color": "#FF5733", "description": "desc"},
+        headers=auth_headers,
+    ).json()
+    label_b = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "LabelB", "color": "#33AA44", "description": "desc"},
+        headers=auth_headers,
+    ).json()
+    doc_b = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "B_doc", "text": "alpha delta alpha"},
+        headers=auth_headers,
+    ).json()
+    doc_a = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "A_doc", "text": "alpha beta alpha gamma alpha"},
+        headers=auth_headers,
+    ).json()
+
+    client.post(
+        f"/projects/{project['id']}/documents/{doc_b['id']}/annotations",
+        json={
+            "label_id": label_a["id"],
+            "start": 0,
+            "end": 5,
+            "span_text": "alpha",
+            "comment": "",
+            "status": "verified",
+        },
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{project['id']}/documents/{doc_a['id']}/annotations",
+        json={
+            "label_id": label_a["id"],
+            "start": 11,
+            "end": 16,
+            "span_text": "alpha",
+            "comment": "",
+            "status": "pending",
+        },
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{project['id']}/documents/{doc_a['id']}/annotations",
+        json={
+            "label_id": label_b["id"],
+            "start": 0,
+            "end": 5,
+            "span_text": "alpha",
+            "comment": "",
+            "status": "verified",
+        },
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{project['id']}/documents/{doc_a['id']}/annotations",
+        json={
+            "label_id": label_a["id"],
+            "start": 23,
+            "end": 28,
+            "span_text": "alpha",
+            "comment": "",
+            "status": "verified",
+        },
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{project['id']}/documents/{doc_b['id']}/annotations",
+        json={
+            "label_id": label_b["id"],
+            "start": 12,
+            "end": 17,
+            "span_text": "alpha",
+            "comment": "",
+            "status": "pending",
+        },
+        headers=auth_headers,
+    )
+
+    first_page = client.get(
+        f"/projects/{project['id']}/annotations/search?text=alpha&status=all&offset=0&limit=2&context_window=3",
+        headers=auth_headers,
+    )
+    assert first_page.status_code == 200
+    first_payload = first_page.json()
+    assert first_payload["total"] == 5
+    assert [(item["document_name"], item["start"], item["status"]) for item in first_payload["items"]] == [
+        ("A_doc", 0, "verified"),
+        ("A_doc", 23, "verified"),
+    ]
+    assert first_payload["items"][0]["context_before"] == ""
+    assert first_payload["items"][0]["context_after"] == " be"
+
+    second_page = client.get(
+        f"/projects/{project['id']}/annotations/search?text=alpha&status=all&offset=2&limit=2",
+        headers=auth_headers,
+    )
+    assert second_page.status_code == 200
+    second_payload = second_page.json()
+    assert [(item["document_name"], item["start"], item["status"]) for item in second_payload["items"]] == [
+        ("B_doc", 0, "verified"),
+        ("A_doc", 11, "pending"),
+    ]
+
+    pending_only = client.get(
+        f"/projects/{project['id']}/annotations/search?text=alpha&status=pending&offset=0&limit=10",
+        headers=auth_headers,
+    )
+    assert pending_only.status_code == 200
+    pending_payload = pending_only.json()
+    assert pending_payload["total"] == 2
+    assert [(item["document_name"], item["start"]) for item in pending_payload["items"]] == [
+        ("A_doc", 11),
+        ("B_doc", 12),
+    ]
+
+
 def test_bulk_same_label_overlap_with_existing_returns_400(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:

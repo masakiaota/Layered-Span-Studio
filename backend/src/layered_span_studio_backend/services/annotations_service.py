@@ -117,26 +117,18 @@ def search_annotations(
         _ensure_label(settings, project_id, label_id)
 
     statuses = ["pending", "verified"] if status_filter == "all" else [status_filter]
-    rows = annotations_repo.list_project_annotations(settings, project_id, statuses)
-    if exclude_annotation_id:
-        rows = [row for row in rows if row["annotation_id"] != exclude_annotation_id]
-
-    matched = [row for row in rows if row["span_text"] == text]
-
-    matched.sort(
-        key=lambda row: (
-            0 if label_id and row["label_id"] != label_id else 1,
-            0 if row["status"] == "verified" else 1,
-            row["document_name"],
-            row["start"],
-            row["annotation_id"],
-        )
+    rows, total = annotations_repo.search_project_annotations_page(
+        settings,
+        project_id,
+        text,
+        statuses,
+        label_id,
+        exclude_annotation_id,
+        offset,
+        limit,
     )
-
-    total = len(matched)
-    picked = matched[offset : offset + limit]
     items: List[Dict[str, Any]] = []
-    for row in picked:
+    for row in rows:
         text_body = row["document_text"]
         start = row["start"]
         end = row["end"]
