@@ -57,6 +57,8 @@ export function WorkspaceView({
   focusedLabel,
   selectedAnnotationId,
   selectedAnnotation,
+  selectedAnnotationMetaDraft,
+  selectedAnnotationMetaError,
   selectionPreview,
   rightTab,
   annotationEditCollapsed,
@@ -113,6 +115,8 @@ export function WorkspaceView({
   focusedLabel: LabelRecord | null;
   selectedAnnotationId: string | null;
   selectedAnnotation: DocumentRecord["annotations"][number] | null;
+  selectedAnnotationMetaDraft: string;
+  selectedAnnotationMetaError: string | null;
   selectionPreview: SelectionPreview | null;
   rightTab: RightTab;
   annotationEditCollapsed: boolean;
@@ -652,8 +656,10 @@ export function WorkspaceView({
                       label="Meta (JSON)"
                       multiline
                       minRows={3}
-                      value={JSON.stringify(selectedAnnotation.meta ?? {}, null, 2)}
+                      value={selectedAnnotationMetaDraft}
                       onChange={(event) => onUpdateSelectedAnnotationMeta(event.target.value)}
+                      error={Boolean(selectedAnnotationMetaError)}
+                      helperText={selectedAnnotationMetaError ?? undefined}
                     />
                     <Button color="error" variant="outlined" startIcon={<DeleteOutlineRoundedIcon />} onClick={onDeleteSelectedAnnotation}>
                       Delete annotation

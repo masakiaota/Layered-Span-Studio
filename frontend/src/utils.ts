@@ -18,6 +18,27 @@ export function toJsonObject(value: JsonObject | null | undefined): JsonObject {
   return (value ?? {}) as JsonObject;
 }
 
+export function formatAnnotationMetaDraft(value: JsonObject | null | undefined): string {
+  return value === null ? "null" : JSON.stringify(value ?? {}, null, 2);
+}
+
+export function parseAnnotationMetaDraft(
+  value: string,
+): { valid: true; value: JsonObject | null; error: null } | { valid: false; value: undefined; error: string } {
+  try {
+    const parsed = JSON.parse(value) as JsonValue;
+    if (parsed === null) {
+      return { valid: true, value: null, error: null };
+    }
+    if (typeof parsed === "object" && !Array.isArray(parsed)) {
+      return { valid: true, value: parsed as JsonObject, error: null };
+    }
+    return { valid: false, value: undefined, error: "Meta は JSON object または null を入力する" };
+  } catch {
+    return { valid: false, value: undefined, error: "Meta は有効な JSON を入力する" };
+  }
+}
+
 export function normalizeSearchText(value: string): string {
   return value.trim().replace(/[_\-\s]+/g, " ").toLowerCase();
 }

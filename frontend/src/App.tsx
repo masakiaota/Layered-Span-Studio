@@ -46,9 +46,11 @@ import {
   deepClone,
   documentMatchesSearch,
   downloadJson,
+  formatAnnotationMetaDraft,
   getDocumentStatus,
   isLocalId,
   makeLocalId,
+  parseAnnotationMetaDraft,
   readJsonFile,
   setProjectGuideline,
 } from "./utils";
@@ -82,6 +84,8 @@ function ProjectShell({
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [focusedLabelId, setFocusedLabelId] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [selectedAnnotationMetaDraft, setSelectedAnnotationMetaDraft] = useState("");
+  const [selectedAnnotationMetaError, setSelectedAnnotationMetaError] = useState<string | null>(null);
   const [selectionPreview, setSelectionPreview] = useState<SelectionPreview | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>("examples");
   const [annotationEditCollapsed, setAnnotationEditCollapsed] = useState(true);
@@ -295,6 +299,15 @@ function ProjectShell({
     () => currentDocument?.annotations.find((annotation) => annotation.id === selectedAnnotationId) ?? null,
     [currentDocument, selectedAnnotationId],
   );
+  useEffect(() => {
+    if (!selectedAnnotation) {
+      setSelectedAnnotationMetaDraft("");
+      setSelectedAnnotationMetaError(null);
+      return;
+    }
+    setSelectedAnnotationMetaDraft(formatAnnotationMetaDraft(selectedAnnotation.meta));
+    setSelectedAnnotationMetaError(null);
+  }, [currentDocument?.id, selectedAnnotation?.id]);
   const settingsDirty = useMemo(() => {
     if (!bundle || !settingsSnapshot) {
       return false;
@@ -1136,17 +1149,19 @@ function ProjectShell({
     if (!selectedAnnotation) {
       return;
     }
-    try {
-      const parsed = JSON.parse(value);
-      mutateCurrentDocument((draft) => {
-        const annotation = draft.annotations.find((item) => item.id === selectedAnnotation.id);
-        if (annotation) {
-          annotation.meta = parsed;
-        }
-      });
-    } catch {
-      // 編集途中の不正JSONは保持せず無視する
+    setSelectedAnnotationMetaDraft(value);
+    const parsed = parseAnnotationMetaDraft(value);
+    if (!parsed.valid) {
+      setSelectedAnnotationMetaError(parsed.error);
+      return;
     }
+    setSelectedAnnotationMetaError(null);
+    mutateCurrentDocument((draft) => {
+      const annotation = draft.annotations.find((item) => item.id === selectedAnnotation.id);
+      if (annotation) {
+        annotation.meta = parsed.value;
+      }
+    });
   }
 
   function handleToggleAnnotationGroup(labelId: string) {
@@ -1257,6 +1272,8 @@ function ProjectShell({
             focusedLabel={focusedLabel}
             selectedAnnotationId={selectedAnnotationId}
             selectedAnnotation={selectedAnnotation}
+            selectedAnnotationMetaDraft={selectedAnnotationMetaDraft}
+            selectedAnnotationMetaError={selectedAnnotationMetaError}
             selectionPreview={selectionPreview}
             rightTab={rightTab}
             annotationEditCollapsed={annotationEditCollapsed}
