@@ -39,12 +39,50 @@ function headers(token?: string, contentType?: string) {
   return result;
 }
 
+function formatErrorDetail(detail: unknown): string | null {
+  if (typeof detail === "string" && detail.trim()) {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+        const message = "msg" in item && typeof item.msg === "string" ? item.msg : null;
+        if (!message) {
+          return null;
+        }
+        const location =
+          "loc" in item && Array.isArray(item.loc)
+            ? item.loc
+                .filter((part: unknown): part is string | number => typeof part === "string" || typeof part === "number")
+                .join(".")
+            : "";
+        return location ? `${location}: ${message}` : message;
+      })
+      .filter((message): message is string => Boolean(message));
+    return messages.length > 0 ? messages.join("\n") : null;
+  }
+  if (detail && typeof detail === "object") {
+    if ("msg" in detail && typeof detail.msg === "string" && detail.msg.trim()) {
+      return detail.msg;
+    }
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
-      const json = (await response.json()) as { detail?: string };
-      throw new Error(json.detail ?? "Request failed");
+      const json = (await response.json()) as { detail?: unknown };
+      throw new Error(formatErrorDetail(json.detail) ?? "Request failed");
     }
     throw new Error(await response.text());
   }
