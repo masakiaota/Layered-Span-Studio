@@ -22,7 +22,7 @@ def list_documents(
     sort: str,
 ) -> Tuple[List[Dict[str, Any]], int, int]:
     _ensure_project(settings, project_id)
-    return documents_repo.list_documents(settings, project_id, offset, limit, search, sort)
+    return documents_repo.list_documents_page(settings, project_id, offset, limit, search, sort)
 
 
 def get_document(settings: Settings, project_id: str, document_id: str) -> Optional[Dict[str, Any]]:
@@ -43,8 +43,7 @@ def create_document(
     meta: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
     _ensure_project(settings, project_id)
-    documents, _, _ = documents_repo.list_documents(settings, project_id, 0, 1000000)
-    if any(doc["document_name"] == document_name for doc in documents):
+    if documents_repo.document_name_exists(settings, project_id, document_name):
         raise ValueError("Document name already exists in this project")
     return documents_repo.create_document(settings, project_id, document_name, text, meta)
 
@@ -93,8 +92,9 @@ def update_document(
 ) -> Optional[Dict[str, Any]]:
     _ensure_project(settings, project_id)
     if document_name is not None:
-        documents, _, _ = documents_repo.list_documents(settings, project_id, 0, 1000000)
-        if any(doc["document_name"] == document_name and doc["id"] != document_id for doc in documents):
+        if documents_repo.document_name_exists(
+            settings, project_id, document_name, exclude_document_id=document_id
+        ):
             raise ValueError("Document name already exists in this project")
     return documents_repo.update_document(settings, project_id, document_id, document_name, meta)
 

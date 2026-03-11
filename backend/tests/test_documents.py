@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from layered_span_studio_backend.core.config import Settings
+from layered_span_studio_backend.repositories.projects import project_db_path
+from layered_span_studio_backend.storage.project_db import documents_table, get_project_engine
+from layered_span_studio_backend.utils.json_utils import encode_meta
+
 
 def _create_project(client: TestClient, auth_headers: dict[str, str]) -> str:
     response = client.post(
@@ -10,6 +15,19 @@ def _create_project(client: TestClient, auth_headers: dict[str, str]) -> str:
         headers=auth_headers,
     )
     return response.json()["id"]
+
+
+def _set_document_meta(settings: Settings, project_id: str, document_id: str, meta: dict[str, object] | None) -> None:
+    engine = get_project_engine(str(project_db_path(settings, project_id)))
+    with engine.begin() as conn:
+        conn.execute(
+            documents_table.update()
+            .where(
+                documents_table.c.project_id == project_id,
+                documents_table.c.id == document_id,
+            )
+            .values(meta=encode_meta(meta))
+        )
 
 
 def test_document_crud(client: TestClient, auth_headers: dict[str, str]) -> None:
@@ -59,35 +77,43 @@ def test_document_text_update_forbidden(client: TestClient, auth_headers: dict[s
     assert response.status_code == 422
 
 
-def test_document_list_supports_search_and_sort(client: TestClient, auth_headers: dict[str, str]) -> None:
+def test_document_list_supports_search_sort_and_pending_total(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
     project_id = _create_project(client, auth_headers)
-    client.post(
+    beta = client.post(
         f"/projects/{project_id}/documents",
         json={
             "document_name": "Beta",
             "text": "contains target",
-            "meta": {"status": "verified", "created_at": "2026-03-09T00:00:00Z"},
         },
         headers=auth_headers,
-    )
-    client.post(
+    ).json()
+    alpha = client.post(
         f"/projects/{project_id}/documents",
         json={
             "document_name": "Alpha",
             "text": "another TARGET sample",
-            "meta": {"status": "pending", "created_at": "2026-03-08T00:00:00Z"},
         },
         headers=auth_headers,
-    )
-    client.post(
+    ).json()
+    gamma = client.post(
         f"/projects/{project_id}/documents",
         json={
             "document_name": "Gamma",
             "text": "no match here",
-            "meta": {"status": "pending", "created_at": "2026-03-10T00:00:00Z"},
         },
         headers=auth_headers,
+    ).json()
+
+    _set_document_meta(settings, project_id, beta["id"], {"status": "verified", "created_at": "2026-03-09T00:00:00Z"})
+    _set_document_meta(
+        settings,
+        project_id,
+        alpha["id"],
+        {"status": "pending", "created_at": "2026-03-08T00:00:00Z", "updated_at": "2026-03-10T00:00:00Z"},
     )
+    _set_document_meta(settings, project_id, gamma["id"], {"status": "pending", "created_at": "2026-03-11T00:00:00Z"})
 
     response = client.get(
         f"/projects/{project_id}/documents?search=target&sort=pending",
@@ -96,8 +122,110 @@ def test_document_list_supports_search_and_sort(client: TestClient, auth_headers
     assert response.status_code == 200
     payload = response.json()
     assert payload["total"] == 2
-    assert payload["pending_total"] == 2
+    assert payload["pending_total"] == 1
     assert [item["document_name"] for item in payload["documents"]] == ["Alpha", "Beta"]
+
+
+def test_document_list_pages_and_sorts_in_sql(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project_id = _create_project(client, auth_headers)
+
+    zeta = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Zeta", "text": "target alpha"},
+        headers=auth_headers,
+    ).json()
+    alpha = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Alpha", "text": "TARGET beta"},
+        headers=auth_headers,
+    ).json()
+    mu = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Mu", "text": "target gamma"},
+        headers=auth_headers,
+    ).json()
+    client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Omega", "text": "outside search"},
+        headers=auth_headers,
+    ).json()
+
+    _set_document_meta(settings, project_id, zeta["id"], {"status": "verified", "created_at": "2026-03-02T00:00:00Z"})
+    _set_document_meta(
+        settings,
+        project_id,
+        alpha["id"],
+        {"status": "pending", "created_at": "2026-03-01T00:00:00Z", "updated_at": "2026-03-03T00:00:00Z"},
+    )
+    _set_document_meta(settings, project_id, mu["id"], {})
+
+    name_sorted = client.get(
+        f"/projects/{project_id}/documents?search=target&sort=name&offset=1&limit=1",
+        headers=auth_headers,
+    )
+    assert name_sorted.status_code == 200
+    payload = name_sorted.json()
+    assert payload["total"] == 3
+    assert payload["pending_total"] == 2
+    assert payload["offset"] == 1
+    assert payload["limit"] == 1
+    assert [item["document_name"] for item in payload["documents"]] == ["Mu"]
+
+    created_sorted = client.get(
+        f"/projects/{project_id}/documents?search=target&sort=created",
+        headers=auth_headers,
+    )
+    assert created_sorted.status_code == 200
+    assert [item["document_name"] for item in created_sorted.json()["documents"]] == ["Alpha", "Zeta", "Mu"]
+
+    updated_sorted = client.get(
+        f"/projects/{project_id}/documents?search=target&sort=updated",
+        headers=auth_headers,
+    )
+    assert updated_sorted.status_code == 200
+    assert [item["document_name"] for item in updated_sorted.json()["documents"]] == ["Alpha", "Zeta", "Mu"]
+
+    pending_sorted = client.get(
+        f"/projects/{project_id}/documents?search=target&sort=pending",
+        headers=auth_headers,
+    )
+    assert pending_sorted.status_code == 200
+    assert [item["document_name"] for item in pending_sorted.json()["documents"]] == ["Alpha", "Mu", "Zeta"]
+
+
+def test_document_create_and_update_reject_duplicate_name(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project_id = _create_project(client, auth_headers)
+    first = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Doc1", "text": "Hello world"},
+        headers=auth_headers,
+    )
+    assert first.status_code == 201
+
+    duplicate_create = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Doc1", "text": "Another body"},
+        headers=auth_headers,
+    )
+    assert duplicate_create.status_code == 400
+
+    second = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Doc2", "text": "Second body"},
+        headers=auth_headers,
+    )
+    assert second.status_code == 201
+
+    duplicate_update = client.patch(
+        f"/projects/{project_id}/documents/{second.json()['id']}",
+        json={"document_name": "Doc1"},
+        headers=auth_headers,
+    )
+    assert duplicate_update.status_code == 400
 
 
 def test_document_create_sets_server_managed_meta(client: TestClient, auth_headers: dict[str, str]) -> None:

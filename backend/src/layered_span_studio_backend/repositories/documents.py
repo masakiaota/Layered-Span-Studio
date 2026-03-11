@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, case, func, or_, select
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.projects import project_db_path
@@ -26,6 +26,78 @@ def _project_name(engine) -> Optional[str]:
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _document_status_expr():
+    return func.json_extract(documents_table.c.meta, "$.status")
+
+
+def _document_created_at_expr():
+    return func.json_extract(documents_table.c.meta, "$.created_at")
+
+
+def _document_updated_at_expr():
+    return func.coalesce(
+        func.json_extract(documents_table.c.meta, "$.updated_at"),
+        func.json_extract(documents_table.c.meta, "$.created_at"),
+    )
+
+
+def _document_filter_conditions(project_id: str, search: str = "") -> List[Any]:
+    conditions: List[Any] = [documents_table.c.project_id == project_id]
+    normalized_search = search.strip().lower()
+    if normalized_search:
+        conditions.append(func.lower(documents_table.c.text).contains(normalized_search))
+    return conditions
+
+
+def _document_sort_order(sort: str) -> List[Any]:
+    if sort == "name":
+        return [documents_table.c.document_name.asc(), documents_table.c.id.asc()]
+
+    if sort == "pending":
+        status_expr = _document_status_expr()
+        return [
+            case((status_expr == "verified", 1), else_=0).asc(),
+            documents_table.c.document_name.asc(),
+            documents_table.c.id.asc(),
+        ]
+
+    if sort == "updated":
+        updated_at_expr = _document_updated_at_expr()
+        return [
+            case((updated_at_expr.is_(None), 1), else_=0).asc(),
+            updated_at_expr.desc(),
+            documents_table.c.document_name.asc(),
+            documents_table.c.id.asc(),
+        ]
+
+    created_at_expr = _document_created_at_expr()
+    return [
+        case((created_at_expr.is_(None), 1), else_=0).asc(),
+        created_at_expr.asc(),
+        documents_table.c.document_name.asc(),
+        documents_table.c.id.asc(),
+    ]
+
+
+def _documents_select(project_id: str, search: str = "", sort: str = "created") -> Select:
+    return (
+        select(documents_table)
+        .where(*_document_filter_conditions(project_id, search))
+        .order_by(*_document_sort_order(sort))
+    )
+
+
+def _document_from_row(project_name: Optional[str], row: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "id": row["id"],
+        "project_id": row["project_id"],
+        "project_name": project_name,
+        "document_name": row["document_name"],
+        "text": row["text"],
+        "meta": decode_meta(row["meta"]),
+    }
 
 
 def _document_meta_with_system_fields(
@@ -66,7 +138,7 @@ def _document_meta_with_system_fields(
     }
 
 
-def list_documents(
+def list_documents_page(
     settings: Settings,
     project_id: str,
     offset: int,
@@ -77,79 +149,58 @@ def list_documents(
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     project_name = _project_name(engine)
+    status_expr = _document_status_expr()
+    conditions = _document_filter_conditions(project_id, search)
     with engine.connect() as conn:
-        query: Select = select(documents_table).where(documents_table.c.project_id == project_id)
-        rows = conn.execute(query).mappings().all()
-    documents = [
-        {
-            "id": row["id"],
-            "project_id": row["project_id"],
-            "project_name": project_name,
-            "document_name": row["document_name"],
-            "text": row["text"],
-            "meta": decode_meta(row["meta"]),
-        }
-        for row in rows
-    ]
-    simple_search = search.strip().lower()
-    if simple_search:
-        documents = [
-            document
-            for document in documents
-            if simple_search in document["text"].lower()
-        ]
-
-    total = len(documents)
-    pending_total = sum(1 for document in documents if (document.get("meta") or {}).get("status") != "verified")
-
-    original_index_by_id = {document["id"]: index for index, document in enumerate(documents)}
-
-    def _parse_timestamp(value: Any) -> Optional[float]:
-        if not isinstance(value, str):
-            return None
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
-        except ValueError:
-            return None
-
-    def _document_status(document: Dict[str, Any]) -> str:
-        status = (document.get("meta") or {}).get("status")
-        return "verified" if status == "verified" else "pending"
-
-    def _created_at(document: Dict[str, Any]) -> Optional[float]:
-        return _parse_timestamp((document.get("meta") or {}).get("created_at"))
-
-    def _updated_at(document: Dict[str, Any]) -> Optional[float]:
-        meta = document.get("meta") or {}
-        return _parse_timestamp(meta.get("updated_at")) or _parse_timestamp(meta.get("created_at"))
-
-    if sort == "name":
-        documents.sort(key=lambda item: item["document_name"])
-    elif sort == "pending":
-        documents.sort(
-            key=lambda item: (
-                0 if _document_status(item) == "pending" else 1,
-                item["document_name"],
-            )
+        rows = (
+            conn.execute(_documents_select(project_id, search, sort).offset(offset).limit(limit))
+            .mappings()
+            .all()
         )
-    elif sort == "updated":
-        documents.sort(
-            key=lambda item: (
-                _updated_at(item) is None,
-                -(_updated_at(item) or 0),
-                original_index_by_id[item["id"]],
+        total = conn.execute(
+            select(func.count()).select_from(documents_table).where(*conditions)
+        ).scalar_one()
+        pending_total = conn.execute(
+            select(func.count())
+            .select_from(documents_table)
+            .where(
+                *conditions,
+                or_(status_expr.is_(None), status_expr != "verified"),
             )
-        )
-    else:
-        documents.sort(
-            key=lambda item: (
-                _created_at(item) is None,
-                _created_at(item) or 0,
-                original_index_by_id[item["id"]],
-            )
-        )
+        ).scalar_one()
+    documents = [_document_from_row(project_name, row) for row in rows]
+    return documents, total, pending_total
 
-    return documents[offset : offset + limit], total, pending_total
+
+def list_all_documents(
+    settings: Settings,
+    project_id: str,
+    sort: str = "created",
+) -> List[Dict[str, Any]]:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    project_name = _project_name(engine)
+    with engine.connect() as conn:
+        rows = conn.execute(_documents_select(project_id, sort=sort)).mappings().all()
+    return [_document_from_row(project_name, row) for row in rows]
+
+
+def document_name_exists(
+    settings: Settings,
+    project_id: str,
+    document_name: str,
+    exclude_document_id: Optional[str] = None,
+) -> bool:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    query = select(documents_table.c.id).where(
+        documents_table.c.project_id == project_id,
+        documents_table.c.document_name == document_name,
+    )
+    if exclude_document_id is not None:
+        query = query.where(documents_table.c.id != exclude_document_id)
+    with engine.connect() as conn:
+        return conn.execute(query.limit(1)).first() is not None
 
 
 def get_document(settings: Settings, project_id: str, document_id: str) -> Optional[Dict[str, Any]]:
