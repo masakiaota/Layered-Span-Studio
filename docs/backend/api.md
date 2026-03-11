@@ -516,7 +516,7 @@ Authorization: Bearer <token>
 
 ### GET /projects/{project_id}/labels/{label_id}/examples
 
-指定ラベルのアノテーション例を、同一プロジェクト内のドキュメントを横断して取得する。
+指定ラベルのアノテーション例を、同一プロジェクト内のドキュメントを横断して取得する。将来的な LLM 連携やガイドライン補助での事例取得も想定する。
 
 **Headers:**
 ```
@@ -578,6 +578,7 @@ Authorization: Bearer <token>
 - `sample=random` は重複なし抽出で返す
 - `sample=random` の場合、`offset` は無効で `offset_applied` は常に `0`
 - `seed` を指定すると `sample=random` の結果を再現可能
+- 実装上は `sample=sequential` の絞り込みとページングを SQL 側で処理し、service は前後文脈生成とレスポンス整形を担う
 
 ---
 

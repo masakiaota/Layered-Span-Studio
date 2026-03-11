@@ -269,10 +269,14 @@ def save_labels(settings: Settings, project_id: str, items: List[Dict[str, Any]]
 
 
 def list_label_examples(
-    settings: Settings, project_id: str, label_id: str, statuses: List[str]
+    settings: Settings, project_id: str, annotation_ids: List[str]
 ) -> List[Dict[str, Any]]:
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
+    if not annotation_ids:
+        return []
+
+    order_map = {annotation_id: index for index, annotation_id in enumerate(annotation_ids)}
     with engine.connect() as conn:
         rows = (
             conn.execute(
@@ -293,20 +297,14 @@ def list_label_examples(
                 )
                 .where(
                     documents_table.c.project_id == project_id,
-                    annotations_table.c.label_id == label_id,
-                    annotations_table.c.status.in_(statuses),
-                )
-                .order_by(
-                    documents_table.c.document_name.asc(),
-                    annotations_table.c.start.asc(),
-                    annotations_table.c.id.asc(),
+                    annotations_table.c.id.in_(annotation_ids),
                 )
             )
             .mappings()
             .all()
         )
 
-    return [
+    items = [
         {
             "annotation_id": row["annotation_id"],
             "document_id": row["document_id"],
@@ -319,6 +317,91 @@ def list_label_examples(
         }
         for row in rows
     ]
+    items.sort(key=lambda row: order_map[row["annotation_id"]])
+    return items
+
+
+def list_label_example_ids(
+    settings: Settings, project_id: str, label_id: str, statuses: List[str]
+) -> List[str]:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    with engine.connect() as conn:
+        rows = (
+            conn.execute(
+                select(annotations_table.c.id.label("annotation_id"))
+                .select_from(
+                    annotations_table.join(
+                        documents_table, annotations_table.c.document_id == documents_table.c.id
+                    )
+                )
+                .where(
+                    documents_table.c.project_id == project_id,
+                    annotations_table.c.label_id == label_id,
+                    annotations_table.c.status.in_(statuses),
+                )
+                .order_by(
+                    documents_table.c.document_name.asc(),
+                    annotations_table.c.start.asc(),
+                    annotations_table.c.id.asc(),
+                )
+            )
+            .mappings()
+            .all()
+        )
+    return [row["annotation_id"] for row in rows]
+
+
+def list_label_examples_page(
+    settings: Settings,
+    project_id: str,
+    label_id: str,
+    statuses: List[str],
+    offset: int,
+    limit: int,
+) -> tuple[List[Dict[str, Any]], int]:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    join_from = annotations_table.join(
+        documents_table, annotations_table.c.document_id == documents_table.c.id
+    )
+    conditions = [
+        documents_table.c.project_id == project_id,
+        annotations_table.c.label_id == label_id,
+        annotations_table.c.status.in_(statuses),
+    ]
+    with engine.connect() as conn:
+        total = conn.execute(
+            select(func.count())
+            .select_from(join_from)
+            .where(*conditions)
+        ).scalar_one()
+        rows = (
+            conn.execute(
+                select(
+                    annotations_table.c.id.label("annotation_id"),
+                    annotations_table.c.document_id,
+                    documents_table.c.document_name,
+                    documents_table.c.text.label("document_text"),
+                    annotations_table.c.span_text,
+                    annotations_table.c.start,
+                    annotations_table.c.end,
+                    annotations_table.c.status,
+                )
+                .select_from(join_from)
+                .where(*conditions)
+                .order_by(
+                    documents_table.c.document_name.asc(),
+                    annotations_table.c.start.asc(),
+                    annotations_table.c.id.asc(),
+                )
+                .offset(offset)
+                .limit(limit)
+            )
+            .mappings()
+            .all()
+        )
+    return [dict(row) for row in rows], total
 
 
 def list_label_surface_groups_page(

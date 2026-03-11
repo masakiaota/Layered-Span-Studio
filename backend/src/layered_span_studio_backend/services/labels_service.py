@@ -102,16 +102,22 @@ def list_label_examples(
         raise ValueError("Label not found")
 
     statuses = ["pending", "verified"] if status_filter == "all" else [status_filter]
-    rows = labels_repo.list_label_examples(settings, project_id, label_id, statuses)
-    total_matched = len(rows)
-
     if sample == "random":
-        picked = rows[:]
-        random.Random(seed).shuffle(picked)
-        picked = picked[:limit]
+        annotation_ids = labels_repo.list_label_example_ids(settings, project_id, label_id, statuses)
+        total_matched = len(annotation_ids)
+        picked_ids = annotation_ids[:]
+        random.Random(seed).shuffle(picked_ids)
+        picked = labels_repo.list_label_examples(settings, project_id, picked_ids[:limit])
         offset_applied = 0
     else:
-        picked = rows[offset : offset + limit]
+        picked, total_matched = labels_repo.list_label_examples_page(
+            settings,
+            project_id,
+            label_id,
+            statuses,
+            offset,
+            limit,
+        )
         offset_applied = offset
 
     examples: List[Dict[str, Any]] = []
