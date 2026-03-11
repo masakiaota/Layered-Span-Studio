@@ -158,7 +158,7 @@ CREATE TABLE users (
 
 - まずはシンプルにするため、トークンはクライアントで保持する
 - 現行 frontend 実装では、Bearer JWT を `localStorage` に保存している
-- ただしこれは暫定方針であり、`TODO.md` にある通り見直し対象である
+- ただしこれは暫定方針であり、リポジトリ管理の `TODO.md` にある通り見直し対象である
   - Browser 向けは `HttpOnly Cookie` ベースのサーバセッション方式を第一候補として検討する
   - CLI / API クライアント用途を残すため、Bearer JWT の併用可否も含めて再設計する
 - `localStorage` 継続時は利便性が高い一方、XSS 対策が重要になる

@@ -65,6 +65,3 @@ backend/data/
 
 # Logs
 *.log
-
-# Local notes
-TODO.md

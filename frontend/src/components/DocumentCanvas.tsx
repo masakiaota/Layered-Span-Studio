@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Box, Button, Paper, Typography, alpha } from "@mui/material";
 import type { AnnotationRecord, DocumentRecord, LabelRecord } from "../types";
 import { isShortcutBlockedTarget } from "../utils";
@@ -362,7 +362,7 @@ export function DocumentCanvas({
 
   const selectionJustCommitted = () => performance.now() - lastSelectionCommitAtRef.current < 180;
 
-  const commitSelection = () => {
+  const commitSelection = useCallback(() => {
     const root = textRef.current;
     const selectionObj = window.getSelection();
     if (!root || !selectionObj || selectionObj.rangeCount === 0 || selectionObj.isCollapsed) {
@@ -387,11 +387,11 @@ export function DocumentCanvas({
       start: normalizedStart,
       end: normalizedEnd,
       text: document.text.slice(normalizedStart, normalizedEnd),
-      top: rect.bottom + window.scrollY + 8,
-      left: rect.left + window.scrollX,
+      top: rect.bottom + 8,
+      left: rect.left,
     });
     lastSelectionCommitAtRef.current = performance.now();
-  };
+  }, [document.text]);
 
   useEffect(() => {
     const handleWindowMouseUp = () => {
@@ -399,7 +399,7 @@ export function DocumentCanvas({
     };
     window.addEventListener("mouseup", handleWindowMouseUp);
     return () => window.removeEventListener("mouseup", handleWindowMouseUp);
-  });
+  }, [commitSelection]);
 
   return (
     <Box sx={{ position: "relative", height: "100%", minHeight: 0 }}>

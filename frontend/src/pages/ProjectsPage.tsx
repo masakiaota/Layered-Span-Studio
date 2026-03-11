@@ -19,6 +19,7 @@ import {
   Toolbar,
   Typography,
   alpha,
+  type ButtonProps,
 } from "@mui/material";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import LabelRoundedIcon from "@mui/icons-material/LabelRounded";
@@ -116,7 +117,7 @@ export function ProjectsPage({
     }
   }
 
-  function renderImportButton(label: string, variant: "contained" | "outlined", sx?: object) {
+  function renderImportButton(label: string, variant: "contained" | "outlined", sx?: ButtonProps["sx"]) {
     return (
       <Button component="label" variant={variant} startIcon={<UploadFileRoundedIcon />} disabled={importing} sx={sx}>
         {label}
@@ -249,7 +250,6 @@ export function ProjectsPage({
               }}
             >
               {filteredProjects.map((project, index) => {
-                const hasPending = project.summary.pending_documents_count > 0;
                 return (
                   <Card
                     key={project.id}

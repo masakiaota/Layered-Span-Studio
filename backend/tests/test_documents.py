@@ -96,6 +96,7 @@ def test_document_list_supports_search_and_sort(client: TestClient, auth_headers
     assert response.status_code == 200
     payload = response.json()
     assert payload["total"] == 2
+    assert payload["pending_total"] == 2
     assert [item["document_name"] for item in payload["documents"]] == ["Alpha", "Beta"]
 
 

@@ -91,8 +91,6 @@ def list_documents(
         }
         for row in rows
     ]
-    pending_total = sum(1 for document in documents if (document.get("meta") or {}).get("status") != "verified")
-
     simple_search = search.strip().lower()
     if simple_search:
         documents = [
@@ -100,6 +98,9 @@ def list_documents(
             for document in documents
             if simple_search in document["text"].lower()
         ]
+
+    total = len(documents)
+    pending_total = sum(1 for document in documents if (document.get("meta") or {}).get("status") != "verified")
 
     original_index_by_id = {document["id"]: index for index, document in enumerate(documents)}
 
@@ -148,7 +149,6 @@ def list_documents(
             )
         )
 
-    total = len(documents)
     return documents[offset : offset + limit], total, pending_total
 
 
