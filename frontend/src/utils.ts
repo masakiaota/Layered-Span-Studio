@@ -91,8 +91,43 @@ export function setProjectGuideline(project: ProjectRecord, guideline: string) {
   };
 }
 
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function jsonValuesEqual(a: JsonValue | undefined, b: JsonValue | undefined): boolean {
+  if (a === b) {
+    return true;
+  }
+
+  if (a === null || b === null || a === undefined || b === undefined) {
+    return false;
+  }
+
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      return false;
+    }
+    return a.every((item, index) => jsonValuesEqual(item, b[index]));
+  }
+
+  if (isJsonObject(a) || isJsonObject(b)) {
+    if (!isJsonObject(a) || !isJsonObject(b)) {
+      return false;
+    }
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) {
+      return false;
+    }
+    return aKeys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && jsonValuesEqual(a[key], b[key]));
+  }
+
+  return false;
+}
+
 export function compareJson(a: JsonValue | undefined, b: JsonValue | undefined): boolean {
-  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  return jsonValuesEqual(a ?? null, b ?? null);
 }
 
 export function projectEquals(a: ProjectRecord, b: ProjectRecord): boolean {
