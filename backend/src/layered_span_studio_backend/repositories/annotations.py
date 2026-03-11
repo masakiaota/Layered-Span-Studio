@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import case, func, select
@@ -14,6 +15,18 @@ from layered_span_studio_backend.storage.project_db import (
     labels_table,
 )
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _touch_document_updated_at(conn, document_id: str) -> None:
+    conn.execute(
+        documents_table.update()
+        .where(documents_table.c.id == document_id)
+        .values(updated_at=_utc_now_iso())
+    )
 
 
 def _has_overlapping_annotation(
@@ -115,6 +128,7 @@ def create_annotation(
                 meta=encode_meta(meta),
             )
         )
+        _touch_document_updated_at(conn, document_id)
     return get_annotation(settings, project_id, document_id, annotation_id)
 
 
@@ -152,6 +166,7 @@ def bulk_create_annotations(
                 )
             )
             created_ids.append(annotation_id)
+        _touch_document_updated_at(conn, document_id)
     return [get_annotation(settings, project_id, document_id, annotation_id) for annotation_id in created_ids]
 
 
@@ -181,6 +196,7 @@ def update_annotation(
                 meta=encode_meta(new_meta),
             )
         )
+        _touch_document_updated_at(conn, document_id)
     return {
         "id": annotation_id,
         "document_id": document_id,
@@ -206,6 +222,8 @@ def delete_annotation(settings: Settings, project_id: str, document_id: str, ann
                 annotations_table.c.document_id == document_id,
             )
         )
+        if result.rowcount > 0:
+            _touch_document_updated_at(conn, document_id)
     return result.rowcount > 0
 
 

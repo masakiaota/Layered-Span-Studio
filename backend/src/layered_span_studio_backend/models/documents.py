@@ -49,6 +49,9 @@ class DocumentOut(APIModel):
     project_name: Optional[str] = None
     document_name: str
     text: str
+    status: AnnotationStatus
+    created_at: str
+    updated_at: str
     meta: Meta = None
 
 

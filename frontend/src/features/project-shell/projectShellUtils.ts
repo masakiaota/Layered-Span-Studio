@@ -23,6 +23,9 @@ export function toDocumentListItem(document: DocumentRecord): DocumentListItem {
     project_name: document.project_name,
     document_name: document.document_name,
     text: document.text,
+    status: document.status,
+    created_at: document.created_at,
+    updated_at: document.updated_at,
     meta: document.meta,
   };
 }

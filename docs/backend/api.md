@@ -173,8 +173,8 @@ Authorization: Bearer <token>
 **注記:**
 - `summary.labels_count`: project 配下 label の総数
 - `summary.documents_count`: project 配下 document の総数
-- `summary.pending_documents_count`: `document.meta.status != verified` の document 総数
-- `summary.updated_at`: 各 document の `meta.updated_at ?? meta.created_at` の最大値。document が 0 件なら `null`
+- `summary.pending_documents_count`: `document.status != verified` の document 総数
+- `summary.updated_at`: 各 document の `updated_at` の最大値。document が 0 件なら `null`
 - 一覧順は backend の既定ソートで返る
   - `pending_documents_count` 降順
   - `updated_at` 降順
@@ -712,6 +712,9 @@ Authorization: Bearer <token>
       "project_name": "医療文書NER",
       "document_name": "患者記録_001",
       "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+      "status": "pending",
+      "created_at": "2026-03-11T01:23:45Z",
+      "updated_at": "2026-03-11T01:23:45Z",
       "meta": {
         "source": "hospital_records"
       }
@@ -722,6 +725,9 @@ Authorization: Bearer <token>
       "project_name": "医療文書NER",
       "document_name": "患者記録_002",
       "text": "患者は腹痛で来院。検査の結果、胃潰瘍と診断。",
+      "status": "verified",
+      "created_at": "2026-03-10T10:00:00Z",
+      "updated_at": "2026-03-11T08:00:00Z",
       "meta": {}
     }
   ],
@@ -737,8 +743,8 @@ Authorization: Bearer <token>
 - `offset/limit` 方式のページングを採用（シンプルさを優先）
 - `search` は `document_name` ではなく `text` にのみ適用する
 - `sort=pending` は `pending` を先頭に寄せ、その後 `document_name ASC` で並べる
-- `sort=updated` は `meta.updated_at` 降順、未設定時は `meta.created_at` を使う
-- `sort=created` は `meta.created_at` 昇順を基本とする
+- `sort=updated` は `updated_at` 降順を基本とする
+- `sort=created` は `created_at` 昇順を基本とする
 
 ---
 
@@ -771,6 +777,9 @@ Authorization: Bearer <token>
   "project_name": "医療文書NER",
   "document_name": "患者記録_001",
   "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "status": "pending",
+  "created_at": "2026-03-11T01:23:45Z",
+  "updated_at": "2026-03-11T01:23:45Z",
   "meta": {
     "source": "hospital_records",
     "date": "2024-01-15"
@@ -804,6 +813,9 @@ Authorization: Bearer <token>
   "project_name": "医療文書NER",
   "document_name": "患者記録_001",
   "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "status": "pending",
+  "created_at": "2026-03-11T01:23:45Z",
+  "updated_at": "2026-03-11T01:23:45Z",
   "annotations": [
     {
       "id": "uuid",
@@ -889,6 +901,9 @@ Authorization: Bearer <token>
   "project_name": "医療文書NER",
   "document_name": "患者記録_001_revised",
   "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "status": "pending",
+  "created_at": "2026-03-11T01:23:45Z",
+  "updated_at": "2026-03-12T02:00:00Z",
   "meta": {
     "source": "hospital_records",
     "date": "2024-01-15",
@@ -949,8 +964,8 @@ Authorization: Bearer <token>
 - request に含まれない既存 annotation は削除される
 - `id: null` は新規 annotation として作成される
 - 既存 annotation の `label_id/start/end/span_text` は変更不可
-- `meta.updated_at` は backend が管理する
-- document `meta.status` は保存後の annotation 一覧から backend が再計算する
+- `updated_at` は backend が管理する
+- document `status` は保存後の annotation 一覧から backend が再計算する
 
 ---
 

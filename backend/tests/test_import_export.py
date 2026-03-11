@@ -53,6 +53,27 @@ def _export_project_payload(
     return response.json()
 
 
+def _import_document_payload(
+    document_name: str,
+    text: str,
+    annotations: list[JSONDict],
+    *,
+    status: str = "pending",
+    created_at: str = "2026-03-01T00:00:00Z",
+    updated_at: str = "2026-03-02T00:00:00Z",
+    meta: JSONDict | None = None,
+) -> JSONDict:
+    return {
+        "document_name": document_name,
+        "text": text,
+        "status": status,
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "annotations": annotations,
+        "meta": meta or {},
+    }
+
+
 def test_import_creates_new_project_from_export(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
@@ -95,6 +116,9 @@ def test_import_creates_new_project_from_export(
 
     assert created_label["id"] != payload["labels"][0]["id"]
     assert created_document["id"] != payload["documents"][0]["id"]
+    assert created_document["status"] == payload["documents"][0]["status"]
+    assert created_document["created_at"] == payload["documents"][0]["created_at"]
+    assert created_document["updated_at"] == payload["documents"][0]["updated_at"]
     assert (
         detail_response.json()["annotations"][0]["id"]
         != payload["documents"][0]["annotations"][0]["id"]
@@ -262,6 +286,27 @@ def test_export_filters_by_status(client: TestClient, auth_headers: dict[str, st
     assert none_selected.json()["documents"][0]["annotations"] == []
 
 
+def test_import_rejects_old_document_system_fields_format(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project = _setup_project_with_data(client, auth_headers, "Project Old Export")
+    payload = _export_project_payload(client, auth_headers, project["id"])
+    payload["project"]["name"] = "Project Old Export Imported"
+    payload["documents"][0]["meta"] = {
+        **payload["documents"][0]["meta"],
+        "status": payload["documents"][0]["status"],
+        "created_at": payload["documents"][0]["created_at"],
+        "updated_at": payload["documents"][0]["updated_at"],
+    }
+    del payload["documents"][0]["status"]
+    del payload["documents"][0]["created_at"]
+    del payload["documents"][0]["updated_at"]
+
+    response = client.post("/projects/import", json=payload, headers=auth_headers)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Document status is required"
+
+
 def test_import_allows_existing_label_reference(client: TestClient, auth_headers: dict[str, str]) -> None:
     target_project = client.post(
         "/projects", json={"name": "Project D", "description": "desc"}, headers=auth_headers
@@ -276,10 +321,10 @@ def test_import_allows_existing_label_reference(client: TestClient, auth_headers
         "project": {"name": "Project D", "description": "desc", "meta": {}},
         "labels": [],
         "documents": [
-            {
-                "document_name": "DocFromImport",
-                "text": "Hello world",
-                "annotations": [
+            _import_document_payload(
+                "DocFromImport",
+                "Hello world",
+                [
                     {
                         "label_name": "ExistingLabel",
                         "start": 0,
@@ -290,8 +335,8 @@ def test_import_allows_existing_label_reference(client: TestClient, auth_headers
                         "meta": {},
                     }
                 ],
-                "meta": {},
-            }
+                status="verified",
+            )
         ],
         "meta": {"format": "layered-span-studio/export", "version": "1.0"},
     }
@@ -380,10 +425,10 @@ def test_import_rejects_boolean_annotation_offsets(
             }
         ],
         "documents": [
-            {
-                "document_name": "DocBool",
-                "text": "Hello world",
-                "annotations": [
+            _import_document_payload(
+                "DocBool",
+                "Hello world",
+                [
                     {
                         "label_name": "LabelBool",
                         "start": 0,
@@ -394,8 +439,8 @@ def test_import_rejects_boolean_annotation_offsets(
                         "meta": {},
                     }
                 ],
-                "meta": {},
-            }
+                status="verified",
+            )
         ],
         "meta": {"format": "layered-span-studio/export", "version": "1.0"},
     }
@@ -426,10 +471,10 @@ def test_import_rejects_unknown_label_reference(
         "project": {"name": "Project Unknown Label", "description": "desc", "meta": {}},
         "labels": [],
         "documents": [
-            {
-                "document_name": "DocUnknownLabel",
-                "text": "Hello world",
-                "annotations": [
+            _import_document_payload(
+                "DocUnknownLabel",
+                "Hello world",
+                [
                     {
                         "label_name": "MissingLabel",
                         "start": 0,
@@ -440,8 +485,8 @@ def test_import_rejects_unknown_label_reference(
                         "meta": {},
                     }
                 ],
-                "meta": {},
-            }
+                status="verified",
+            )
         ],
         "meta": {"format": "layered-span-studio/export", "version": "1.0"},
     }
@@ -471,10 +516,10 @@ def test_import_rejects_mismatched_span_text(
             }
         ],
         "documents": [
-            {
-                "document_name": "DocMismatch",
-                "text": "Hello world",
-                "annotations": [
+            _import_document_payload(
+                "DocMismatch",
+                "Hello world",
+                [
                     {
                         "label_name": "LabelMismatch",
                         "start": 0,
@@ -485,8 +530,8 @@ def test_import_rejects_mismatched_span_text(
                         "meta": {},
                     }
                 ],
-                "meta": {},
-            }
+                status="verified",
+            )
         ],
         "meta": {"format": "layered-span-studio/export", "version": "1.0"},
     }
@@ -515,10 +560,10 @@ def test_import_rejects_same_label_overlap(client: TestClient, auth_headers: dic
             }
         ],
         "documents": [
-            {
-                "document_name": "DocOverlapReject",
-                "text": "Hello world",
-                "annotations": [
+            _import_document_payload(
+                "DocOverlapReject",
+                "Hello world",
+                [
                     {
                         "label_name": "LabelOverlap",
                         "start": 0,
@@ -538,8 +583,8 @@ def test_import_rejects_same_label_overlap(client: TestClient, auth_headers: dic
                         "meta": {},
                     },
                 ],
-                "meta": {},
-            }
+                status="pending",
+            )
         ],
         "meta": {"format": "layered-span-studio/export", "version": "1.0"},
     }
@@ -574,10 +619,10 @@ def test_import_allows_different_label_overlap(client: TestClient, auth_headers:
             },
         ],
         "documents": [
-            {
-                "document_name": "DocOverlapAllow",
-                "text": "Hello world",
-                "annotations": [
+            _import_document_payload(
+                "DocOverlapAllow",
+                "Hello world",
+                [
                     {
                         "label_name": "LabelA",
                         "start": 0,
@@ -597,8 +642,8 @@ def test_import_allows_different_label_overlap(client: TestClient, auth_headers:
                         "meta": {},
                     },
                 ],
-                "meta": {},
-            }
+                status="pending",
+            )
         ],
         "meta": {"format": "layered-span-studio/export", "version": "1.0"},
     }

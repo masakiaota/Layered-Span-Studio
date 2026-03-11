@@ -64,6 +64,9 @@ export interface DocumentRecord {
   project_name?: string | null;
   document_name: string;
   text: string;
+  status: StatusValue;
+  created_at: string;
+  updated_at: string;
   annotations: AnnotationRecord[];
   meta: JsonObject | null;
 }

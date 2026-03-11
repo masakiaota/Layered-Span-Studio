@@ -9,13 +9,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import func, select
 
 from layered_span_studio_backend.core.config import Settings
-from layered_span_studio_backend.storage.project_db import (
-    documents_table,
-    get_project_engine,
-    init_project_db,
-    labels_table,
-    project_table,
-)
+from layered_span_studio_backend.storage.project_db import documents_table, get_project_engine, init_project_db, labels_table, project_table
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
 
 
@@ -67,22 +61,11 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
                 continue
 
             labels_count = conn.execute(select(func.count()).select_from(labels_table)).scalar_one()
-            document_rows = conn.execute(select(documents_table.c.meta)).mappings().all()
-
-        pending_documents_count = 0
-        updated_at: Optional[str] = None
-        updated_at_timestamp: Optional[float] = None
-        for document_row in document_rows:
-            meta = decode_meta(document_row["meta"])
-            if meta.get("status") != "verified":
-                pending_documents_count += 1
-            candidate = meta.get("updated_at") or meta.get("created_at")
-            candidate_timestamp = _parse_timestamp(candidate)
-            if candidate_timestamp is None:
-                continue
-            if updated_at_timestamp is None or candidate_timestamp > updated_at_timestamp:
-                updated_at_timestamp = candidate_timestamp
-                updated_at = candidate
+            documents_count = conn.execute(select(func.count()).select_from(documents_table)).scalar_one()
+            pending_documents_count = conn.execute(
+                select(func.count()).select_from(documents_table).where(documents_table.c.status != "verified")
+            ).scalar_one()
+            updated_at = conn.execute(select(func.max(documents_table.c.updated_at))).scalar_one()
 
         projects.append(
             {
@@ -92,7 +75,7 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
                 "meta": decode_meta(row["meta"]),
                 "summary": {
                     "labels_count": labels_count,
-                    "documents_count": len(document_rows),
+                    "documents_count": documents_count,
                     "pending_documents_count": pending_documents_count,
                     "updated_at": updated_at,
                 },

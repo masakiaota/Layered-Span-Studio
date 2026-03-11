@@ -1053,12 +1053,8 @@ function ProjectShell({
     setSaving(true);
     try {
       const created = await api.createDocument(token, bundle.project.id, {
-        id: "",
-        project_id: bundle.project.id,
-        project_name: bundle.project.name,
         document_name: newDocName.trim(),
         text: newDocText,
-        annotations: [],
         meta: {},
       });
       const createdDocument = await api.getDocument(token, bundle.project.id, created.id);

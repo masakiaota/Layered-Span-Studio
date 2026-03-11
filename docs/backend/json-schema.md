@@ -16,7 +16,7 @@
   - `start`: 0-indexed / inclusive
   - `end`: 0-indexed / exclusive
   - 例: `text[start:end]` がスパン文字列になる
-- **時刻**: この基本スキーマでは `created_at` / `updated_at` を必須にしません（必要になったAPIで追加してOK）
+- **時刻**: `Document` では `created_at` / `updated_at` を top-level field として扱う
 
 ## エンティティ定義
 
@@ -195,8 +195,8 @@
 - response の `projects` は一覧用の `summary` を持つ
 - `summary.labels_count`: project 配下 label の総数
 - `summary.documents_count`: project 配下 document の総数
-- `summary.pending_documents_count`: `document.meta.status != "verified"` の document 総数
-- `summary.updated_at`: 各 document の `meta.updated_at ?? meta.created_at` の最大値。document が 0 件なら `null`
+- `summary.pending_documents_count`: `document.status != "verified"` の document 総数
+- `summary.updated_at`: 各 document の `updated_at` の最大値。document が 0 件なら `null`
 
 #### Project Settings Save API の派生ルール
 
@@ -266,6 +266,9 @@
   "project_name": "医療文書NER",
   "document_name": "患者記録_001",
   "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "status": "pending",
+  "created_at": "2026-03-11T01:23:45Z",
+  "updated_at": "2026-03-11T01:23:45Z",
   "annotations": [
     {
       "id": "uuid",
@@ -287,7 +290,7 @@
 }
 ```
 
-- **必須**: `id`, `project_id`, `project_name`, `document_name`, `text`, `annotations`
+- **必須**: `id`, `project_id`, `project_name`, `document_name`, `text`, `status`, `created_at`, `updated_at`, `annotations`
 - **任意**: `meta`
 
 #### Document List API の派生ルール
@@ -319,10 +322,10 @@
 - `id: null` は新規 annotation
 - request に含まれない既存 annotation は削除される
 - response は full `Document` を返す
-- document `meta.created_at` / `meta.updated_at` / `meta.status` は backend 管理
+- document `created_at` / `updated_at` / `status` は backend 管理
 - Save は現在状態をそのまま送る
 - Submit は frontend が annotation `status` を `verified` にした request を同じ API に送る
-- document `meta.status` は保存後の annotation 一覧から backend が再計算する
+- document `status` は保存後の annotation 一覧から backend が再計算する
 
 ## 組み合わせ（Exportの基本形）
 
@@ -355,6 +358,9 @@
       "project_name": "医療文書NER",
       "document_name": "患者記録_001",
       "text": "患者は…",
+      "status": "pending",
+      "created_at": "2026-03-11T01:23:45Z",
+      "updated_at": "2026-03-11T01:23:45Z",
       "annotations": [
         {
           "id": "uuid",

@@ -260,7 +260,11 @@ export class ApiClient {
     return parseResponse<DocumentRecord>(response);
   }
 
-  async createDocument(token: string, projectId: string, document: DocumentRecord) {
+  async createDocument(
+    token: string,
+    projectId: string,
+    document: Pick<DocumentRecord, "document_name" | "text" | "meta">,
+  ) {
     const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents`, {
       method: "POST",
       headers: headers(token, "application/json"),
@@ -273,7 +277,11 @@ export class ApiClient {
     return parseResponse<Omit<DocumentRecord, "annotations">>(response);
   }
 
-  async updateDocument(token: string, projectId: string, document: DocumentRecord) {
+  async updateDocument(
+    token: string,
+    projectId: string,
+    document: Pick<DocumentRecord, "id" | "document_name" | "meta">,
+  ) {
     const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents/${document.id}`, {
       method: "PATCH",
       headers: headers(token, "application/json"),

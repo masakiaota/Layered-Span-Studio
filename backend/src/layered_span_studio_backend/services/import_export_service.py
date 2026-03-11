@@ -75,6 +75,11 @@ def _validate_import_documents(incoming_documents: List[Dict[str, Any]]) -> None
         doc_payload = _require_import_dict(doc, "Each document must be an object")
         _require_non_empty_string(doc_payload.get("document_name"), "Document name is required")
         _require_string(doc_payload.get("text"), "Document text is required")
+        status = doc_payload.get("status")
+        if status not in {"pending", "verified"}:
+            raise ValueError("Document status is required")
+        _require_non_empty_string(doc_payload.get("created_at"), "Document created_at is required")
+        _require_non_empty_string(doc_payload.get("updated_at"), "Document updated_at is required")
         annotations = doc_payload.get("annotations", [])
         for ann in _require_import_list(annotations, "Document annotations must be an array"):
             ann_payload = _require_import_dict(ann, "Each annotation must be an object")
@@ -188,12 +193,15 @@ def _import_entities(
         label_id_by_name[created["name"]] = created["id"]
 
     for doc in incoming_documents:
-        created_doc = documents_repo.create_document(
+        created_doc = documents_repo.create_document_with_system_fields(
             settings,
             project_id,
             doc["document_name"],
             doc["text"],
             doc.get("meta"),
+            status=doc["status"],
+            created_at=doc["created_at"],
+            updated_at=doc["updated_at"],
         )
         for ann in doc.get("annotations", []):
             annotations_repo.create_annotation(
@@ -208,6 +216,14 @@ def _import_entities(
                 ann["status"],
                 ann.get("meta"),
             )
+        documents_repo.set_document_system_fields(
+            settings,
+            project_id,
+            created_doc["id"],
+            status=doc["status"],
+            created_at=doc["created_at"],
+            updated_at=doc["updated_at"],
+        )
 
     return _build_import_counts(incoming_labels, incoming_documents)
 

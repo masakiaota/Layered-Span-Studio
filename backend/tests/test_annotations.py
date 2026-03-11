@@ -64,6 +64,90 @@ def test_annotation_crud(client: TestClient, auth_headers: dict[str, str]) -> No
     assert response.status_code == 204
 
 
+def test_annotation_mutations_touch_document_updated_at(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project, label, doc = _setup(client, auth_headers)
+    initial_document = client.get(
+        f"/projects/{project['id']}/documents/{doc['id']}",
+        headers=auth_headers,
+    ).json()
+    initial_updated_at = initial_document["updated_at"]
+
+    created = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 0,
+            "end": 5,
+            "span_text": "Hello",
+            "comment": "",
+            "status": "pending",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    after_create = client.get(
+        f"/projects/{project['id']}/documents/{doc['id']}",
+        headers=auth_headers,
+    ).json()["updated_at"]
+    assert after_create >= initial_updated_at
+
+    updated = client.patch(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations/{created.json()['id']}",
+        json={"comment": "updated"},
+        headers=auth_headers,
+    )
+    assert updated.status_code == 200
+    after_update = client.get(
+        f"/projects/{project['id']}/documents/{doc['id']}",
+        headers=auth_headers,
+    ).json()["updated_at"]
+    assert after_update >= after_create
+
+    deleted = client.delete(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations/{created.json()['id']}",
+        headers=auth_headers,
+    )
+    assert deleted.status_code == 204
+    after_delete = client.get(
+        f"/projects/{project['id']}/documents/{doc['id']}",
+        headers=auth_headers,
+    ).json()["updated_at"]
+    assert after_delete >= after_update
+
+
+def test_bulk_annotation_create_touches_document_updated_at(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project, label, doc = _setup(client, auth_headers)
+    before = client.get(
+        f"/projects/{project['id']}/documents/{doc['id']}",
+        headers=auth_headers,
+    ).json()["updated_at"]
+
+    response = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations/bulk",
+        json={
+            "annotations": [
+                {
+                    "label_id": label["id"],
+                    "start": 0,
+                    "end": 5,
+                    "span_text": "Hello",
+                    "comment": "",
+                    "status": "verified",
+                    "meta": {},
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    after = client.get(
+        f"/projects/{project['id']}/documents/{doc['id']}",
+        headers=auth_headers,
+    ).json()["updated_at"]
+    assert after >= before
+
+
 def test_annotation_span_text_validation(client: TestClient, auth_headers: dict[str, str]) -> None:
     project, label, doc = _setup(client, auth_headers)
 

@@ -52,7 +52,11 @@ documents_table = Table(
     Column("project_id", String, ForeignKey("project.id", ondelete="CASCADE"), nullable=False),
     Column("document_name", String, nullable=False),
     Column("text", Text, nullable=False),
+    Column("status", String, nullable=False, server_default="pending"),
+    Column("created_at", Text, nullable=False),
+    Column("updated_at", Text, nullable=False),
     Column("meta", Text),
+    CheckConstraint("status IN ('pending', 'verified')", name="ck_documents_status"),
 )
 
 annotations_table = Table(
@@ -76,6 +80,8 @@ Index("idx_labels_project", labels_table.c.project_id)
 Index("idx_labels_name", labels_table.c.name)
 Index("idx_documents_project", documents_table.c.project_id)
 Index("idx_documents_document_name", documents_table.c.document_name)
+Index("idx_documents_status", documents_table.c.status)
+Index("idx_documents_updated_at", documents_table.c.updated_at)
 Index("idx_annotations_document", annotations_table.c.document_id)
 Index("idx_annotations_label", annotations_table.c.label_id)
 Index("idx_annotations_status", annotations_table.c.status)

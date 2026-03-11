@@ -70,11 +70,13 @@ export function documentMatchesSearch(document: DocumentRecord, query: string): 
   return !query.trim() || findSimpleSearchMatchRange(document.text, query) !== null;
 }
 
-type DocumentListCompatible = Pick<DocumentListItem, "text" | "meta" | "document_name" | "id">;
+type DocumentListCompatible = Pick<
+  DocumentListItem,
+  "text" | "meta" | "document_name" | "id" | "status" | "created_at" | "updated_at"
+>;
 
 export function getDocumentStatus(document: DocumentListCompatible): StatusValue {
-  const status = toJsonObject(document.meta).status;
-  return status === "verified" ? "verified" : "pending";
+  return document.status === "verified" ? "verified" : "pending";
 }
 
 export function getProjectGuideline(project: ProjectRecord): string {
@@ -213,8 +215,8 @@ export function getDocumentSnippetParts(document: DocumentListCompatible, query:
   return parts.filter((part) => part.text.length > 0);
 }
 
-function getDocumentMetaTimestamp(document: DocumentRecord, key: "created_at" | "updated_at"): number | null {
-  const value = toJsonObject(document.meta)[key];
+function getDocumentTimestamp(document: DocumentRecord, key: "created_at" | "updated_at"): number | null {
+  const value = document[key];
   if (typeof value !== "string") {
     return null;
   }
@@ -229,8 +231,8 @@ export function sortDocuments(documents: DocumentRecord[], mode: string): Docume
     (originalIndexById.get(left.id) ?? 0) - (originalIndexById.get(right.id) ?? 0);
   if (mode === "created") {
     return items.sort((left, right) => {
-      const leftCreated = getDocumentMetaTimestamp(left, "created_at");
-      const rightCreated = getDocumentMetaTimestamp(right, "created_at");
+      const leftCreated = getDocumentTimestamp(left, "created_at");
+      const rightCreated = getDocumentTimestamp(right, "created_at");
       if (leftCreated !== null || rightCreated !== null) {
         if (leftCreated === null) {
           return 1;
@@ -259,9 +261,9 @@ export function sortDocuments(documents: DocumentRecord[], mode: string): Docume
   }
   if (mode === "updated") {
     return items.sort((left, right) => {
-      const leftUpdated = getDocumentMetaTimestamp(left, "updated_at") ?? getDocumentMetaTimestamp(left, "created_at");
+      const leftUpdated = getDocumentTimestamp(left, "updated_at") ?? getDocumentTimestamp(left, "created_at");
       const rightUpdated =
-        getDocumentMetaTimestamp(right, "updated_at") ?? getDocumentMetaTimestamp(right, "created_at");
+        getDocumentTimestamp(right, "updated_at") ?? getDocumentTimestamp(right, "created_at");
       if (leftUpdated !== null || rightUpdated !== null) {
         if (leftUpdated === null) {
           return 1;

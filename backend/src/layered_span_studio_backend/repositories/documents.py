@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import Select, case, func, or_, select
+from sqlalchemy import Select, case, func, select
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.projects import project_db_path
@@ -18,6 +18,9 @@ from layered_span_studio_backend.storage.project_db import (
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
 
 
+SYSTEM_FIELD_KEYS = {"status", "created_at", "updated_at"}
+
+
 def _project_name(engine) -> Optional[str]:
     with engine.connect() as conn:
         row = conn.execute(select(project_table.c.name)).first()
@@ -28,19 +31,22 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _document_status_expr():
-    return func.json_extract(documents_table.c.meta, "$.status")
+def _sanitize_document_meta(meta: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    return {
+        key: value
+        for key, value in (meta or {}).items()
+        if key not in SYSTEM_FIELD_KEYS
+    }
 
 
-def _document_created_at_expr():
-    return func.json_extract(documents_table.c.meta, "$.created_at")
+def _normalize_document_status(value: Any) -> str:
+    return value if value in {"pending", "verified"} else "pending"
 
 
-def _document_updated_at_expr():
-    return func.coalesce(
-        func.json_extract(documents_table.c.meta, "$.updated_at"),
-        func.json_extract(documents_table.c.meta, "$.created_at"),
-    )
+def _normalize_document_timestamp(value: Any, fallback: str) -> str:
+    if isinstance(value, str) and value:
+        return value
+    return fallback
 
 
 def _document_filter_conditions(project_id: str, search: str = "") -> List[Any]:
@@ -56,26 +62,23 @@ def _document_sort_order(sort: str) -> List[Any]:
         return [documents_table.c.document_name.asc(), documents_table.c.id.asc()]
 
     if sort == "pending":
-        status_expr = _document_status_expr()
         return [
-            case((status_expr == "verified", 1), else_=0).asc(),
+            case((documents_table.c.status == "verified", 1), else_=0).asc(),
             documents_table.c.document_name.asc(),
             documents_table.c.id.asc(),
         ]
 
     if sort == "updated":
-        updated_at_expr = _document_updated_at_expr()
         return [
-            case((updated_at_expr.is_(None), 1), else_=0).asc(),
-            updated_at_expr.desc(),
+            case((documents_table.c.updated_at.is_(None), 1), else_=0).asc(),
+            documents_table.c.updated_at.desc(),
             documents_table.c.document_name.asc(),
             documents_table.c.id.asc(),
         ]
 
-    created_at_expr = _document_created_at_expr()
     return [
-        case((created_at_expr.is_(None), 1), else_=0).asc(),
-        created_at_expr.asc(),
+        case((documents_table.c.created_at.is_(None), 1), else_=0).asc(),
+        documents_table.c.created_at.asc(),
         documents_table.c.document_name.asc(),
         documents_table.c.id.asc(),
     ]
@@ -96,45 +99,10 @@ def _document_from_row(project_name: Optional[str], row: Dict[str, Any]) -> Dict
         "project_name": project_name,
         "document_name": row["document_name"],
         "text": row["text"],
+        "status": row["status"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
         "meta": decode_meta(row["meta"]),
-    }
-
-
-def _document_meta_with_system_fields(
-    incoming_meta: Optional[Dict[str, Any]],
-    existing_meta: Optional[Dict[str, Any]] = None,
-    *,
-    status: Optional[str] = None,
-) -> Dict[str, Any]:
-    now = _utc_now_iso()
-    user_meta = {
-        key: value
-        for key, value in (existing_meta or {}).items()
-        if key not in {"created_at", "updated_at", "status"}
-    }
-    user_meta.update(
-        {
-            key: value
-            for key, value in (incoming_meta or {}).items()
-            if key not in {"created_at", "updated_at", "status"}
-        }
-    )
-    created_at = None
-    if isinstance(existing_meta, dict):
-        existing_created_at = existing_meta.get("created_at")
-        if isinstance(existing_created_at, str) and existing_created_at:
-            created_at = existing_created_at
-    if not created_at:
-        created_at = now
-    next_status = status
-    if next_status is None:
-        existing_status = (existing_meta or {}).get("status")
-        next_status = existing_status if existing_status == "verified" else "pending"
-    return {
-        **user_meta,
-        "created_at": created_at,
-        "updated_at": now,
-        "status": next_status,
     }
 
 
@@ -149,7 +117,6 @@ def list_documents_page(
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     project_name = _project_name(engine)
-    status_expr = _document_status_expr()
     conditions = _document_filter_conditions(project_id, search)
     with engine.connect() as conn:
         rows = (
@@ -163,10 +130,7 @@ def list_documents_page(
         pending_total = conn.execute(
             select(func.count())
             .select_from(documents_table)
-            .where(
-                *conditions,
-                or_(status_expr.is_(None), status_expr != "verified"),
-            )
+            .where(*conditions, documents_table.c.status != "verified")
         ).scalar_one()
     documents = [_document_from_row(project_name, row) for row in rows]
     return documents, total, pending_total
@@ -220,13 +184,52 @@ def get_document(settings: Settings, project_id: str, document_id: str) -> Optio
         )
     if not row:
         return None
+    return _document_from_row(project_name, row)
+
+
+def create_document_with_system_fields(
+    settings: Settings,
+    project_id: str,
+    document_name: str,
+    text: str,
+    meta: Optional[Dict[str, Any]],
+    *,
+    status: str = "pending",
+    created_at: Optional[str] = None,
+    updated_at: Optional[str] = None,
+) -> Dict[str, Any]:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    document_id = str(uuid.uuid4())
+    now = _utc_now_iso()
+    normalized_created_at = _normalize_document_timestamp(created_at, now)
+    normalized_updated_at = _normalize_document_timestamp(updated_at, normalized_created_at)
+    normalized_status = _normalize_document_status(status)
+    user_meta = _sanitize_document_meta(meta)
+    with engine.begin() as conn:
+        conn.execute(
+            documents_table.insert().values(
+                id=document_id,
+                project_id=project_id,
+                document_name=document_name,
+                text=text,
+                status=normalized_status,
+                created_at=normalized_created_at,
+                updated_at=normalized_updated_at,
+                meta=encode_meta(user_meta),
+            )
+        )
+    project_name = _project_name(engine)
     return {
-        "id": row["id"],
-        "project_id": row["project_id"],
+        "id": document_id,
+        "project_id": project_id,
         "project_name": project_name,
-        "document_name": row["document_name"],
-        "text": row["text"],
-        "meta": decode_meta(row["meta"]),
+        "document_name": document_name,
+        "text": text,
+        "status": normalized_status,
+        "created_at": normalized_created_at,
+        "updated_at": normalized_updated_at,
+        "meta": user_meta,
     }
 
 
@@ -237,29 +240,14 @@ def create_document(
     text: str,
     meta: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    db_path = project_db_path(settings, project_id)
-    engine = get_project_engine(str(db_path))
-    document_id = str(uuid.uuid4())
-    system_meta = _document_meta_with_system_fields(meta, status="pending")
-    with engine.begin() as conn:
-        conn.execute(
-            documents_table.insert().values(
-                id=document_id,
-                project_id=project_id,
-                document_name=document_name,
-                text=text,
-                meta=encode_meta(system_meta),
-            )
-        )
-    project_name = _project_name(engine)
-    return {
-        "id": document_id,
-        "project_id": project_id,
-        "project_name": project_name,
-        "document_name": document_name,
-        "text": text,
-        "meta": system_meta,
-    }
+    return create_document_with_system_fields(
+        settings,
+        project_id,
+        document_name,
+        text,
+        meta,
+        status="pending",
+    )
 
 
 def update_document(
@@ -273,7 +261,8 @@ def update_document(
     if not document:
         return None
     new_name = document_name if document_name is not None else document["document_name"]
-    new_meta = _document_meta_with_system_fields(meta, document.get("meta"))
+    new_meta = _sanitize_document_meta(meta) if meta is not None else document.get("meta") or {}
+    new_updated_at = _utc_now_iso()
 
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
@@ -281,6 +270,7 @@ def update_document(
         conn.execute(
             documents_table.update().where(documents_table.c.id == document_id).values(
                 document_name=new_name,
+                updated_at=new_updated_at,
                 meta=encode_meta(new_meta),
             )
         )
@@ -290,8 +280,37 @@ def update_document(
         "project_name": document["project_name"],
         "document_name": new_name,
         "text": document["text"],
+        "status": document["status"],
+        "created_at": document["created_at"],
+        "updated_at": new_updated_at,
         "meta": new_meta,
     }
+
+
+def set_document_system_fields(
+    settings: Settings,
+    project_id: str,
+    document_id: str,
+    *,
+    status: str,
+    created_at: str,
+    updated_at: str,
+) -> None:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    with engine.begin() as conn:
+        conn.execute(
+            documents_table.update()
+            .where(
+                documents_table.c.project_id == project_id,
+                documents_table.c.id == document_id,
+            )
+            .values(
+                status=_normalize_document_status(status),
+                created_at=_normalize_document_timestamp(created_at, _utc_now_iso()),
+                updated_at=_normalize_document_timestamp(updated_at, created_at),
+            )
+        )
 
 
 def delete_document(settings: Settings, project_id: str, document_id: str) -> bool:
@@ -432,6 +451,7 @@ def save_document_bundle(
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     final_status = _final_document_status(items)
+    now = _utc_now_iso()
 
     with engine.begin() as conn:
         existing_annotations = _existing_annotations_by_id(conn, project_id, document_id)
@@ -490,13 +510,8 @@ def save_document_bundle(
                 documents_table.c.id == document_id,
             )
             .values(
-                meta=encode_meta(
-                    _document_meta_with_system_fields(
-                        document.get("meta"),
-                        document.get("meta"),
-                        status=final_status,
-                    )
-                )
+                status=final_status,
+                updated_at=now,
             )
         )
 

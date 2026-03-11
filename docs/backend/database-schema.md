@@ -163,12 +163,18 @@ CREATE TABLE documents (
     project_id TEXT NOT NULL,
     document_name TEXT NOT NULL,  -- ドキュメント名
     text TEXT NOT NULL,           -- アノテーション対象のテキスト
+    status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'verified'
+    created_at TEXT NOT NULL,     -- ISO 8601 UTC
+    updated_at TEXT NOT NULL,     -- ISO 8601 UTC
     meta TEXT,                    -- JSON: 任意の拡張情報
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    CHECK (status IN ('pending', 'verified'))
 );
 
 CREATE INDEX idx_documents_project ON documents(project_id);
 CREATE INDEX idx_documents_document_name ON documents(document_name);
+CREATE INDEX idx_documents_status ON documents(status);
+CREATE INDEX idx_documents_updated_at ON documents(updated_at);
 ```
 
 | カラム | 型 | NULL | 説明 |
@@ -177,10 +183,14 @@ CREATE INDEX idx_documents_document_name ON documents(document_name);
 | project_id | TEXT | NOT NULL | プロジェクトID（UUID） |
 | document_name | TEXT | NOT NULL | ドキュメント名 |
 | text | TEXT | NOT NULL | アノテーション対象のテキスト全体 |
-| meta | TEXT | NULL | 任意の拡張情報（JSON文字列） |
+| status | TEXT | NOT NULL | 状態（'pending', 'verified'） |
+| created_at | TEXT | NOT NULL | 作成日時（ISO 8601 UTC） |
+| updated_at | TEXT | NOT NULL | 更新日時（ISO 8601 UTC） |
+| meta | TEXT | NULL | 任意の拡張情報（JSON文字列。user-defined fields のみ） |
 
 メモ:
 - 外部JSON（`docs/backend/json-schema.md`）の `Document.project_name` は、`project.name` から取得します。
+- `status` / `created_at` / `updated_at` は system field として backend が管理します。
 
 ---
 
@@ -289,12 +299,18 @@ CREATE TABLE IF NOT EXISTS documents (
     project_id TEXT NOT NULL,
     document_name TEXT NOT NULL,
     text TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
     meta TEXT,
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    CHECK (status IN ('pending', 'verified'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_documents_project ON documents(project_id);
 CREATE INDEX IF NOT EXISTS idx_documents_document_name ON documents(document_name);
+CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
+CREATE INDEX IF NOT EXISTS idx_documents_updated_at ON documents(updated_at);
 
 -- annotations テーブル
 CREATE TABLE IF NOT EXISTS annotations (

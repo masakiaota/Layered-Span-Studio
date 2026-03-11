@@ -17,7 +17,16 @@ def _create_project(client: TestClient, auth_headers: dict[str, str]) -> str:
     return response.json()["id"]
 
 
-def _set_document_meta(settings: Settings, project_id: str, document_id: str, meta: dict[str, object] | None) -> None:
+def _set_document_fields(
+    settings: Settings,
+    project_id: str,
+    document_id: str,
+    *,
+    status: str = "pending",
+    created_at: str = "2026-03-01T00:00:00Z",
+    updated_at: str | None = None,
+    meta: dict[str, object] | None = None,
+) -> None:
     engine = get_project_engine(str(project_db_path(settings, project_id)))
     with engine.begin() as conn:
         conn.execute(
@@ -26,7 +35,12 @@ def _set_document_meta(settings: Settings, project_id: str, document_id: str, me
                 documents_table.c.project_id == project_id,
                 documents_table.c.id == document_id,
             )
-            .values(meta=encode_meta(meta))
+            .values(
+                status=status,
+                created_at=created_at,
+                updated_at=updated_at or created_at,
+                meta=encode_meta(meta),
+            )
         )
 
 
@@ -106,14 +120,16 @@ def test_document_list_supports_search_sort_and_pending_total(
         headers=auth_headers,
     ).json()
 
-    _set_document_meta(settings, project_id, beta["id"], {"status": "verified", "created_at": "2026-03-09T00:00:00Z"})
-    _set_document_meta(
+    _set_document_fields(settings, project_id, beta["id"], status="verified", created_at="2026-03-09T00:00:00Z")
+    _set_document_fields(
         settings,
         project_id,
         alpha["id"],
-        {"status": "pending", "created_at": "2026-03-08T00:00:00Z", "updated_at": "2026-03-10T00:00:00Z"},
+        status="pending",
+        created_at="2026-03-08T00:00:00Z",
+        updated_at="2026-03-10T00:00:00Z",
     )
-    _set_document_meta(settings, project_id, gamma["id"], {"status": "pending", "created_at": "2026-03-11T00:00:00Z"})
+    _set_document_fields(settings, project_id, gamma["id"], status="pending", created_at="2026-03-11T00:00:00Z")
 
     response = client.get(
         f"/projects/{project_id}/documents?search=target&sort=pending",
@@ -152,14 +168,24 @@ def test_document_list_pages_and_sorts_in_sql(
         headers=auth_headers,
     ).json()
 
-    _set_document_meta(settings, project_id, zeta["id"], {"status": "verified", "created_at": "2026-03-02T00:00:00Z"})
-    _set_document_meta(
+    _set_document_fields(settings, project_id, zeta["id"], status="verified", created_at="2026-03-02T00:00:00Z")
+    _set_document_fields(
         settings,
         project_id,
         alpha["id"],
-        {"status": "pending", "created_at": "2026-03-01T00:00:00Z", "updated_at": "2026-03-03T00:00:00Z"},
+        status="pending",
+        created_at="2026-03-01T00:00:00Z",
+        updated_at="2026-03-03T00:00:00Z",
     )
-    _set_document_meta(settings, project_id, mu["id"], {})
+    _set_document_fields(
+        settings,
+        project_id,
+        mu["id"],
+        status="pending",
+        created_at="2026-03-11T00:00:00Z",
+        updated_at="2026-03-01T00:00:00Z",
+        meta={},
+    )
 
     name_sorted = client.get(
         f"/projects/{project_id}/documents?search=target&sort=name&offset=1&limit=1",
@@ -228,7 +254,7 @@ def test_document_create_and_update_reject_duplicate_name(
     assert duplicate_update.status_code == 400
 
 
-def test_document_create_sets_server_managed_meta(client: TestClient, auth_headers: dict[str, str]) -> None:
+def test_document_create_sets_server_managed_fields(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
 
     response = client.post(
@@ -246,10 +272,13 @@ def test_document_create_sets_server_managed_meta(client: TestClient, auth_heade
     )
     assert response.status_code == 201
     payload = response.json()
-    assert payload["meta"]["status"] == "pending"
+    assert payload["status"] == "pending"
     assert payload["meta"]["note"] == "keep me"
-    assert payload["meta"]["created_at"] != "1999-01-01T00:00:00Z"
-    assert payload["meta"]["updated_at"] == payload["meta"]["created_at"]
+    assert payload["created_at"] != "1999-01-01T00:00:00Z"
+    assert payload["updated_at"] == payload["created_at"]
+    assert "status" not in payload["meta"]
+    assert "created_at" not in payload["meta"]
+    assert "updated_at" not in payload["meta"]
 
 
 def test_document_bundle_save_syncs_annotations(client: TestClient, auth_headers: dict[str, str]) -> None:
@@ -327,7 +356,7 @@ def test_document_bundle_save_syncs_annotations(client: TestClient, auth_headers
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["meta"]["status"] == "pending"
+    assert payload["status"] == "pending"
     assert {annotation["id"] for annotation in payload["annotations"]} != {first["id"], second["id"]}
     assert len(payload["annotations"]) == 2
     assert payload["annotations"][0]["comment"] == "updated"
@@ -452,7 +481,7 @@ def test_document_bundle_marks_document_verified_when_all_annotations_are_verifi
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["meta"]["status"] == "verified"
+    assert payload["status"] == "verified"
     assert all(annotation["status"] == "verified" for annotation in payload["annotations"])
 
 
