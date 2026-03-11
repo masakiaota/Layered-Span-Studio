@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.projects import project_db_path
@@ -319,3 +319,93 @@ def list_label_examples(
         }
         for row in rows
     ]
+
+
+def list_label_surface_groups_page(
+    settings: Settings,
+    project_id: str,
+    label_id: str,
+    statuses: List[str],
+    exclude_annotation_id: Optional[str],
+    offset: int,
+    limit: int,
+) -> tuple[List[Dict[str, Any]], int]:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    join_from = annotations_table.join(
+        documents_table, annotations_table.c.document_id == documents_table.c.id
+    )
+    conditions = [
+        documents_table.c.project_id == project_id,
+        annotations_table.c.label_id == label_id,
+        annotations_table.c.status.in_(statuses),
+        annotations_table.c.span_text != "",
+    ]
+    if exclude_annotation_id:
+        conditions.append(annotations_table.c.id != exclude_annotation_id)
+
+    representative_rank = case((annotations_table.c.status == "verified", 0), else_=1)
+    candidates = (
+        select(
+            annotations_table.c.id.label("annotation_id"),
+            annotations_table.c.document_id,
+            documents_table.c.document_name,
+            documents_table.c.text.label("document_text"),
+            annotations_table.c.span_text.label("surface_text"),
+            annotations_table.c.start,
+            annotations_table.c.end,
+            annotations_table.c.status,
+            representative_rank.label("representative_rank"),
+            func.count().over(partition_by=annotations_table.c.span_text).label("duplicate_count"),
+            func.row_number()
+            .over(
+                partition_by=annotations_table.c.span_text,
+                order_by=(
+                    representative_rank.asc(),
+                    documents_table.c.document_name.asc(),
+                    annotations_table.c.start.asc(),
+                    annotations_table.c.id.asc(),
+                ),
+            )
+            .label("surface_rank"),
+        )
+        .select_from(join_from)
+        .where(*conditions)
+        .cte("surface_group_candidates")
+    )
+
+    # Keep grouping, representative selection, and paging in SQL so the service
+    # only needs to build response context for the selected representative rows.
+    with engine.connect() as conn:
+        total = conn.execute(
+            select(func.count(func.distinct(annotations_table.c.span_text)))
+            .select_from(join_from)
+            .where(*conditions)
+        ).scalar_one()
+        rows = (
+            conn.execute(
+                select(
+                    candidates.c.surface_text,
+                    candidates.c.duplicate_count,
+                    candidates.c.annotation_id,
+                    candidates.c.document_id,
+                    candidates.c.document_name,
+                    candidates.c.document_text,
+                    candidates.c.start,
+                    candidates.c.end,
+                    candidates.c.status,
+                )
+                .where(candidates.c.surface_rank == 1)
+                .order_by(
+                    candidates.c.representative_rank.asc(),
+                    candidates.c.document_name.asc(),
+                    candidates.c.start.asc(),
+                    candidates.c.annotation_id.asc(),
+                )
+                .offset(offset)
+                .limit(limit)
+            )
+            .mappings()
+            .all()
+        )
+    return [dict(row) for row in rows], total

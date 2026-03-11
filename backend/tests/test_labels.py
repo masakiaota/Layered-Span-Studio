@@ -4,6 +4,11 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from layered_span_studio_backend.core.config import Settings
+from layered_span_studio_backend.repositories.projects import project_db_path
+from layered_span_studio_backend.storage.project_db import annotations_table, get_project_engine
+from layered_span_studio_backend.utils.json_utils import encode_meta
+
 
 def _create_project(client: TestClient, auth_headers: dict[str, str]) -> str:
     response = client.post(
@@ -12,6 +17,35 @@ def _create_project(client: TestClient, auth_headers: dict[str, str]) -> str:
         headers=auth_headers,
     )
     return response.json()["id"]
+
+
+def _insert_annotation_row(
+    settings: Settings,
+    project_id: str,
+    *,
+    annotation_id: str,
+    document_id: str,
+    label_id: str,
+    start: int,
+    end: int,
+    span_text: str,
+    status: str = "verified",
+) -> None:
+    engine = get_project_engine(str(project_db_path(settings, project_id)))
+    with engine.begin() as conn:
+        conn.execute(
+            annotations_table.insert().values(
+                id=annotation_id,
+                document_id=document_id,
+                label_id=label_id,
+                start=start,
+                end=end,
+                span_text=span_text,
+                comment="",
+                status=status,
+                meta=encode_meta({}),
+            )
+        )
 
 
 def test_label_crud(client: TestClient, auth_headers: dict[str, str]) -> None:
@@ -577,6 +611,140 @@ def test_label_surface_groups_exclude_annotation_id(client: TestClient, auth_hea
     payload = response.json()
     surfaces = {item["surface_text"] for item in payload["items"]}
     assert surfaces == {"bravo"}
+
+
+def test_label_surface_groups_choose_verified_representative(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    data = _setup_examples_fixture(client, auth_headers)
+    response = client.get(
+        f"/projects/{data['project_id']}/labels/{data['target_label_id']}/surface-groups?status=all",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    by_surface = {item["surface_text"]: item for item in payload["items"]}
+    assert by_surface["bravo"]["duplicate_count"] == 2
+    assert by_surface["bravo"]["representative"]["status"] == "verified"
+    assert by_surface["bravo"]["representative"]["annotation_id"] == data["target_annotation_ids_in_sequential_order"][2]
+
+
+def test_label_surface_groups_tie_break_by_document_name_start_and_annotation_id(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Surface Tie Project", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Disease", "color": "#AA1122", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    alpha_doc = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "AlphaDoc", "text": "alpha alpha", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    omega_doc = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "OmegaDoc", "text": "alpha alpha", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-z",
+        document_id=omega_doc["id"],
+        label_id=label["id"],
+        start=0,
+        end=5,
+        span_text="alpha",
+    )
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-b",
+        document_id=alpha_doc["id"],
+        label_id=label["id"],
+        start=6,
+        end=11,
+        span_text="alpha",
+    )
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-a",
+        document_id=alpha_doc["id"],
+        label_id=label["id"],
+        start=6,
+        end=11,
+        span_text="alpha",
+    )
+
+    response = client.get(
+        f"/projects/{project['id']}/labels/{label['id']}/surface-groups?status=verified",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    representative = payload["items"][0]["representative"]
+    assert representative["annotation_id"] == "ann-a"
+    assert representative["document_name"] == "AlphaDoc"
+    assert representative["start"] == 6
+
+
+def test_label_surface_groups_ignore_empty_surface_text(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Surface Empty Project", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Disease", "color": "#AA3322", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    doc = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "DocA", "text": "alpha", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-empty",
+        document_id=doc["id"],
+        label_id=label["id"],
+        start=0,
+        end=1,
+        span_text="",
+    )
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-alpha",
+        document_id=doc["id"],
+        label_id=label["id"],
+        start=0,
+        end=5,
+        span_text="alpha",
+    )
+
+    response = client.get(
+        f"/projects/{project['id']}/labels/{label['id']}/surface-groups?status=verified",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert [item["surface_text"] for item in payload["items"]] == ["alpha"]
 
 
 def test_label_surface_groups_do_not_normalize_surface_text(

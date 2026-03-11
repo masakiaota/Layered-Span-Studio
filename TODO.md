@@ -29,6 +29,9 @@
   - `input` 即反映、`blur` 確定、Save 時反映のどれを正とするかを決める
 - Import バリデーションを frontend と backend でどう揃えるか整理する
   - label の必須項目や import 時の検証責務をどちらに寄せるかを明確にする
+- `GET /projects/{project_id}/labels/{label_id}/examples` も全件取得前提を見直す
+  - 現在は annotation と `document_text` を全件読み込んでから service 側で `offset/limit` と random sampling を処理している
+  - `/surface-groups` と同様に、検索・ページングを SQL に寄せる余地があるため別タスクで整理する
 
 ## Low
 

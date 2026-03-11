@@ -628,7 +628,8 @@ Authorization: Bearer <token>
 
 **注記:**
 - `duplicate_count` は同一 `surface_text` に完全一致する annotation 件数
-- `representative` は該当グループの表示代表であり、優先順は `verified`、次に `document_name ASC`
+- `representative` は該当グループの表示代表であり、優先順は `verified`、次に `document_name ASC`、`start ASC`、`annotation_id ASC`
+- 実装上は repository が SQL で絞り込み・集約・ページングを行い、service は representative の前後文脈生成とレスポンス整形のみを担う
 
 ---
 
@@ -1597,6 +1598,7 @@ Authorization: Bearer <token>
 - Document一覧には `offset/limit` 方式を採用
 - Document一覧は `search` / `sort` を同時指定可能
 - 右ペイン向けの `surface-groups` / `annotations/search` も `offset/limit` を持つ
+- `surface-groups` / `annotations/search` は全件を service にロードせず、repository の SQL で絞り込み・集約・ページングする
 - シンプルさを優先し、将来的に cursor 方式への移行も検討可能
 
 ### データの不変性

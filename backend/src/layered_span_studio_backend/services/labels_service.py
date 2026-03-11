@@ -162,45 +162,18 @@ def list_label_surface_groups(
         raise ValueError("Label not found")
 
     statuses = ["pending", "verified"] if status_filter == "all" else [status_filter]
-    rows = labels_repo.list_label_examples(settings, project_id, label_id, statuses)
-    if exclude_annotation_id:
-        rows = [row for row in rows if row["annotation_id"] != exclude_annotation_id]
-
-    grouped: Dict[str, Dict[str, Any]] = {}
-    for row in rows:
-        surface_text = row["span_text"]
-        if not surface_text:
-            continue
-        current = grouped.get(surface_text)
-        if not current:
-            grouped[surface_text] = {
-                "surface_text": surface_text,
-                "duplicate_count": 1,
-                "representative": row,
-            }
-            continue
-        current["duplicate_count"] += 1
-        representative = current["representative"]
-        if representative["status"] != "verified" and row["status"] == "verified":
-            current["representative"] = row
-        elif representative["status"] == row["status"] and row["document_name"] < representative["document_name"]:
-            current["representative"] = row
-
-    ordered = sorted(
-        grouped.values(),
-        key=lambda item: (
-            0 if item["representative"]["status"] == "verified" else 1,
-            item["representative"]["document_name"],
-            item["representative"]["start"],
-            item["representative"]["annotation_id"],
-        ),
+    rows, total = labels_repo.list_label_surface_groups_page(
+        settings,
+        project_id,
+        label_id,
+        statuses,
+        exclude_annotation_id,
+        offset,
+        limit,
     )
-    total = len(ordered)
-    picked = ordered[offset : offset + limit]
 
     items: List[Dict[str, Any]] = []
-    for item in picked:
-        row = item["representative"]
+    for row in rows:
         text = row["document_text"]
         start = row["start"]
         end = row["end"]
@@ -208,13 +181,13 @@ def list_label_surface_groups(
         after_end = min(len(text), end + context_window)
         items.append(
             {
-                "surface_text": item["surface_text"],
-                "duplicate_count": item["duplicate_count"],
+                "surface_text": row["surface_text"],
+                "duplicate_count": row["duplicate_count"],
                 "representative": {
                     "annotation_id": row["annotation_id"],
                     "document_id": row["document_id"],
                     "document_name": row["document_name"],
-                    "span_text": row["span_text"],
+                    "span_text": row["surface_text"],
                     "start": start,
                     "end": end,
                     "status": row["status"],
