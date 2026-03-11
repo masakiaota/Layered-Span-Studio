@@ -74,6 +74,8 @@ def _validate_document_bundle(
 
         start = item["start"]
         end = item["end"]
+        if start < 0 or end <= start or end > len(document_text):
+            raise ValueError("Annotation range is out of bounds")
         if document_text[start:end] != item["span_text"]:
             raise ValueError("span_text does not match the specified range")
 

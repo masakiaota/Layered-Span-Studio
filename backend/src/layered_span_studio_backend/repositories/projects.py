@@ -170,6 +170,34 @@ def update_project(
     return {"id": project_id, "name": new_name, "description": new_description, "meta": new_meta or {}}
 
 
+def replace_project(
+    settings: Settings,
+    project_id: str,
+    name: str,
+    description: str,
+    meta: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    project = get_project(settings, project_id)
+    if not project:
+        return None
+    if name != project["name"]:
+        existing_names = {p["name"] for p in list_projects(settings) if p["id"] != project_id}
+        if name in existing_names:
+            raise ValueError("Project name already exists")
+
+    db_path = _project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    with engine.begin() as conn:
+        conn.execute(
+            project_table.update().where(project_table.c.id == project_id).values(
+                name=name,
+                description=description,
+                meta=encode_meta(meta),
+            )
+        )
+    return {"id": project_id, "name": name, "description": description, "meta": meta}
+
+
 def delete_project(settings: Settings, project_id: str) -> bool:
     project_dir = _project_dir(settings, project_id)
     if not project_dir.exists():

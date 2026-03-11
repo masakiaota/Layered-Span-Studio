@@ -227,7 +227,12 @@ def save_labels(settings: Settings, project_id: str, items: List[Dict[str, Any]]
 
         omitted_ids = set(existing_by_id) - requested_ids
         if omitted_ids:
-            conn.execute(labels_table.delete().where(labels_table.c.id.in_(sorted(omitted_ids))))
+            conn.execute(
+                labels_table.delete().where(
+                    labels_table.c.project_id == project_id,
+                    labels_table.c.id.in_(sorted(omitted_ids)),
+                )
+            )
 
         for item in items:
             label_id = item.get("id")

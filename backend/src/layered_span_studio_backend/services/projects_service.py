@@ -33,5 +33,15 @@ def update_project(
     return projects_repo.update_project(settings, project_id, name, description, meta)
 
 
+def replace_project_settings(
+    settings: Settings,
+    project_id: str,
+    name: str,
+    description: str,
+    meta: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    return projects_repo.replace_project(settings, project_id, name, description, meta)
+
+
 def delete_project(settings: Settings, project_id: str) -> bool:
     return projects_repo.delete_project(settings, project_id)

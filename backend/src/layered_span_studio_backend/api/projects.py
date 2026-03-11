@@ -51,7 +51,7 @@ def update_project(project_id: str, payload: ProjectUpdate, settings=Depends(get
 @router.put("/{project_id}/settings", response_model=ProjectOut)
 def put_project_settings(project_id: str, payload: ProjectSettingsPut, settings=Depends(get_settings)):
     try:
-        project = projects_service.update_project(
+        project = projects_service.replace_project_settings(
             settings,
             project_id,
             payload.name,

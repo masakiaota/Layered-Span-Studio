@@ -454,3 +454,77 @@ def test_document_bundle_marks_document_verified_when_all_annotations_are_verifi
     payload = response.json()
     assert payload["meta"]["status"] == "verified"
     assert all(annotation["status"] == "verified" for annotation in payload["annotations"])
+
+
+def test_document_bundle_rejects_out_of_bounds_range(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project_id = _create_project(client, auth_headers)
+    label = client.post(
+        f"/projects/{project_id}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
+        headers=auth_headers,
+    ).json()
+    document = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Doc1", "text": "Hello world"},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project_id}/documents/{document['id']}/bundle",
+        json={
+            "annotations": [
+                {
+                    "id": None,
+                    "label_id": label["id"],
+                    "start": 0,
+                    "end": 999999,
+                    "span_text": "Hello",
+                    "comment": "",
+                    "status": "pending",
+                    "meta": {},
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Annotation range is out of bounds"
+
+
+def test_document_bundle_rejects_non_positive_range(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project_id = _create_project(client, auth_headers)
+    label = client.post(
+        f"/projects/{project_id}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
+        headers=auth_headers,
+    ).json()
+    document = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Doc1", "text": "Hello world"},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project_id}/documents/{document['id']}/bundle",
+        json={
+            "annotations": [
+                {
+                    "id": None,
+                    "label_id": label["id"],
+                    "start": 5,
+                    "end": 5,
+                    "span_text": "",
+                    "comment": "",
+                    "status": "pending",
+                    "meta": {},
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Annotation range is out of bounds"

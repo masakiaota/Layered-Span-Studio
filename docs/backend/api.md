@@ -279,7 +279,7 @@ Authorization: Bearer <token>
 
 ### PUT /projects/{project_id}/settings
 
-settings 画面の project フォームを現在値で上書き保存する。
+settings 画面の project フォームを全項目まとめて上書き保存する。
 
 **Headers:**
 ```
@@ -310,7 +310,8 @@ Authorization: Bearer <token>
 ```
 
 **注記:**
-- `name` は必須
+- `name` / `description` / `meta` はすべて必須
+- 省略フィールドは保持されない。settings 画面の完全な現在値を送る
 - `PATCH /projects/{project_id}` は残るが、settings 画面からはこの API を想定する
 
 ---

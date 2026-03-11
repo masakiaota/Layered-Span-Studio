@@ -229,6 +229,39 @@ def test_labels_put_response_uses_latest_project_name(client: TestClient, auth_h
     assert response.json()["labels"][0]["project_name"] == "Project Renamed"
 
 
+def test_labels_put_does_not_delete_other_project_labels(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    first_project_id = _create_project(client, auth_headers)
+    second_project_id = client.post(
+        "/projects",
+        json={"name": "Project B", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()["id"]
+
+    client.post(
+        f"/projects/{first_project_id}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{second_project_id}/labels",
+        json={"name": "Label2", "color": "#33AA44", "description": "desc"},
+        headers=auth_headers,
+    )
+
+    response = client.put(
+        f"/projects/{first_project_id}/labels",
+        json={"labels": []},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+    remaining = client.get(f"/projects/{second_project_id}/labels", headers=auth_headers)
+    assert remaining.status_code == 200
+    assert [label["name"] for label in remaining.json()["labels"]] == ["Label2"]
+
+
 def _setup_examples_fixture(client: TestClient, auth_headers: dict[str, str]) -> dict[str, Any]:
     project = client.post(
         "/projects",

@@ -72,6 +72,21 @@ def test_project_settings_put_overwrites_full_form(client: TestClient, auth_head
     assert payload["meta"] == {"guideline": "new"}
 
 
+def test_project_settings_put_requires_full_form(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Project A", "description": "desc", "meta": {"guideline": "old"}},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project['id']}/settings",
+        json={"name": "Project A2"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
 def test_projects_list_returns_summary_counts_and_updated_at(client: TestClient, auth_headers: dict[str, str]) -> None:
     project = client.post(
         "/projects",
