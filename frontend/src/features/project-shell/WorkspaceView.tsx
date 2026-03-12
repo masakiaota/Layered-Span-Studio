@@ -274,14 +274,17 @@ export function WorkspaceView({
                   <Box sx={{ minWidth: 0 }}>
                     <Typography
                       variant="subtitle2"
-                      noWrap
                       sx={{
-                        pr: 12,
+                        width: "calc(100% - 80px)",
                         minHeight: 24,
-                        display: "flex",
-                        alignItems: "center",
+                        display: "block",
                         lineHeight: "24px",
                         fontWeight: 600,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "clip",
+                        maskImage: "linear-gradient(to right, #000 0%, #000 90%, transparent 100%)",
+                        WebkitMaskImage: "linear-gradient(to right, #000 0%, #000 90%, transparent 100%)",
                       }}
                     >
                       {document.document_name}
@@ -325,7 +328,7 @@ export function WorkspaceView({
                         position: "absolute",
                         right: 0,
                         top: "50%",
-                        transform: deleteButtonVisible ? "translate(-30px, -50%)" : "translate(0, -50%)",
+                        transform: deleteButtonVisible ? "translate(-10px, -50%)" : "translate(0, -50%)",
                         transition: "transform 140ms ease",
                         height: 24,
                         "& .MuiChip-label": {
