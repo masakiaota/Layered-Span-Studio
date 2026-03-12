@@ -18,9 +18,12 @@ import {
 import type { LabelDraft, PendingAction, RightTab, SelectionPreview } from "./features/project-shell/projectShellTypes";
 import {
   collectDocumentNames,
+  createEmptyLabelDraft,
+  findConflictingLabelName,
   isHexColor,
   mergeDocumentWindow,
   normalizeHexColor,
+  toLabelDraft,
   toDocumentListItem,
   trimDocumentWindow,
 } from "./features/project-shell/projectShellUtils";
@@ -60,7 +63,7 @@ import {
   setProjectGuideline,
 } from "./utils";
 
-function ProjectShell({
+export function ProjectShell({
   token,
   user,
   onLogout,
@@ -86,6 +89,7 @@ function ProjectShell({
   });
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [focusedLabelId, setFocusedLabelId] = useState<string | null>(null);
+  const [selectedSettingsLabelId, setSelectedSettingsLabelId] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [selectedAnnotationMetaDraft, setSelectedAnnotationMetaDraft] = useState("");
   const [selectedAnnotationMetaError, setSelectedAnnotationMetaError] = useState<string | null>(null);
@@ -100,12 +104,7 @@ function ProjectShell({
   const [createDocOpen, setCreateDocOpen] = useState(false);
   const [newDocName, setNewDocName] = useState("");
   const [newDocText, setNewDocText] = useState("");
-  const [labelDraft, setLabelDraft] = useState<LabelDraft>({
-    id: "",
-    name: "",
-    color: DEFAULT_LABEL_COLOR,
-    description: "",
-  });
+  const [labelDraft, setLabelDraft] = useState<LabelDraft>(createEmptyLabelDraft);
   const [settingsImportFile, setSettingsImportFile] = useState<File | null>(null);
   const [settingsImportFeedback, setSettingsImportFeedback] = useState<{
     severity: "success" | "info" | "warning" | "error";
@@ -183,6 +182,8 @@ function ProjectShell({
       initialDocumentListLoadedRef.current = true;
       activateDocument(firstDocId);
       setFocusedLabelId(nextBundle.labels[0]?.id ?? null);
+      setSelectedSettingsLabelId(null);
+      setLabelDraft(createEmptyLabelDraft());
       setAccordionOpen(Object.fromEntries(nextBundle.labels.map((label) => [label.id, true])));
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Workspace の読み込みに失敗した", "error");
@@ -611,6 +612,8 @@ function ProjectShell({
     try {
       const projectDirty = JSON.stringify(bundle.project) !== JSON.stringify(settingsSnapshot.project);
       const labelsDirty = JSON.stringify(bundle.labels) !== JSON.stringify(settingsSnapshot.labels);
+      const selectedSettingsLabel =
+        selectedSettingsLabelId ? bundle.labels.find((label) => label.id === selectedSettingsLabelId) ?? null : null;
       let savedProject = bundle.project;
       let savedLabels = bundle.labels;
 
@@ -690,6 +693,11 @@ function ProjectShell({
                   index: -1,
                 },
           );
+          if (selectedSettingsLabel) {
+            const persistedSelectedLabel = savedLabels.find((label) => label.name === selectedSettingsLabel.name) ?? null;
+            setSelectedSettingsLabelId(persistedSelectedLabel?.id ?? null);
+            setLabelDraft(persistedSelectedLabel ? toLabelDraft(persistedSelectedLabel) : createEmptyLabelDraft());
+          }
         } catch (error) {
           showToast(
             projectDirty
@@ -1139,23 +1147,23 @@ function ProjectShell({
       showToast("Color は #RRGGBB 形式で入力する", "warning");
       return;
     }
-    const existing = bundle.labels.find((label) => label.name === labelDraft.name.trim());
+    const existing = findConflictingLabelName(bundle.labels, labelDraft);
     const editingLabel = bundle.labels.find((label) => label.id === labelDraft.id);
-    if (existing && !labelDraft.id) {
-      showToast("同名 label は追加できない", "warning");
+    if (existing) {
+      showToast("同名 label は保存できない", "warning");
       return;
     }
+    const nextLabel = {
+      id: labelDraft.id || makeLocalId("label"),
+      project_id: bundle.project.id,
+      project_name: bundle.project.name,
+      name: labelDraft.name.trim(),
+      color: normalizedLabelColor,
+      description: labelDraft.description,
+      shortcut: editingLabel?.shortcut ?? null,
+      meta: {},
+    };
     mutateSettingsBundle((draft) => {
-      const nextLabel = {
-        id: labelDraft.id || makeLocalId("label"),
-        project_id: draft.project.id,
-        project_name: draft.project.name,
-        name: labelDraft.name.trim(),
-        color: normalizedLabelColor,
-        description: labelDraft.description,
-        shortcut: editingLabel?.shortcut ?? null,
-        meta: {},
-      };
       const index = draft.labels.findIndex((label) => label.id === nextLabel.id);
       if (index >= 0) {
         draft.labels[index] = nextLabel;
@@ -1163,15 +1171,21 @@ function ProjectShell({
       }
       draft.labels.push(nextLabel);
     });
-    setLabelDraft({ id: "", name: "", color: DEFAULT_LABEL_COLOR, description: "" });
+    setSelectedSettingsLabelId(nextLabel.id);
+    setLabelDraft(toLabelDraft(nextLabel));
   }
 
   function handleDeleteLabel(labelId: string) {
+    const deletingSelectedSettingsLabel = selectedSettingsLabelId === labelId;
     mutateSettingsBundle((draft) => {
       draft.labels = draft.labels.filter((item) => item.id !== labelId);
     });
     if (focusedLabelId === labelId) {
       setFocusedLabelId(bundle?.labels.find((item) => item.id !== labelId)?.id ?? null);
+    }
+    if (deletingSelectedSettingsLabel) {
+      setSelectedSettingsLabelId(null);
+      setLabelDraft(createEmptyLabelDraft());
     }
   }
 
@@ -1282,7 +1296,7 @@ function ProjectShell({
         ) : (
           <SettingsView
             bundle={bundle}
-            focusedLabelId={focusedLabelId}
+            selectedLabelId={selectedSettingsLabelId}
             labelDraft={labelDraft}
             normalizedLabelColor={normalizedLabelColor}
             labelColorValid={labelColorValid}
@@ -1320,8 +1334,18 @@ function ProjectShell({
             onOpenColorPicker={() => labelColorInputRef.current?.click()}
             onPickLabelColor={(value) => setLabelDraft((current) => ({ ...current, color: value }))}
             onSubmitLabelDraft={handleLabelDraftSubmit}
-            onResetLabelDraft={() => setLabelDraft({ id: "", name: "", color: DEFAULT_LABEL_COLOR, description: "" })}
-            onSelectLabelDraft={setLabelDraft}
+            onResetLabelDraft={() => {
+              setSelectedSettingsLabelId(null);
+              setLabelDraft(createEmptyLabelDraft());
+            }}
+            onSelectLabel={(labelId) => {
+              const selectedLabel = bundle.labels.find((label) => label.id === labelId);
+              if (!selectedLabel) {
+                return;
+              }
+              setSelectedSettingsLabelId(labelId);
+              setLabelDraft(toLabelDraft(selectedLabel));
+            }}
             onDeleteLabel={handleDeleteLabel}
             onImportFileChange={(file) => {
               setSettingsImportFile(file);

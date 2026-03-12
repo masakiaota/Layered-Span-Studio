@@ -27,7 +27,7 @@ import { getProjectGuideline } from "../../utils";
 
 export function SettingsView({
   bundle,
-  focusedLabelId,
+  selectedLabelId,
   labelDraft,
   normalizedLabelColor,
   labelColorValid,
@@ -49,7 +49,7 @@ export function SettingsView({
   onPickLabelColor,
   onSubmitLabelDraft,
   onResetLabelDraft,
-  onSelectLabelDraft,
+  onSelectLabel,
   onDeleteLabel,
   onImportFileChange,
   onImport,
@@ -59,7 +59,7 @@ export function SettingsView({
   onSave,
 }: {
   bundle: ProjectBundle;
-  focusedLabelId: string | null;
+  selectedLabelId: string | null;
   labelDraft: LabelDraft;
   normalizedLabelColor: string;
   labelColorValid: boolean;
@@ -81,7 +81,7 @@ export function SettingsView({
   onPickLabelColor: (value: string) => void;
   onSubmitLabelDraft: () => void;
   onResetLabelDraft: () => void;
-  onSelectLabelDraft: (draft: LabelDraft) => void;
+  onSelectLabel: (labelId: string) => void;
   onDeleteLabel: (labelId: string) => void;
   onImportFileChange: (file: File | null) => void;
   onImport: () => void;
@@ -204,19 +204,21 @@ export function SettingsView({
                   </Button>
                 </Stack>
               </Stack>
-              <List sx={{ flex: 1, width: "100%", border: "1px solid #d7e2f0", borderRadius: 3, bgcolor: "#fff" }}>
+              <List
+                sx={{
+                  flex: 1,
+                  width: "100%",
+                  border: "1px solid #d7e2f0",
+                  borderRadius: 3,
+                  bgcolor: "#fff",
+                  overflow: "hidden",
+                }}
+              >
                 {bundle.labels.map((label) => (
                   <ListItemButton
                     key={label.id}
-                    selected={label.id === focusedLabelId}
-                    onClick={() =>
-                      onSelectLabelDraft({
-                        id: label.id,
-                        name: label.name,
-                        color: label.color,
-                        description: label.description,
-                      })
-                    }
+                    selected={label.id === selectedLabelId}
+                    onClick={() => onSelectLabel(label.id)}
                   >
                     <ListItemText
                       primary={

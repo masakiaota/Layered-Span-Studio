@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { DOCUMENT_WINDOW_SIZE } from "../features/project-shell/projectShellConstants";
+import { DEFAULT_LABEL_COLOR, DOCUMENT_WINDOW_SIZE } from "../features/project-shell/projectShellConstants";
 import {
   collectDocumentNames,
+  createEmptyLabelDraft,
+  findConflictingLabelName,
   isHexColor,
   mergeDocumentWindow,
   normalizeHexColor,
+  toLabelDraft,
   trimDocumentWindow,
 } from "../features/project-shell/projectShellUtils";
-import type { DocumentListItem } from "../types";
+import type { DocumentListItem, LabelRecord } from "../types";
 
 function makeDocument(id: string): DocumentListItem {
   return {
@@ -33,6 +36,50 @@ describe("color helpers", () => {
     expect(isHexColor("112233")).toBe(true);
     expect(isHexColor("#112233")).toBe(true);
     expect(isHexColor("#xyzxyz")).toBe(false);
+  });
+});
+
+describe("label draft helpers", () => {
+  it("creates an empty label draft", () => {
+    expect(createEmptyLabelDraft()).toEqual({
+      id: "",
+      name: "",
+      color: DEFAULT_LABEL_COLOR,
+      description: "",
+    });
+  });
+
+  it("converts a label record into an editable draft", () => {
+    const label: LabelRecord = {
+      id: "label-1",
+      project_id: "project-1",
+      project_name: "Project 1",
+      name: "Disease",
+      color: "#112233",
+      description: "desc",
+      shortcut: "1",
+      meta: {},
+    };
+
+    expect(toLabelDraft(label)).toEqual({
+      id: "label-1",
+      name: "Disease",
+      color: "#112233",
+      description: "desc",
+    });
+  });
+
+  it("finds conflicting label names while ignoring the currently edited label", () => {
+    const labels: Array<Pick<LabelRecord, "id" | "name">> = [
+      { id: "label-1", name: "Disease" },
+      { id: "label-2", name: "Finding" },
+    ];
+
+    expect(findConflictingLabelName(labels, { id: "label-1", name: "Disease" })).toBeNull();
+    expect(findConflictingLabelName(labels, { id: "label-1", name: " Finding " })).toEqual({
+      id: "label-2",
+      name: "Finding",
+    });
   });
 });
 

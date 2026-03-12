@@ -1,5 +1,6 @@
-import type { DocumentListItem, DocumentListResponse, DocumentRecord } from "../../types";
-import { DOCUMENT_WINDOW_SIZE } from "./projectShellConstants";
+import type { LabelDraft } from "./projectShellTypes";
+import type { DocumentListItem, DocumentListResponse, DocumentRecord, LabelRecord } from "../../types";
+import { DEFAULT_LABEL_COLOR, DOCUMENT_WINDOW_SIZE } from "./projectShellConstants";
 
 export function normalizeHexColor(value: string) {
   const trimmed = value.trim();
@@ -14,6 +15,32 @@ export function normalizeHexColor(value: string) {
 
 export function isHexColor(value: string) {
   return /^#[0-9a-fA-F]{6}$/.test(normalizeHexColor(value));
+}
+
+export function createEmptyLabelDraft(): LabelDraft {
+  return {
+    id: "",
+    name: "",
+    color: DEFAULT_LABEL_COLOR,
+    description: "",
+  };
+}
+
+export function toLabelDraft(label: Pick<LabelRecord, "id" | "name" | "color" | "description">): LabelDraft {
+  return {
+    id: label.id,
+    name: label.name,
+    color: label.color,
+    description: label.description,
+  };
+}
+
+export function findConflictingLabelName(
+  labels: Array<Pick<LabelRecord, "id" | "name">>,
+  draft: Pick<LabelDraft, "id" | "name">,
+) {
+  const normalizedName = draft.name.trim();
+  return labels.find((label) => label.id !== draft.id && label.name.trim() === normalizedName) ?? null;
 }
 
 export function toDocumentListItem(document: DocumentRecord): DocumentListItem {
