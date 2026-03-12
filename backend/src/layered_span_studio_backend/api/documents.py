@@ -90,6 +90,7 @@ def save_document_bundle(
             project_id,
             document_id,
             [annotation.model_dump(mode="json") for annotation in payload.annotations],
+            payload.submit,
         )
     except ValueError as exc:
         message = str(exc)

@@ -573,7 +573,7 @@ export function ProjectShell({
     setSaving(true);
     try {
       const payload = buildDocumentBundlePayload(currentDocument, forceVerified);
-      const savedDocument = await api.saveDocumentBundle(token, bundle.project.id, currentDocument.id, payload);
+      const savedDocument = await api.saveDocumentBundle(token, bundle.project.id, currentDocument.id, payload, forceVerified);
       setBundle((current) =>
         current
           ? {

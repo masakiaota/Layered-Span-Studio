@@ -526,6 +526,73 @@ def test_document_bundle_marks_document_verified_when_all_annotations_are_verifi
     assert all(annotation["status"] == "verified" for annotation in payload["annotations"])
 
 
+def test_document_bundle_keeps_empty_pending_document_pending_on_save(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project_id = _create_project(client, auth_headers)
+    document = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "DocEmptyPending", "text": "Hello world"},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project_id}/documents/{document['id']}/bundle",
+        json={"annotations": [], "submit": False},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["annotations"] == []
+    assert payload["status"] == "pending"
+
+
+def test_document_bundle_marks_empty_document_verified_on_submit(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project_id = _create_project(client, auth_headers)
+    document = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "DocEmptySubmit", "text": "Hello world"},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project_id}/documents/{document['id']}/bundle",
+        json={"annotations": [], "submit": True},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["annotations"] == []
+    assert payload["status"] == "verified"
+
+
+def test_document_bundle_keeps_empty_verified_document_verified_on_save(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project_id = _create_project(client, auth_headers)
+    document = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "DocEmptyVerified", "text": "Hello world"},
+        headers=auth_headers,
+    ).json()
+    _set_document_fields(settings, project_id, document["id"], status="verified")
+
+    response = client.put(
+        f"/projects/{project_id}/documents/{document['id']}/bundle",
+        json={"annotations": [], "submit": False},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["annotations"] == []
+    assert payload["status"] == "verified"
+
+
 def test_document_bundle_rejects_out_of_bounds_range(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:

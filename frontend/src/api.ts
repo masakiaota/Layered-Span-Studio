@@ -183,11 +183,13 @@ export class ApiClient {
         id: string | null;
       }
     >,
+    submit = false,
   ) {
     const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents/${documentId}/bundle`, {
       method: "PUT",
       headers: headers(token, "application/json"),
       body: JSON.stringify({
+        submit,
         annotations: annotations.map((annotation) => ({
           ...annotation,
           meta: toJsonObject(annotation.meta),

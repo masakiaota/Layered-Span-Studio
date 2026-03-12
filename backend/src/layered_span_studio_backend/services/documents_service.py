@@ -111,7 +111,8 @@ def save_document_bundle(
     project_id: str,
     document_id: str,
     items: List[Dict[str, Any]],
+    submit: bool = False,
 ) -> Dict[str, Any]:
     _ensure_project(settings, project_id)
     _validate_document_bundle(settings, project_id, document_id, items)
-    return documents_repo.save_document_bundle(settings, project_id, document_id, items)
+    return documents_repo.save_document_bundle(settings, project_id, document_id, items, submit)

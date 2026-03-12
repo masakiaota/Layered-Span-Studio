@@ -439,8 +439,12 @@ def _existing_annotations_by_id(conn, project_id: str, document_id: str) -> Dict
     }
 
 
-def _final_document_status(items: List[Dict[str, Any]]) -> str:
-    return "verified" if items and all(item["status"] == "verified" for item in items) else "pending"
+def _final_document_status(items: List[Dict[str, Any]], current_status: Any, submit: bool) -> str:
+    if items:
+        return "verified" if all(item["status"] == "verified" for item in items) else "pending"
+    if submit:
+        return "verified"
+    return _normalize_document_status(current_status)
 
 
 def save_document_bundle(
@@ -448,6 +452,7 @@ def save_document_bundle(
     project_id: str,
     document_id: str,
     items: List[Dict[str, Any]],
+    submit: bool = False,
 ) -> Dict[str, Any]:
     document = get_document(settings, project_id, document_id)
     if not document:
@@ -455,7 +460,7 @@ def save_document_bundle(
 
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
-    final_status = _final_document_status(items)
+    final_status = _final_document_status(items, document.get("status"), submit)
     now = _utc_now_iso()
 
     with engine.begin() as conn:
