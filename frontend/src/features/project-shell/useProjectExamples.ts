@@ -7,6 +7,7 @@ import type {
   LabelRecord,
   LabelSurfaceGroupRecord,
 } from "../../types";
+import { EXAMPLES_BATCH_SIZE } from "./projectShellConstants";
 import type { SelectionPreview } from "./projectShellTypes";
 
 type UseProjectExamplesOptions = {
@@ -63,7 +64,7 @@ export function useProjectExamples({
     try {
       const response = await api.listLabelSurfaceGroups(token, projectId, focusedLabel.id, {
         offset: reset ? 0 : sameLabelExamplesOffset,
-        limit: 8,
+        limit: EXAMPLES_BATCH_SIZE,
         status: "all",
         contextWindow: 16,
         excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
@@ -96,7 +97,7 @@ export function useProjectExamples({
         labelId: sameSurfaceTarget.labelId ?? null,
         excludeAnnotationId: sameSurfaceTarget.annotationId ?? null,
         offset: reset ? 0 : sameSurfaceExamplesOffset,
-        limit: 8,
+        limit: EXAMPLES_BATCH_SIZE,
         contextWindow: 16,
       });
       setSameSurfaceExamples((current) => (reset ? response.items : [...current, ...response.items]));
@@ -119,7 +120,7 @@ export function useProjectExamples({
         status: "all",
         labelId: focusedLabel.id,
         excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
-        limit: Math.min(Math.max(duplicateCount, 8), 24),
+        limit: Math.min(Math.max(duplicateCount, EXAMPLES_BATCH_SIZE), EXAMPLES_BATCH_SIZE * 3),
         contextWindow: 42,
       });
       setSameLabelExampleDetails((current) => ({

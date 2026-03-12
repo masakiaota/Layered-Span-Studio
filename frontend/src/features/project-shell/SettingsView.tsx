@@ -232,6 +232,7 @@ export function SettingsView({
                     <IconButton
                       edge="end"
                       color="error"
+                      aria-label={`${label.name} を削除`}
                       onClick={(event) => {
                         event.stopPropagation();
                         onDeleteLabel(label.id);
