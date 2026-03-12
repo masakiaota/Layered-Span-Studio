@@ -12,18 +12,17 @@
   - `login / me / logout / CSRF / CORS / Cookie 属性` まで含めて backend / frontend / docs の仕様を先に固める
   - frontend の `localStorage` 依存を外す方針を決める
   - backend / frontend / docs をまたぐ改修になるため、着手時は別ブランチで進める
-- frontend のテスト基盤を追加する
-  - `Vitest` + React Testing Library を第一候補にする
-  - 少なくとも utility と主要な状態更新ロジックを自動確認できるようにする
-  - Annotation `meta` 編集の入力検証とドラフト保持を回帰テストで固定する
-  - キーボードショートカット、Document 一覧のウィンドウ管理、Import / Export の失敗系を重点対象にする
 - frontend の状態管理を分割する
-  - `App.tsx` に集中している認証、bundle 読み込み、undo/redo、保存、Import / Export、遷移ガードを分離する
-  - `useAuthSession` / `useProjectBundle` / `useDocumentHistory` / `useImportExport` のような責務単位へ整理する
+  - `App.tsx` に集中している bundle 読み込み、undo/redo、保存、Import / Export、遷移ガードをさらに分離する
+  - `useProjectBundle` / `useDocumentHistory` / `useImportExport` のような責務単位へ整理する
   - 先にテスト基盤を入れてから分割し、回帰を抑えながら進める
 
 ## Mid
 
+- frontend の回帰テストを拡充する
+  - 導入済みの `Vitest` + React Testing Library を前提に、hook と画面単位の回帰を増やす
+  - Annotation `meta` 編集の入力検証とドラフト保持を追加で固定する
+  - Save/Submit、import/export の失敗系、画面遷移ガードを重点対象にする
 - Import / Export まわりの失敗時 UX を改善する
   - JSON 不正、重複名、backend 由来の検証エラーなどを、操作を止めずに理解できる導線へ寄せる
   - 「何が原因で失敗したか」と「次にどう直せばよいか」が即座に分かる表示にする
@@ -57,5 +56,3 @@
   - Workspace に比べたときの視線誘導やフォーム密度を点検する
 - Projects 一覧画面の情報整理と見た目を見直す
   - 初回導入導線と既存 project 一覧の見やすさを両立できているか確認する
-- frontend build の chunk size 警告を必要になった段階で見直す
-  - 直近では機能正しさと保守性を優先し、分割最適化は後回しでよい

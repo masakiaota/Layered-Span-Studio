@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DOCUMENT_WINDOW_SIZE } from "../features/project-shell/projectShellConstants";
 import {
+  collectDocumentNames,
   isHexColor,
   mergeDocumentWindow,
   normalizeHexColor,
@@ -32,6 +33,55 @@ describe("color helpers", () => {
     expect(isHexColor("112233")).toBe(true);
     expect(isHexColor("#112233")).toBe(true);
     expect(isHexColor("#xyzxyz")).toBe(false);
+  });
+});
+
+describe("collectDocumentNames", () => {
+  it("fetches names in pages until all known documents are collected", async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce({
+        documents: [makeDocument("doc-1"), makeDocument("doc-2")],
+        total: 4,
+        pending_total: 4,
+        offset: 0,
+        limit: 2,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: [makeDocument("doc-3"), makeDocument("doc-4")],
+        total: 4,
+        pending_total: 4,
+        offset: 2,
+        limit: 2,
+        search: "",
+        sort: "created",
+      });
+
+    await expect(collectDocumentNames(4, 2, fetchPage)).resolves.toEqual([
+      "Document doc-1",
+      "Document doc-2",
+      "Document doc-3",
+      "Document doc-4",
+    ]);
+    expect(fetchPage).toHaveBeenNthCalledWith(1, 0, 2);
+    expect(fetchPage).toHaveBeenNthCalledWith(2, 2, 2);
+  });
+
+  it("stops early when the backend returns a short final page", async () => {
+    const fetchPage = vi.fn().mockResolvedValue({
+      documents: [makeDocument("doc-1")],
+      total: 10,
+      pending_total: 10,
+      offset: 0,
+      limit: 2,
+      search: "",
+      sort: "created",
+    });
+
+    await expect(collectDocumentNames(10, 2, fetchPage)).resolves.toEqual(["Document doc-1"]);
+    expect(fetchPage).toHaveBeenCalledTimes(1);
   });
 });
 

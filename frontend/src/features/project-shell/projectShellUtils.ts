@@ -1,4 +1,4 @@
-import type { DocumentListItem, DocumentRecord } from "../../types";
+import type { DocumentListItem, DocumentListResponse, DocumentRecord } from "../../types";
 import { DOCUMENT_WINDOW_SIZE } from "./projectShellConstants";
 
 export function normalizeHexColor(value: string) {
@@ -55,4 +55,25 @@ export function mergeDocumentWindow(existing: DocumentListItem[], incoming: Docu
     merged.push(item);
   });
   return trimDocumentWindow(merged, selectedId);
+}
+
+export async function collectDocumentNames(
+  total: number,
+  pageSize: number,
+  fetchPage: (offset: number, limit: number) => Promise<DocumentListResponse>,
+) {
+  if (total <= 0) {
+    return [];
+  }
+
+  const names: string[] = [];
+  for (let offset = 0; offset < total; offset += pageSize) {
+    const response = await fetchPage(offset, pageSize);
+    names.push(...response.documents.map((document) => document.document_name));
+    if (response.documents.length < pageSize) {
+      break;
+    }
+  }
+
+  return names;
 }
