@@ -6,25 +6,15 @@ import type {
   ExportResponse,
   ImportResponse,
   JsonObject,
-  LabelExampleRecord,
   LabelSurfaceGroupsResponse,
   LabelRecord,
   LoginResponse,
-  ProjectBundle,
   ProjectImportResponse,
   ProjectListItemRecord,
   ProjectRecord,
   UserRecord,
 } from "./types";
-import {
-  annotationEquals,
-  deepClone,
-  documentEquals,
-  isLocalId,
-  labelEquals,
-  projectEquals,
-  toJsonObject,
-} from "./utils";
+import { toJsonObject } from "./utils";
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
 
@@ -120,19 +110,6 @@ export class ApiClient {
     return parseResponse<ProjectRecord>(response);
   }
 
-  async updateProject(token: string, project: ProjectRecord) {
-    const response = await fetch(`${this.baseUrl}/projects/${project.id}`, {
-      method: "PATCH",
-      headers: headers(token, "application/json"),
-      body: JSON.stringify({
-        name: project.name,
-        description: project.description ?? "",
-        meta: toJsonObject(project.meta),
-      }),
-    });
-    return parseResponse<ProjectRecord>(response);
-  }
-
   async saveProjectSettings(token: string, project: ProjectRecord) {
     const response = await fetch(`${this.baseUrl}/projects/${project.id}/settings`, {
       method: "PUT",
@@ -171,46 +148,6 @@ export class ApiClient {
       }),
     });
     return parseResponse<{ labels: LabelRecord[] }>(response);
-  }
-
-  async createLabel(token: string, projectId: string, label: LabelRecord) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/labels`, {
-      method: "POST",
-      headers: headers(token, "application/json"),
-      body: JSON.stringify({
-        name: label.name,
-        color: label.color,
-        description: label.description,
-        shortcut: label.shortcut ?? null,
-        meta: toJsonObject(label.meta),
-      }),
-    });
-    return parseResponse<LabelRecord>(response);
-  }
-
-  async updateLabel(token: string, projectId: string, label: LabelRecord) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/labels/${label.id}`, {
-      method: "PATCH",
-      headers: headers(token, "application/json"),
-      body: JSON.stringify({
-        name: label.name,
-        color: label.color,
-        description: label.description,
-        shortcut: label.shortcut ?? null,
-        meta: toJsonObject(label.meta),
-      }),
-    });
-    return parseResponse<LabelRecord>(response);
-  }
-
-  async deleteLabel(token: string, projectId: string, labelId: string) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/labels/${labelId}`, {
-      method: "DELETE",
-      headers: headers(token),
-    });
-    if (!response.ok) {
-      await parseResponse(response);
-    }
   }
 
   async listDocuments(
@@ -275,88 +212,6 @@ export class ApiClient {
       }),
     });
     return parseResponse<Omit<DocumentRecord, "annotations">>(response);
-  }
-
-  async updateDocument(
-    token: string,
-    projectId: string,
-    document: Pick<DocumentRecord, "id" | "document_name" | "meta">,
-  ) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents/${document.id}`, {
-      method: "PATCH",
-      headers: headers(token, "application/json"),
-      body: JSON.stringify({
-        document_name: document.document_name,
-        meta: toJsonObject(document.meta),
-      }),
-    });
-    return parseResponse<Omit<DocumentRecord, "annotations">>(response);
-  }
-
-  async deleteDocument(token: string, projectId: string, documentId: string) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents/${documentId}`, {
-      method: "DELETE",
-      headers: headers(token),
-    });
-    if (!response.ok) {
-      await parseResponse(response);
-    }
-  }
-
-  async createAnnotation(token: string, projectId: string, documentId: string, annotation: AnnotationRecord) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents/${documentId}/annotations`, {
-      method: "POST",
-      headers: headers(token, "application/json"),
-      body: JSON.stringify({
-        label_id: annotation.label_id,
-        start: annotation.start,
-        end: annotation.end,
-        span_text: annotation.span_text,
-        comment: annotation.comment,
-        status: annotation.status,
-        meta: toJsonObject(annotation.meta),
-      }),
-    });
-    return parseResponse<AnnotationRecord>(response);
-  }
-
-  async updateAnnotation(token: string, projectId: string, documentId: string, annotation: AnnotationRecord) {
-    const response = await fetch(
-      `${this.baseUrl}/projects/${projectId}/documents/${documentId}/annotations/${annotation.id}`,
-      {
-        method: "PATCH",
-        headers: headers(token, "application/json"),
-        body: JSON.stringify({
-          comment: annotation.comment,
-          status: annotation.status,
-          meta: toJsonObject(annotation.meta),
-        }),
-      },
-    );
-    return parseResponse<AnnotationRecord>(response);
-  }
-
-  async deleteAnnotation(token: string, projectId: string, documentId: string, annotationId: string) {
-    const response = await fetch(
-      `${this.baseUrl}/projects/${projectId}/documents/${documentId}/annotations/${annotationId}`,
-      {
-        method: "DELETE",
-        headers: headers(token),
-      },
-    );
-    if (!response.ok) {
-      await parseResponse(response);
-    }
-  }
-
-  async listLabelExamples(token: string, projectId: string, labelId: string) {
-    const response = await fetch(
-      `${this.baseUrl}/projects/${projectId}/labels/${labelId}/examples?status=all&limit=100&context_window=16`,
-      {
-        headers: headers(token),
-      },
-    );
-    return parseResponse<{ examples: LabelExampleRecord[] }>(response);
   }
 
   async listLabelSurfaceGroups(
@@ -443,129 +298,6 @@ export class ApiClient {
       }),
     });
     return parseResponse<ExportResponse>(response);
-  }
-
-  async loadProjectBundle(token: string, projectId: string): Promise<ProjectBundle> {
-    const project = await this.getProject(token, projectId);
-    const [{ labels }, { documents }] = await Promise.all([
-      this.listLabels(token, projectId),
-      this.listDocuments(token, projectId),
-    ]);
-    const detailedDocuments = await Promise.all(
-      documents.map((document) => this.getDocument(token, projectId, document.id)),
-    );
-    return {
-      project,
-      labels,
-      documents: detailedDocuments,
-    };
-  }
-
-  async saveProjectBundle(token: string, original: ProjectBundle, current: ProjectBundle): Promise<ProjectBundle> {
-    const working = deepClone(current);
-    if (!projectEquals(original.project, working.project)) {
-      await this.updateProject(token, working.project);
-    }
-
-    const labelIdMap = new Map<string, string>();
-    const originalLabelsById = new Map(original.labels.map((label) => [label.id, label]));
-    for (const label of original.labels) {
-      if (!working.labels.some((candidate) => candidate.id === label.id)) {
-        await this.deleteLabel(token, original.project.id, label.id);
-      }
-    }
-    for (const label of working.labels) {
-      if (isLocalId(label.id)) {
-        const created = await this.createLabel(token, working.project.id, label);
-        labelIdMap.set(label.id, created.id);
-        label.id = created.id;
-        label.project_id = created.project_id;
-        label.project_name = created.project_name;
-      } else {
-        const originalLabel = originalLabelsById.get(label.id);
-        if (originalLabel && !labelEquals(originalLabel, label)) {
-          await this.updateLabel(token, working.project.id, label);
-        }
-      }
-    }
-
-    for (const document of working.documents) {
-      document.annotations.forEach((annotation) => {
-        const mapped = labelIdMap.get(annotation.label_id);
-        if (mapped) {
-          annotation.label_id = mapped;
-          const newLabel = working.labels.find((label) => label.id === mapped);
-          if (newLabel) {
-            annotation.label_name = newLabel.name;
-          }
-        }
-      });
-    }
-
-    const originalDocumentsById = new Map(original.documents.map((document) => [document.id, document]));
-    for (const document of original.documents) {
-      if (!working.documents.some((candidate) => candidate.id === document.id)) {
-        await this.deleteDocument(token, working.project.id, document.id);
-      }
-    }
-
-    const documentIdMap = new Map<string, string>();
-    for (const document of working.documents) {
-      if (isLocalId(document.id)) {
-        const created = await this.createDocument(token, working.project.id, document);
-        documentIdMap.set(document.id, created.id);
-        document.id = created.id;
-        document.project_id = created.project_id;
-        document.project_name = created.project_name ?? document.project_name;
-        document.annotations.forEach((annotation) => {
-          annotation.document_id = created.id;
-          annotation.document_name = created.document_name;
-        });
-      } else {
-        const originalDocument = originalDocumentsById.get(document.id);
-        if (originalDocument && !documentEquals(originalDocument, document)) {
-          await this.updateDocument(token, working.project.id, document);
-        }
-      }
-    }
-
-    for (const document of working.documents) {
-      const originalDocument = originalDocumentsById.get(document.id);
-      const originalAnnotationsById = new Map((originalDocument?.annotations ?? []).map((annotation) => [annotation.id, annotation]));
-      if (originalDocument) {
-        for (const annotation of originalDocument.annotations) {
-          if (!document.annotations.some((candidate) => candidate.id === annotation.id)) {
-            await this.deleteAnnotation(token, working.project.id, document.id, annotation.id);
-          }
-        }
-      }
-      for (const annotation of document.annotations) {
-        const mappedDocumentId = documentIdMap.get(annotation.document_id);
-        if (mappedDocumentId) {
-          annotation.document_id = mappedDocumentId;
-        }
-        if (isLocalId(annotation.id)) {
-          const created = await this.createAnnotation(token, working.project.id, document.id, annotation);
-          annotation.id = created.id;
-        } else {
-          const originalAnnotation = originalAnnotationsById.get(annotation.id);
-          if (originalAnnotation && !annotationEquals(originalAnnotation, annotation)) {
-            await this.updateAnnotation(token, working.project.id, document.id, annotation);
-          }
-        }
-      }
-    }
-
-    const project = await this.getProject(token, current.project.id);
-    const { labels } = await this.listLabels(token, current.project.id);
-    const persistedDocuments = await Promise.all(
-      working.documents.map((document) => this.getDocument(token, current.project.id, document.id)),
-    );
-    return {
-      project,
-      labels,
-      documents: persistedDocuments,
-    };
   }
 }
 
