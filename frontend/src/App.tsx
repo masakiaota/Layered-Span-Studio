@@ -111,6 +111,7 @@ function ProjectShell({
     severity: "success" | "info" | "warning" | "error";
     message: string;
   } | null>(null);
+  const [settingsImporting, setSettingsImporting] = useState(false);
   const [exportPending, setExportPending] = useState(true);
   const [exportVerified, setExportVerified] = useState(true);
   const [documentList, setDocumentList] = useState<DocumentListItem[]>([]);
@@ -1005,9 +1006,10 @@ function ProjectShell({
   }
 
   async function handleSettingsImport() {
-    if (!settingsImportFile || !bundle) {
+    if (!settingsImportFile || !bundle || settingsImporting) {
       return;
     }
+    setSettingsImporting(true);
     try {
       const payload = await readJsonFile(settingsImportFile);
       const basicValidation = validateImportPayload(payload);
@@ -1018,14 +1020,21 @@ function ProjectShell({
         return;
       }
 
+      const unfilteredTotalResponse = await api.listDocuments(token, bundle.project.id, {
+        offset: 0,
+        limit: 1,
+        sort: "created",
+        search: "",
+      });
       const existingDocumentNames = await collectDocumentNames(
-        documentTotal,
+        unfilteredTotalResponse.total,
         DOCUMENT_PAGE_SIZE,
         (offset, limit) =>
           api.listDocuments(token, bundle.project.id, {
             offset,
             limit,
             sort: "created",
+            search: "",
           }),
       );
       const validation = validateImportPayload(payload, {
@@ -1054,6 +1063,8 @@ function ProjectShell({
         message: error instanceof Error ? error.message : "Import に失敗した",
       });
       showToast(error instanceof Error ? error.message : "Import に失敗した", "error");
+    } finally {
+      setSettingsImporting(false);
     }
   }
 
@@ -1282,6 +1293,7 @@ function ProjectShell({
             exportVerified={exportVerified}
             dirty={dirty}
             saving={saving}
+            importing={settingsImporting}
             importFeedback={settingsImportFeedback}
             onProjectNameChange={(value) =>
               mutateSettingsBundle((draft) => {

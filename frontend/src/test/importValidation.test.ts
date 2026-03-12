@@ -14,6 +14,9 @@ describe("validateImportPayload", () => {
         {
           document_name: "Doc 1",
           text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
           annotations: [{ id: "a1" }, { id: "a2" }],
         },
       ],
@@ -33,6 +36,16 @@ describe("validateImportPayload", () => {
     expect(validateImportPayload({ labels: [], documents: [] }).issues).toContain("`project` が object でない");
     expect(validateImportPayload({ project: {}, documents: [] }).issues).toContain("`labels` が配列でない");
     expect(validateImportPayload({ project: {}, labels: [] }).issues).toContain("`documents` が配列でない");
+  });
+
+  it("reports empty project name", () => {
+    const payload = {
+      project: { name: "   " },
+      labels: [],
+      documents: [],
+    };
+
+    expect(validateImportPayload(payload).issues).toContain("`project.name` が空である");
   });
 
   it("reports duplicate label names in payload and existing labels", () => {
@@ -56,8 +69,22 @@ describe("validateImportPayload", () => {
       project: { name: "Project A" },
       labels: [],
       documents: [
-        { document_name: "Doc 1", text: "text", annotations: [] },
-        { document_name: "Doc 1", text: "text", annotations: [] },
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
+          annotations: [],
+        },
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
+          annotations: [],
+        },
       ],
     };
 
@@ -65,6 +92,48 @@ describe("validateImportPayload", () => {
 
     expect(issues).toContain("document 名が payload 内で重複している: Doc 1");
     expect(issues).toContain("既存 document と重複している: Doc 1");
+  });
+
+  it("reports invalid document system field formats before backend import", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [],
+      documents: [
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "draft",
+          created_at: "2026-03-01T00:00:00",
+          updated_at: "not-a-timestamp",
+          annotations: [],
+        },
+      ],
+    };
+
+    const issues = validateImportPayload(payload).issues;
+
+    expect(issues).toContain("documents[0].status が不正である");
+    expect(issues).toContain("documents[0].created_at が timezone-aware ISO 8601 でない");
+    expect(issues).toContain("documents[0].updated_at が timezone-aware ISO 8601 でない");
+  });
+
+  it("reports updated_at earlier than created_at", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [],
+      documents: [
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-02-28T23:59:59Z",
+          annotations: [],
+        },
+      ],
+    };
+
+    expect(validateImportPayload(payload).issues).toContain("documents[0].updated_at が created_at より前である");
   });
 });
 

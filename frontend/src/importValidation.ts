@@ -9,6 +9,10 @@ export type ImportValidationSummary = {
   annotationCount: number;
 };
 
+const VALID_DOCUMENT_STATUSES = new Set(["pending", "verified"]);
+const TIMEZONE_AWARE_ISO_8601_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
@@ -23,6 +27,18 @@ function normalizeNames(items: Iterable<string>): Set<string> {
     result.add(item.trim());
   }
   return result;
+}
+
+function parseTimezoneAwareTimestamp(value: unknown): number | null {
+  if (!isNonEmptyString(value)) {
+    return null;
+  }
+  const normalized = value.trim();
+  if (!TIMEZONE_AWARE_ISO_8601_PATTERN.test(normalized)) {
+    return null;
+  }
+  const timestamp = Date.parse(normalized);
+  return Number.isNaN(timestamp) ? null : timestamp;
 }
 
 export function buildImportValidationMessage(issues: string[]) {
@@ -51,6 +67,8 @@ export function validateImportPayload(
 
   if (!isPlainObject(payload.project)) {
     issues.push("`project` が object でない");
+  } else if (!isNonEmptyString(payload.project.name)) {
+    issues.push("`project.name` が空である");
   }
   if (!labels) {
     issues.push("`labels` が配列でない");
@@ -114,6 +132,26 @@ export function validateImportPayload(
     }
     if (typeof document.text !== "string") {
       issues.push(`documents[${index}].text が文字列でない`);
+    }
+    if (!isNonEmptyString(document.status)) {
+      issues.push(`documents[${index}].status が空である`);
+    } else if (!VALID_DOCUMENT_STATUSES.has(document.status.trim())) {
+      issues.push(`documents[${index}].status が不正である`);
+    }
+    const createdAtTimestamp = parseTimezoneAwareTimestamp(document.created_at);
+    if (createdAtTimestamp === null) {
+      issues.push(`documents[${index}].created_at が timezone-aware ISO 8601 でない`);
+    }
+    const updatedAtTimestamp = parseTimezoneAwareTimestamp(document.updated_at);
+    if (updatedAtTimestamp === null) {
+      issues.push(`documents[${index}].updated_at が timezone-aware ISO 8601 でない`);
+    }
+    if (
+      createdAtTimestamp !== null &&
+      updatedAtTimestamp !== null &&
+      updatedAtTimestamp < createdAtTimestamp
+    ) {
+      issues.push(`documents[${index}].updated_at が created_at より前である`);
     }
     if (!Array.isArray(document.annotations)) {
       issues.push(`documents[${index}].annotations が配列でない`);
