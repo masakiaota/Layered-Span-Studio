@@ -256,7 +256,15 @@ export function SettingsView({
                 {importFeedback ? <Alert severity={importFeedback.severity}>{importFeedback.message}</Alert> : null}
                 <Button component="label" variant="outlined" startIcon={<UploadFileRoundedIcon />} disabled={importing}>
                   {settingsImportFile?.name ?? "Select JSON"}
-                  <input hidden type="file" accept=".json,application/json" onChange={(event) => onImportFileChange(event.target.files?.[0] ?? null)} />
+                  <input
+                    hidden
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={(event) => {
+                      onImportFileChange(event.currentTarget.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                  />
                 </Button>
                 <Button variant="contained" onClick={onImport} disabled={!settingsImportFile || importing}>
                   {importing ? "Importing..." : "Import"}

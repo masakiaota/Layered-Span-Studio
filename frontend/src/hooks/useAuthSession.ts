@@ -27,10 +27,10 @@ export function useAuthSession() {
         setUser(response);
       })
       .catch(() => {
-        localStorage.removeItem(TOKEN_KEY);
         if (!active) {
           return;
         }
+        localStorage.removeItem(TOKEN_KEY);
         setToken(null);
         setUser(null);
       })
