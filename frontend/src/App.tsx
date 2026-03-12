@@ -1010,6 +1010,14 @@ function ProjectShell({
     }
     try {
       const payload = await readJsonFile(settingsImportFile);
+      const basicValidation = validateImportPayload(payload);
+      if (basicValidation.issues.length > 0) {
+        const message = buildImportValidationMessage(basicValidation.issues);
+        setSettingsImportFeedback({ severity: "error", message });
+        showToast("Import 前チェックで問題を検出した", "error");
+        return;
+      }
+
       const existingDocumentNames = await collectDocumentNames(
         documentTotal,
         DOCUMENT_PAGE_SIZE,

@@ -37,6 +37,13 @@ describe("color helpers", () => {
 });
 
 describe("collectDocumentNames", () => {
+  it("rejects non-positive page size", async () => {
+    const fetchPage = vi.fn();
+
+    await expect(collectDocumentNames(4, 0, fetchPage)).rejects.toThrow("pageSize must be a positive integer");
+    expect(fetchPage).not.toHaveBeenCalled();
+  });
+
   it("fetches names in pages until all known documents are collected", async () => {
     const fetchPage = vi
       .fn()

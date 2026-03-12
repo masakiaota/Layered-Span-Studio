@@ -18,7 +18,11 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function normalizeNames(items: Iterable<string>): Set<string> {
-  return new Set([...items].map((item) => item.trim()));
+  const result = new Set<string>();
+  for (const item of items) {
+    result.add(item.trim());
+  }
+  return result;
 }
 
 export function buildImportValidationMessage(issues: string[]) {

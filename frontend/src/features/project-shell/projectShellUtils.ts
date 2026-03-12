@@ -62,6 +62,9 @@ export async function collectDocumentNames(
   pageSize: number,
   fetchPage: (offset: number, limit: number) => Promise<DocumentListResponse>,
 ) {
+  if (!Number.isInteger(pageSize) || pageSize <= 0) {
+    throw new Error("pageSize must be a positive integer");
+  }
   if (total <= 0) {
     return [];
   }
