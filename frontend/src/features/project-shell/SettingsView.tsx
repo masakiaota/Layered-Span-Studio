@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Button,
   FormControlLabel,
@@ -37,6 +38,7 @@ export function SettingsView({
   exportVerified,
   dirty,
   saving,
+  importFeedback,
   onProjectNameChange,
   onProjectDescriptionChange,
   onProjectGuidelineChange,
@@ -67,6 +69,7 @@ export function SettingsView({
   exportVerified: boolean;
   dirty: boolean;
   saving: boolean;
+  importFeedback: { severity: "success" | "info" | "warning" | "error"; message: string } | null;
   onProjectNameChange: (value: string) => void;
   onProjectDescriptionChange: (value: string) => void;
   onProjectGuidelineChange: (value: string) => void;
@@ -243,6 +246,10 @@ export function SettingsView({
             <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 2 }}>
               <Stack spacing={1.5} sx={{ flex: 1 }}>
                 <Typography variant="subtitle2">現在 project への追記 import</Typography>
+                <Alert severity="info">
+                  append 専用である。既存 project 本体は更新しない。構造不正や同名データは import 前または backend 側で失敗として扱う。
+                </Alert>
+                {importFeedback ? <Alert severity={importFeedback.severity}>{importFeedback.message}</Alert> : null}
                 <Button component="label" variant="outlined" startIcon={<UploadFileRoundedIcon />}>
                   {settingsImportFile?.name ?? "Select JSON"}
                   <input hidden type="file" accept=".json,application/json" onChange={(event) => onImportFileChange(event.target.files?.[0] ?? null)} />

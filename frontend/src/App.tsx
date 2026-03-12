@@ -31,6 +31,11 @@ import { sortAnnotationsInPanelOrder } from "./features/workspace/workspaceUtils
 import { WorkspaceView } from "./features/project-shell/WorkspaceView";
 import { useAuthSession } from "./hooks/useAuthSession";
 import { useToast } from "./hooks/useToast";
+import {
+  buildImportValidationMessage,
+  describeImportSummary,
+  validateImportPayload,
+} from "./importValidation";
 import { LoginPage } from "./pages/LoginPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import type {
@@ -101,6 +106,10 @@ function ProjectShell({
     description: "",
   });
   const [settingsImportFile, setSettingsImportFile] = useState<File | null>(null);
+  const [settingsImportFeedback, setSettingsImportFeedback] = useState<{
+    severity: "success" | "info" | "warning" | "error";
+    message: string;
+  } | null>(null);
   const [exportPending, setExportPending] = useState(true);
   const [exportVerified, setExportVerified] = useState(true);
   const [documentList, setDocumentList] = useState<DocumentListItem[]>([]);
@@ -1000,11 +1009,30 @@ function ProjectShell({
     }
     try {
       const payload = await readJsonFile(settingsImportFile);
+      const validation = validateImportPayload(payload, {
+        existingLabelNames: bundle.labels.map((label) => label.name),
+      });
+      if (validation.issues.length > 0) {
+        const message = buildImportValidationMessage(validation.issues);
+        setSettingsImportFeedback({ severity: "error", message });
+        showToast("Import 前チェックで問題を検出した", "error");
+        return;
+      }
       await api.importProject(token, bundle.project.id, payload);
+      setSettingsImportFeedback({
+        severity: "success",
+        message: `Import 完了: ${describeImportSummary(
+          validation.summary ?? { labelCount: 0, documentCount: 0, annotationCount: 0 },
+        )}`,
+      });
       showToast("現在の project に import した", "success");
       setSettingsImportFile(null);
       await loadBundle();
     } catch (error) {
+      setSettingsImportFeedback({
+        severity: "error",
+        message: error instanceof Error ? error.message : "Import に失敗した",
+      });
       showToast(error instanceof Error ? error.message : "Import に失敗した", "error");
     }
   }
@@ -1234,6 +1262,7 @@ function ProjectShell({
             exportVerified={exportVerified}
             dirty={dirty}
             saving={saving}
+            importFeedback={settingsImportFeedback}
             onProjectNameChange={(value) =>
               mutateSettingsBundle((draft) => {
                 draft.project.name = value;
@@ -1262,7 +1291,10 @@ function ProjectShell({
             onResetLabelDraft={() => setLabelDraft({ id: "", name: "", color: DEFAULT_LABEL_COLOR, description: "" })}
             onSelectLabelDraft={setLabelDraft}
             onDeleteLabel={handleDeleteLabel}
-            onImportFileChange={setSettingsImportFile}
+            onImportFileChange={(file) => {
+              setSettingsImportFile(file);
+              setSettingsImportFeedback(null);
+            }}
             onImport={() => void handleSettingsImport()}
             onExportPendingChange={setExportPending}
             onExportVerifiedChange={setExportVerified}

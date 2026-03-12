@@ -32,6 +32,11 @@ import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useToast } from "../hooks/useToast";
+import {
+  buildImportValidationMessage,
+  describeImportSummary,
+  validateImportPayload,
+} from "../importValidation";
 import type { ProjectListItemRecord, UserRecord } from "../types";
 import { normalizeSearchText, readJsonFile } from "../utils";
 
@@ -80,6 +85,10 @@ export function ProjectsPage({
   const [projects, setProjects] = useState<ProjectListItemRecord[]>([]);
   const [importing, setImporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [importFeedback, setImportFeedback] = useState<{
+    severity: "success" | "info" | "warning" | "error";
+    message: string;
+  } | null>(null);
 
   async function refreshProjects() {
     setLoading(true);
@@ -104,10 +113,27 @@ export function ProjectsPage({
     setImporting(true);
     try {
       const payload = await readJsonFile(file);
+      const validation = validateImportPayload(payload);
+      if (validation.issues.length > 0) {
+        const message = buildImportValidationMessage(validation.issues);
+        setImportFeedback({ severity: "error", message });
+        showToast("Import 前チェックで問題を検出した", "error");
+        return;
+      }
       const response = await api.importProjectAsNew(token, payload);
+      setImportFeedback({
+        severity: "success",
+        message: `Import 完了: ${describeImportSummary(
+          validation.summary ?? { labelCount: 0, documentCount: 0, annotationCount: 0 },
+        )}`,
+      });
       showToast("Project を import した", "success");
       navigate(`/projects/${response.project.id}`);
     } catch (error) {
+      setImportFeedback({
+        severity: "error",
+        message: error instanceof Error ? error.message : "Import に失敗した",
+      });
       showToast(error instanceof Error ? error.message : "Import に失敗した", "error");
     } finally {
       setImporting(false);
@@ -125,7 +151,10 @@ export function ProjectsPage({
           hidden
           accept=".json,application/json"
           type="file"
-          onChange={(event) => void handleProjectImport(event.target.files?.[0] ?? null, event.currentTarget)}
+          onChange={(event) => {
+            setImportFeedback(null);
+            void handleProjectImport(event.target.files?.[0] ?? null, event.currentTarget);
+          }}
         />
       </Button>
     );
@@ -170,6 +199,7 @@ export function ProjectsPage({
 
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <Stack spacing={3}>
+          {importFeedback ? <Alert severity={importFeedback.severity}>{importFeedback.message}</Alert> : null}
           <Box
             sx={{
               display: "flex",
@@ -225,6 +255,9 @@ export function ProjectsPage({
               <Typography color="text.secondary" sx={{ mt: 1.5, maxWidth: 520, mx: "auto" }}>
                 まずは export JSON を import して、注釈対象の project を作成する。
               </Typography>
+              <Alert severity="info" sx={{ mt: 3, textAlign: "left" }}>
+                top-level に `project` / `labels` / `documents` を持つ export JSON を受け付ける。
+              </Alert>
               {renderImportButton("Import Project", "contained", { mt: 3 })}
             </Paper>
           ) : filteredProjects.length === 0 ? (
