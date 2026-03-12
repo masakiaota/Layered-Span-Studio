@@ -17,7 +17,22 @@ describe("validateImportPayload", () => {
           status: "pending",
           created_at: "2026-03-01T00:00:00Z",
           updated_at: "2026-03-02T00:00:00Z",
-          annotations: [{ id: "a1" }, { id: "a2" }],
+          annotations: [
+            {
+              label_name: "Disease",
+              start: 0,
+              end: 4,
+              span_text: "text",
+              status: "verified",
+            },
+            {
+              label_name: "Disease",
+              start: 0,
+              end: 4,
+              span_text: "text",
+              status: "pending",
+            },
+          ],
         },
       ],
     };
@@ -28,6 +43,31 @@ describe("validateImportPayload", () => {
         labelCount: 1,
         documentCount: 1,
         annotationCount: 2,
+      },
+    });
+  });
+
+  it("accepts documents without annotations and counts them as zero", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [],
+      documents: [
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
+        },
+      ],
+    };
+
+    expect(validateImportPayload(payload)).toEqual({
+      issues: [],
+      summary: {
+        labelCount: 0,
+        documentCount: 1,
+        annotationCount: 0,
       },
     });
   });
@@ -134,6 +174,39 @@ describe("validateImportPayload", () => {
     };
 
     expect(validateImportPayload(payload).issues).toContain("documents[0].updated_at が created_at より前である");
+  });
+
+  it("reports invalid annotation payload fields before backend import", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [],
+      documents: [
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
+          annotations: [
+            {
+              label_name: " ",
+              start: true,
+              end: false,
+              span_text: 123,
+              status: "draft",
+            },
+          ],
+        },
+      ],
+    };
+
+    const issues = validateImportPayload(payload).issues;
+
+    expect(issues).toContain("documents[0].annotations[0].label_name が空である、または文字列でない");
+    expect(issues).toContain("documents[0].annotations[0].start が整数でない");
+    expect(issues).toContain("documents[0].annotations[0].end が整数でない");
+    expect(issues).toContain("documents[0].annotations[0].span_text が文字列でない");
+    expect(issues).toContain("documents[0].annotations[0].status が不正である");
   });
 });
 

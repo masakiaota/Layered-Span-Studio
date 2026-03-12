@@ -21,6 +21,10 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function isIntegerNumber(value: unknown): value is number {
+  return Number.isInteger(value) && typeof value === "number";
+}
+
 function normalizeNames(items: Iterable<string>): Set<string> {
   const result = new Set<string>();
   for (const item of items) {
@@ -153,11 +157,37 @@ export function validateImportPayload(
     ) {
       issues.push(`documents[${index}].updated_at が created_at より前である`);
     }
-    if (!Array.isArray(document.annotations)) {
+    const hasAnnotations = Object.prototype.hasOwnProperty.call(document, "annotations");
+    if (hasAnnotations && !Array.isArray(document.annotations)) {
       issues.push(`documents[${index}].annotations が配列でない`);
       return;
     }
-    annotationCount += document.annotations.length;
+    const annotations: unknown[] = Array.isArray(document.annotations) ? document.annotations : [];
+    annotationCount += annotations.length;
+
+    annotations.forEach((annotation, annotationIndex) => {
+      if (!isPlainObject(annotation)) {
+        issues.push(`documents[${index}].annotations[${annotationIndex}] が object でない`);
+        return;
+      }
+      if (!isNonEmptyString(annotation.label_name)) {
+        issues.push(`documents[${index}].annotations[${annotationIndex}].label_name が空である、または文字列でない`);
+      }
+      if (!isIntegerNumber(annotation.start)) {
+        issues.push(`documents[${index}].annotations[${annotationIndex}].start が整数でない`);
+      }
+      if (!isIntegerNumber(annotation.end)) {
+        issues.push(`documents[${index}].annotations[${annotationIndex}].end が整数でない`);
+      }
+      if (typeof annotation.span_text !== "string") {
+        issues.push(`documents[${index}].annotations[${annotationIndex}].span_text が文字列でない`);
+      }
+      if (!isNonEmptyString(annotation.status)) {
+        issues.push(`documents[${index}].annotations[${annotationIndex}].status が空である`);
+      } else if (!VALID_DOCUMENT_STATUSES.has(annotation.status.trim())) {
+        issues.push(`documents[${index}].annotations[${annotationIndex}].status が不正である`);
+      }
+    });
   });
 
   return {

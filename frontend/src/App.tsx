@@ -1028,22 +1028,26 @@ export function ProjectShell({
         return;
       }
 
-      const unfilteredTotalResponse = await api.listDocuments(token, bundle.project.id, {
+      const firstPageResponse = await api.listDocuments(token, bundle.project.id, {
         offset: 0,
-        limit: 1,
+        limit: DOCUMENT_PAGE_SIZE,
         sort: "created",
         search: "",
       });
       const existingDocumentNames = await collectDocumentNames(
-        unfilteredTotalResponse.total,
+        firstPageResponse.total,
         DOCUMENT_PAGE_SIZE,
-        (offset, limit) =>
-          api.listDocuments(token, bundle.project.id, {
+        (offset, limit) => {
+          if (offset === 0) {
+            return Promise.resolve(firstPageResponse);
+          }
+          return api.listDocuments(token, bundle.project.id, {
             offset,
             limit,
             sort: "created",
             search: "",
-          }),
+          });
+        },
       );
       const validation = validateImportPayload(payload, {
         existingLabelNames: bundle.labels.map((label) => label.name),
