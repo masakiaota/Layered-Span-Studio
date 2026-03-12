@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -8,7 +9,6 @@ import {
   IconButton,
   InputAdornment,
   ListItemButton,
-  ListItemText,
   MenuItem,
   Paper,
   Stack,
@@ -82,6 +82,8 @@ export function WorkspaceView({
   onSortModeChange,
   onLoadMoreDocuments,
   onSelectDocument,
+  onRequestDeleteDocument,
+  deleteDisabled = false,
   onFocusLabel,
   onSelectAnnotation,
   onCreateAnnotation,
@@ -140,6 +142,8 @@ export function WorkspaceView({
   onSortModeChange: (value: string) => void;
   onLoadMoreDocuments: () => void;
   onSelectDocument: (documentId: string) => void;
+  onRequestDeleteDocument: (documentId: string) => void;
+  deleteDisabled?: boolean;
   onFocusLabel: (labelId: string) => void;
   onSelectAnnotation: (annotationId: string | null) => void;
   onCreateAnnotation: (start: number, end: number, text: string) => void;
@@ -159,6 +163,7 @@ export function WorkspaceView({
   onToggleAnnotationGroup: (labelId: string) => void;
 }) {
   const groupedAnnotations = currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : [];
+  const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
 
   return (
     <>
@@ -171,7 +176,7 @@ export function WorkspaceView({
               </Typography>
             </Box>
             <Tooltip title="Create Document">
-              <IconButton onClick={onOpenCreateDocument}>
+              <IconButton onClick={onOpenCreateDocument} disabled={saving}>
                 <AddRoundedIcon />
               </IconButton>
             </Tooltip>
@@ -232,37 +237,56 @@ export function WorkspaceView({
               <Typography variant="body2">現在表示中の Document は一覧ウィンドウ外にあるため、先頭に固定表示している。</Typography>
             </Alert>
           ) : null}
-          {visibleDocuments.map((document) => (
-            <Tooltip
-              key={document.id}
-              placement="right-start"
-              arrow
-              slotProps={floatingTooltipSlotProps}
-              title={
-                <Box sx={{ maxWidth: 360, p: 0.5 }}>
-                  <Typography variant="subtitle2">{document.document_name}</Typography>
-                  <Typography variant="body2" sx={{ lineHeight: 1.7 }}>
-                    {getDocumentHoverPreview(document, searchQuery)}
-                  </Typography>
-                </Box>
-              }
-            >
-              <ListItemButton
-                selected={document.id === currentDocument?.id}
-                onClick={() => onSelectDocument(document.id)}
-                sx={{ alignItems: "flex-start", borderRadius: 3, border: "1px solid", borderColor: document.id === currentDocument?.id ? "primary.main" : "#dbe3ee" }}
+          {visibleDocuments.map((document) => {
+            const deleteButtonVisible = document.id === currentDocument?.id || hoveredDocumentId === document.id;
+            const documentStatus = getDocumentStatus(document);
+            return (
+              <Tooltip
+                key={document.id}
+                placement="right-start"
+                arrow
+                slotProps={floatingTooltipSlotProps}
+                title={
+                  <Box sx={{ maxWidth: 360, p: 0.5 }}>
+                    <Typography variant="subtitle2">{document.document_name}</Typography>
+                    <Typography variant="body2" sx={{ lineHeight: 1.7 }}>
+                      {getDocumentHoverPreview(document, searchQuery)}
+                    </Typography>
+                  </Box>
+                }
               >
-                <ListItemText
-                  primary={
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                      <Typography variant="subtitle2" noWrap>
-                        {document.document_name}
-                      </Typography>
-                      <Chip size="small" label={getDocumentStatus(document)} color={getDocumentStatus(document) === "verified" ? "success" : "warning"} />
-                    </Stack>
-                  }
-                  secondary={
-                    <Typography component="span" variant="body2" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                <ListItemButton
+                  selected={document.id === currentDocument?.id}
+                  onClick={() => onSelectDocument(document.id)}
+                  onMouseEnter={() => setHoveredDocumentId(document.id)}
+                  onMouseLeave={() => setHoveredDocumentId((current) => (current === document.id ? null : current))}
+                  sx={{
+                    position: "relative",
+                    alignItems: "flex-start",
+                    display: "block",
+                    px: 1.5,
+                    py: 1.25,
+                    borderRadius: 1,
+                    border: "1px solid",
+                    borderColor: document.id === currentDocument?.id ? "primary.main" : "#dbe3ee",
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                      variant="subtitle2"
+                      noWrap
+                      sx={{
+                        pr: 12,
+                        minHeight: 24,
+                        display: "flex",
+                        alignItems: "center",
+                        lineHeight: "24px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {document.document_name}
+                    </Typography>
+                    <Typography component="div" variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.6 }}>
                       {getDocumentSnippetParts(document, searchQuery).map((part, index) =>
                         part.highlighted ? (
                           <Box
@@ -279,11 +303,78 @@ export function WorkspaceView({
                         ),
                       )}
                     </Typography>
-                  }
-                />
-              </ListItemButton>
-            </Tooltip>
-          ))}
+                  </Box>
+
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      top: 10,
+                      right: 12,
+                      width: 112,
+                      height: 24,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <Chip
+                      size="small"
+                      label={documentStatus}
+                      color={documentStatus === "verified" ? "success" : "warning"}
+                      sx={{
+                        position: "absolute",
+                        right: 0,
+                        top: "50%",
+                        transform: deleteButtonVisible ? "translate(-30px, -50%)" : "translate(0, -50%)",
+                        transition: "transform 140ms ease",
+                        height: 24,
+                        "& .MuiChip-label": {
+                          px: 1.1,
+                          fontWeight: 600,
+                          lineHeight: "24px",
+                        },
+                      }}
+                    />
+                    <Tooltip title="Delete document">
+                      <IconButton
+                        aria-label={`Delete document ${document.document_name}`}
+                        color="error"
+                        size="small"
+                        disabled={deleteDisabled}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onRequestDeleteDocument(document.id);
+                        }}
+                        sx={{
+                          position: "absolute",
+                          right: 0,
+                          top: "50%",
+                          width: 24,
+                          height: 24,
+                          p: 0,
+                          zIndex: 1,
+                          bgcolor: "background.paper",
+                          border: "1px solid",
+                          borderColor: alpha("#d93025", 0.18),
+                          boxShadow: "0 2px 10px rgba(15, 23, 42, 0.08)",
+                          transition: "opacity 140ms ease, transform 140ms ease, visibility 140ms ease",
+                          visibility: deleteButtonVisible ? "visible" : "hidden",
+                          opacity: deleteButtonVisible ? 1 : 0,
+                          transform: deleteButtonVisible ? "translateY(-50%)" : "translate(6px, -50%)",
+                          "&:hover": {
+                            bgcolor: alpha("#d93025", 0.08),
+                            borderColor: alpha("#d93025", 0.28),
+                          },
+                        }}
+                      >
+                        <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </ListItemButton>
+              </Tooltip>
+            );
+          })}
           {documentsLoadingMore ? (
             <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.75 }}>
               さらに読み込み中

@@ -216,6 +216,21 @@ export class ApiClient {
     return parseResponse<Omit<DocumentRecord, "annotations">>(response);
   }
 
+  async deleteDocument(token: string, projectId: string, documentId: string) {
+    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents/${documentId}`, {
+      method: "DELETE",
+      headers: headers(token),
+    });
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const json = (await response.json()) as { detail?: unknown };
+        throw new Error(formatErrorDetail(json.detail) ?? "Request failed");
+      }
+      throw new Error(await response.text());
+    }
+  }
+
   async listLabelSurfaceGroups(
     token: string,
     projectId: string,

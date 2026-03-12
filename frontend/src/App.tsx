@@ -8,6 +8,7 @@ import {
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "./api";
 import { CreateDocumentDialog } from "./features/project-shell/CreateDocumentDialog";
+import { DeleteDocumentDialog } from "./features/project-shell/DeleteDocumentDialog";
 import { PendingChangesDialog } from "./features/project-shell/PendingChangesDialog";
 import { ProjectShellHeader } from "./features/project-shell/ProjectShellHeader";
 import { SettingsView } from "./features/project-shell/SettingsView";
@@ -118,6 +119,9 @@ export function ProjectShell({
   const [pendingDocumentTotal, setPendingDocumentTotal] = useState(0);
   const [documentNextOffset, setDocumentNextOffset] = useState(0);
   const [documentsLoadingMore, setDocumentsLoadingMore] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; documentName: string; isCurrent: boolean } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingDocument, setDeletingDocument] = useState(false);
   const shortcutButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingActionConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
   const documentListScrollRef = useRef<HTMLDivElement | null>(null);
@@ -289,6 +293,7 @@ export function ProjectShell({
     [bundle, selectedDocId],
   );
   const currentDocumentSnapshot = currentDocument ? documentSnapshotsById[currentDocument.id] ?? null : null;
+  const workspaceBusy = saving || deletingDocument;
 
   const focusedLabel = useMemo(
     () => bundle?.labels.find((label) => label.id === focusedLabelId) ?? bundle?.labels[0] ?? null,
@@ -830,6 +835,9 @@ export function ProjectShell({
   }
 
   async function handleSave() {
+    if (deletingDocument) {
+      return null;
+    }
     if (view === "settings") {
       return saveSettings();
     }
@@ -842,7 +850,7 @@ export function ProjectShell({
   }
 
   async function handleSubmit() {
-    if (!bundle || !currentDocument || view !== "workspace") {
+    if (!bundle || !currentDocument || view !== "workspace" || deletingDocument) {
       return;
     }
     const savedDocument = await saveCurrentDocument(null, true);
@@ -877,6 +885,160 @@ export function ProjectShell({
       return;
     }
     navigate("/projects");
+  }
+
+  function closeDeleteDialog() {
+    if (deletingDocument) {
+      return;
+    }
+    setDeleteDialogOpen(false);
+    setDeleteTarget(null);
+  }
+
+  function requestDeleteDocument(document: DocumentListItem | DocumentRecord) {
+    if (!bundle || workspaceBusy) {
+      return;
+    }
+    setDeleteTarget({
+      id: document.id,
+      documentName: document.document_name,
+      isCurrent: document.id === currentDocument?.id,
+    });
+    setDeleteDialogOpen(true);
+  }
+
+  function getNextDocumentIdAfterDeletion(deletedId: string): string | null {
+    const currentIndex = visibleDocuments.findIndex((document) => document.id === deletedId);
+    if (currentIndex < 0) {
+      return null;
+    }
+    return visibleDocuments[currentIndex + 1]?.id ?? visibleDocuments[currentIndex - 1]?.id ?? null;
+  }
+
+  function removeDocumentFromLocalState(deletedId: string, nextSelectedId: string | null) {
+    setBundle((current) => {
+      if (!current) {
+        return current;
+      }
+      const remainingDocuments = current.documents.filter((document) => document.id !== deletedId);
+      if (deleteTarget?.isCurrent && !nextSelectedId) {
+        return {
+          ...current,
+          documents: [],
+        };
+      }
+      return {
+        ...current,
+        documents: remainingDocuments,
+      };
+    });
+    setDocumentList((current) => current.filter((document) => document.id !== deletedId));
+    setDocumentSnapshotsById((current) => {
+      const nextSnapshots = { ...current };
+      delete nextSnapshots[deletedId];
+      return nextSnapshots;
+    });
+    setHistoryState((current) =>
+      current.documentId === deletedId
+        ? {
+            documentId: null,
+            entries: [],
+            index: -1,
+          }
+        : current,
+    );
+  }
+
+  async function confirmDeleteDocument() {
+    if (!bundle || !deleteTarget || workspaceBusy) {
+      return;
+    }
+
+    const deletedId = deleteTarget.id;
+    const deletingCurrent = deleteTarget.isCurrent;
+    const nextSelectedId = deletingCurrent ? getNextDocumentIdAfterDeletion(deletedId) : selectedDocId;
+    const existingNextDocument = nextSelectedId
+      ? bundle.documents.find((document) => document.id === nextSelectedId) ?? null
+      : null;
+
+    setDeletingDocument(true);
+    try {
+      await api.deleteDocument(token, bundle.project.id, deletedId);
+
+      let nextDocument = existingNextDocument;
+      if (deletingCurrent && nextSelectedId && !nextDocument) {
+        nextDocument = await api.getDocument(token, bundle.project.id, nextSelectedId);
+      }
+
+      removeDocumentFromLocalState(deletedId, nextSelectedId);
+
+      if (deletingCurrent) {
+        if (nextDocument) {
+          setBundle((current) =>
+            current
+              ? {
+                  ...current,
+                  documents: [...current.documents.filter((document) => document.id !== nextDocument?.id), nextDocument],
+                }
+              : current,
+          );
+          setDocumentSnapshotsById((current) => ({
+            ...current,
+            [nextDocument.id]: deepClone(nextDocument),
+          }));
+          setHistoryState({
+            documentId: nextDocument.id,
+            entries: [deepClone(nextDocument)],
+            index: 0,
+          });
+        }
+        activateDocument(nextSelectedId);
+      }
+
+      setDeleteDialogOpen(false);
+      setDeleteTarget(null);
+      await fetchDocumentPage(true, nextSelectedId);
+      showToast("Document を削除した", "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Document の削除に失敗した";
+      if (message.toLowerCase().includes("not found")) {
+        let nextDocument = existingNextDocument;
+        if (deletingCurrent && nextSelectedId && !nextDocument) {
+          nextDocument = await api.getDocument(token, bundle.project.id, nextSelectedId).catch(() => null);
+        }
+        removeDocumentFromLocalState(deletedId, nextSelectedId);
+        if (deletingCurrent) {
+          if (nextDocument) {
+            setBundle((current) =>
+              current
+                ? {
+                    ...current,
+                    documents: [...current.documents.filter((document) => document.id !== nextDocument?.id), nextDocument],
+                  }
+                : current,
+            );
+            setDocumentSnapshotsById((current) => ({
+              ...current,
+              [nextDocument.id]: deepClone(nextDocument),
+            }));
+            setHistoryState({
+              documentId: nextDocument.id,
+              entries: [deepClone(nextDocument)],
+              index: 0,
+            });
+          }
+          activateDocument(nextSelectedId);
+        }
+        setDeleteDialogOpen(false);
+        setDeleteTarget(null);
+        await fetchDocumentPage(true, nextSelectedId);
+        showToast("Document は既に削除されている", "info");
+      } else {
+        showToast(message, "error");
+      }
+    } finally {
+      setDeletingDocument(false);
+    }
   }
 
   function requestAction(action: PendingAction) {
@@ -968,7 +1130,7 @@ export function ProjectShell({
   }
 
   async function handleCreateDocument() {
-    if (!bundle) {
+    if (!bundle || workspaceBusy) {
       return;
     }
     if (!newDocName.trim() || !newDocText.trim()) {
@@ -1272,12 +1434,22 @@ export function ProjectShell({
             sameSurfaceExamplesScrollRef={sameSurfaceExamplesScrollRef}
             sameSurfaceTargetLabelId={sameSurfaceTargetLabelId}
             dirty={dirty}
-            saving={saving}
+            saving={workspaceBusy}
             onOpenCreateDocument={() => setCreateDocOpen(true)}
             onSearchQueryChange={setSearchQuery}
             onSortModeChange={setSortMode}
             onLoadMoreDocuments={() => void fetchDocumentPage(false)}
             onSelectDocument={(docId) => requestAction({ type: "doc", docId })}
+            onRequestDeleteDocument={(documentId) => {
+              const target =
+                visibleDocuments.find((document) => document.id === documentId) ??
+                bundle.documents.find((document) => document.id === documentId);
+              if (!target) {
+                return;
+              }
+              requestDeleteDocument(target);
+            }}
+            deleteDisabled={workspaceBusy}
             onFocusLabel={setFocusedLabelId}
             onSelectAnnotation={setSelectedAnnotationId}
             onCreateAnnotation={handleCreateAnnotation}
@@ -1377,13 +1549,27 @@ export function ProjectShell({
 
       <CreateDocumentDialog
         open={createDocOpen}
-        saving={saving}
+        saving={workspaceBusy}
         documentName={newDocName}
         documentText={newDocText}
         onNameChange={setNewDocName}
         onTextChange={setNewDocText}
-        onClose={() => setCreateDocOpen(false)}
+        onClose={() => {
+          if (workspaceBusy) {
+            return;
+          }
+          setCreateDocOpen(false);
+        }}
         onCreate={() => void handleCreateDocument()}
+      />
+
+      <DeleteDocumentDialog
+        open={deleteDialogOpen && Boolean(deleteTarget)}
+        deleting={deletingDocument}
+        documentName={deleteTarget?.documentName ?? ""}
+        currentDocumentDirty={Boolean(deleteTarget?.isCurrent && currentDocumentDirty)}
+        onClose={closeDeleteDialog}
+        onDelete={() => void confirmDeleteDocument()}
       />
 
       <ShortcutPopover
