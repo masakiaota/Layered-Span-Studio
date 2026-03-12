@@ -14,7 +14,6 @@ import { SettingsView } from "./features/project-shell/SettingsView";
 import {
   DEFAULT_LABEL_COLOR,
   DOCUMENT_PAGE_SIZE,
-  EXAMPLES_BATCH_SIZE,
 } from "./features/project-shell/projectShellConstants";
 import type { LabelDraft, PendingAction, RightTab, SelectionPreview } from "./features/project-shell/projectShellTypes";
 import {
@@ -26,18 +25,18 @@ import {
 } from "./features/project-shell/projectShellUtils";
 import { ShortcutPopover } from "./features/project-shell/ShortcutPopover";
 import { useBodyScrollLock } from "./features/project-shell/useBodyScrollLock";
+import { useProjectExamples } from "./features/project-shell/useProjectExamples";
 import { useProjectShortcuts } from "./features/project-shell/useProjectShortcuts";
 import { sortAnnotationsInPanelOrder } from "./features/workspace/workspaceUtils";
 import { WorkspaceView } from "./features/project-shell/WorkspaceView";
+import { useAuthSession } from "./hooks/useAuthSession";
 import { useToast } from "./hooks/useToast";
 import { LoginPage } from "./pages/LoginPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import type {
   AnnotationRecord,
-  AnnotationSearchItemRecord,
   DocumentRecord,
   DocumentListItem,
-  LabelSurfaceGroupRecord,
   ProjectBundle,
   UserRecord,
 } from "./types";
@@ -54,8 +53,6 @@ import {
   readJsonFile,
   setProjectGuideline,
 } from "./utils";
-
-const TOKEN_KEY = "layered-span-studio/token";
 
 function ProjectShell({
   token,
@@ -111,15 +108,6 @@ function ProjectShell({
   const [pendingDocumentTotal, setPendingDocumentTotal] = useState(0);
   const [documentNextOffset, setDocumentNextOffset] = useState(0);
   const [documentsLoadingMore, setDocumentsLoadingMore] = useState(false);
-  const [sameLabelExamples, setSameLabelExamples] = useState<LabelSurfaceGroupRecord[]>([]);
-  const [sameLabelExamplesTotal, setSameLabelExamplesTotal] = useState(0);
-  const [sameLabelExamplesOffset, setSameLabelExamplesOffset] = useState(0);
-  const [sameLabelExamplesLoadingMore, setSameLabelExamplesLoadingMore] = useState(false);
-  const [sameLabelExampleDetails, setSameLabelExampleDetails] = useState<Record<string, AnnotationSearchItemRecord[]>>({});
-  const [sameSurfaceExamples, setSameSurfaceExamples] = useState<AnnotationSearchItemRecord[]>([]);
-  const [sameSurfaceExamplesTotal, setSameSurfaceExamplesTotal] = useState(0);
-  const [sameSurfaceExamplesOffset, setSameSurfaceExamplesOffset] = useState(0);
-  const [sameSurfaceExamplesLoadingMore, setSameSurfaceExamplesLoadingMore] = useState(false);
   const shortcutButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingActionConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
   const documentListScrollRef = useRef<HTMLDivElement | null>(null);
@@ -308,6 +296,28 @@ function ProjectShell({
     setSelectedAnnotationMetaDraft(formatAnnotationMetaDraft(selectedAnnotation.meta));
     setSelectedAnnotationMetaError(null);
   }, [currentDocument?.id, selectedAnnotation?.id]);
+  const {
+    sameLabelExamples,
+    sameLabelExamplesTotal,
+    sameLabelExamplesOffset,
+    sameLabelExamplesLoadingMore,
+    sameLabelExampleDetails,
+    sameSurfaceExamples,
+    sameSurfaceExamplesTotal,
+    sameSurfaceExamplesOffset,
+    sameSurfaceExamplesLoadingMore,
+    sameSurfaceTargetLabelId,
+    loadSameLabelExamples,
+    loadSameSurfaceExamples,
+    ensureSameLabelDetails,
+  } = useProjectExamples({
+    token,
+    projectId: bundle?.project.id ?? null,
+    focusedLabel,
+    selectedAnnotation,
+    selectionPreview,
+    showToast,
+  });
   const settingsDirty = useMemo(() => {
     if (!bundle || !settingsSnapshot) {
       return false;
@@ -438,111 +448,6 @@ function ProjectShell({
     });
     return () => cancelAnimationFrame(focusTimer);
   }, [pendingAction]);
-
-  const sameSurfaceTarget = useMemo(() => {
-    return (
-      selectionPreview && selectionPreview.text.trim()
-        ? {
-            text: selectionPreview.text,
-            annotationId: null,
-            labelId: focusedLabel?.id ?? null,
-          }
-        : selectedAnnotation
-          ? {
-              text: selectedAnnotation.span_text,
-              annotationId: selectedAnnotation.id,
-              labelId: selectedAnnotation.label_id,
-            }
-          : null
-    );
-  }, [focusedLabel?.id, selectedAnnotation, selectionPreview]);
-
-  async function loadSameLabelExamples(reset: boolean) {
-    if (!focusedLabel || !bundle) {
-      setSameLabelExamples([]);
-      setSameLabelExamplesTotal(0);
-      setSameLabelExamplesOffset(0);
-      return;
-    }
-    setSameLabelExamplesLoadingMore(true);
-    try {
-      const response = await api.listLabelSurfaceGroups(token, bundle.project.id, focusedLabel.id, {
-        offset: reset ? 0 : sameLabelExamplesOffset,
-        limit: EXAMPLES_BATCH_SIZE,
-        status: "all",
-        contextWindow: 16,
-        excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
-      });
-      setSameLabelExamples((current) => (reset ? response.items : [...current, ...response.items]));
-      setSameLabelExamplesTotal(response.total);
-      setSameLabelExamplesOffset(response.offset + response.items.length);
-      if (reset) {
-        setSameLabelExampleDetails({});
-      }
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "関連例の取得に失敗した", "error");
-    } finally {
-      setSameLabelExamplesLoadingMore(false);
-    }
-  }
-
-  async function loadSameSurfaceExamples(reset: boolean) {
-    if (!sameSurfaceTarget || !bundle) {
-      setSameSurfaceExamples([]);
-      setSameSurfaceExamplesTotal(0);
-      setSameSurfaceExamplesOffset(0);
-      return;
-    }
-    setSameSurfaceExamplesLoadingMore(true);
-    try {
-      const response = await api.searchAnnotations(token, bundle.project.id, {
-        text: sameSurfaceTarget.text,
-        status: "all",
-        labelId: sameSurfaceTarget.labelId ?? null,
-        excludeAnnotationId: sameSurfaceTarget.annotationId ?? null,
-        offset: reset ? 0 : sameSurfaceExamplesOffset,
-        limit: EXAMPLES_BATCH_SIZE,
-        contextWindow: 16,
-      });
-      setSameSurfaceExamples((current) => (reset ? response.items : [...current, ...response.items]));
-      setSameSurfaceExamplesTotal(response.total);
-      setSameSurfaceExamplesOffset(response.offset + response.items.length);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "同一表層事例の取得に失敗した", "error");
-    } finally {
-      setSameSurfaceExamplesLoadingMore(false);
-    }
-  }
-
-  async function ensureSameLabelDetails(surfaceKey: string, surfaceText: string, duplicateCount: number) {
-    if (!bundle || !focusedLabel || sameLabelExampleDetails[surfaceKey]) {
-      return;
-    }
-    try {
-      const response = await api.searchAnnotations(token, bundle.project.id, {
-        text: surfaceText,
-        status: "all",
-        labelId: focusedLabel.id,
-        excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
-        limit: Math.min(Math.max(duplicateCount, 8), 24),
-        contextWindow: 42,
-      });
-      setSameLabelExampleDetails((current) => ({
-        ...current,
-        [surfaceKey]: response.items,
-      }));
-    } catch {
-      // hover 時の補助表示なので失敗は黙って握る
-    }
-  }
-
-  useEffect(() => {
-    void loadSameLabelExamples(true);
-  }, [bundle?.project.id, focusedLabel?.id, selectedAnnotation?.id]);
-
-  useEffect(() => {
-    void loadSameSurfaceExamples(true);
-  }, [bundle?.project.id, sameSurfaceTarget?.text, sameSurfaceTarget?.annotationId, sameSurfaceTarget?.labelId]);
 
   function mutateCurrentDocument(mutator: (draft: DocumentRecord) => void) {
     if (!bundle || !currentDocument) {
@@ -1285,7 +1190,7 @@ function ProjectShell({
             sameSurfaceExamplesOffset={sameSurfaceExamplesOffset}
             sameSurfaceExamplesLoadingMore={sameSurfaceExamplesLoadingMore}
             sameSurfaceExamplesScrollRef={sameSurfaceExamplesScrollRef}
-            sameSurfaceTargetLabelId={sameSurfaceTarget?.labelId ?? null}
+            sameSurfaceTargetLabelId={sameSurfaceTargetLabelId}
             dirty={dirty}
             saving={saving}
             onOpenCreateDocument={() => setCreateDocOpen(true)}
@@ -1409,66 +1314,17 @@ function ProjectShell({
 export function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [user, setUser] = useState<UserRecord | null>(null);
-  const [loading, setLoading] = useState(Boolean(token));
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-    let active = true;
-    setLoading(true);
-    void api
-      .getMe(token)
-      .then((response) => {
-        if (!active) {
-          return;
-        }
-        setUser(response);
-      })
-      .catch(() => {
-        localStorage.removeItem(TOKEN_KEY);
-        if (!active) {
-          return;
-        }
-        setToken(null);
-        setUser(null);
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [token]);
+  const { token, user, loading, error, login, logout } = useAuthSession();
 
   async function handleLogin(username: string, password: string) {
-    setError("");
-    setLoading(true);
-    try {
-      const response = await api.login(username, password);
-      localStorage.setItem(TOKEN_KEY, response.access_token);
-      setToken(response.access_token);
-      const me = await api.getMe(response.access_token);
-      setUser(me);
+    const loggedIn = await login(username, password);
+    if (loggedIn) {
       navigate("/projects");
-    } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : "ログインに失敗した");
-    } finally {
-      setLoading(false);
     }
   }
 
   function handleLogout() {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
-    setUser(null);
+    logout();
     if (location.pathname !== "/login") {
       navigate("/login");
     }
