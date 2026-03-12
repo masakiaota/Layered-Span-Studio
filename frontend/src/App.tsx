@@ -1028,12 +1028,15 @@ export function ProjectShell({
         return;
       }
 
-      const firstPageResponse = await api.listDocuments(token, bundle.project.id, {
-        offset: 0,
-        limit: DOCUMENT_PAGE_SIZE,
-        sort: "created",
-        search: "",
-      });
+      const [{ labels: persistedLabels }, firstPageResponse] = await Promise.all([
+        api.listLabels(token, bundle.project.id),
+        api.listDocuments(token, bundle.project.id, {
+          offset: 0,
+          limit: DOCUMENT_PAGE_SIZE,
+          sort: "created",
+          search: "",
+        }),
+      ]);
       const existingDocumentNames = await collectDocumentNames(
         firstPageResponse.total,
         DOCUMENT_PAGE_SIZE,
@@ -1050,7 +1053,7 @@ export function ProjectShell({
         },
       );
       const validation = validateImportPayload(payload, {
-        existingLabelNames: bundle.labels.map((label) => label.name),
+        existingLabelNames: persistedLabels.map((label) => label.name),
         existingDocumentNames,
       });
       if (validation.issues.length > 0) {

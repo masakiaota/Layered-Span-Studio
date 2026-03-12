@@ -109,6 +109,27 @@ function renderProjectSettings() {
   );
 }
 
+function createImportFile(payload: unknown) {
+  return new File([JSON.stringify(payload)], "import.json", { type: "application/json" });
+}
+
+function createImportPayload(labelName: string) {
+  return {
+    project: { name: "Imported Project" },
+    labels: [{ name: labelName, color: "#ff0000", description: "imported label" }],
+    documents: [
+      {
+        document_name: "Imported Doc",
+        text: "text",
+        status: "pending",
+        created_at: "2026-03-01T00:00:00Z",
+        updated_at: "2026-03-02T00:00:00Z",
+        annotations: [],
+      },
+    ],
+  };
+}
+
 describe("ProjectShell settings label selection", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -228,5 +249,103 @@ describe("ProjectShell settings label selection", () => {
     expect(screen.getAllByText("主訴")).toHaveLength(1);
     expect(screen.getByText("病名")).toBeInTheDocument();
     expect(getLabelRow("病名")).toHaveClass("Mui-selected");
+  });
+});
+
+describe("ProjectShell settings import validation", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("uses persisted labels instead of unsaved newly added labels for import validation", async () => {
+    const userEventSetup = userEvent.setup();
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels) });
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [],
+      total: 0,
+      pending_total: 0,
+      offset: 0,
+      limit: 40,
+      search: "",
+      sort: "created",
+    });
+    const importProjectMock = vi.spyOn(api, "importProject").mockResolvedValue({
+      imported: { labels: 1, documents: 1, annotations: 0 },
+      errors: [],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
+        <Routes>
+          <Route path="/projects/:projectId/settings" element={<ProjectShell token="token" user={user} onLogout={vi.fn()} />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "Project Settings" });
+
+    await userEventSetup.type(screen.getByLabelText("Name"), "既往歴");
+    await userEventSetup.click(screen.getByRole("button", { name: "Add label" }));
+
+    const fileInput = document.querySelector('input[type="file"]');
+    if (!(fileInput instanceof HTMLInputElement)) {
+      throw new Error("Import file input not found");
+    }
+    await userEventSetup.upload(fileInput, createImportFile(createImportPayload("既往歴")));
+    await userEventSetup.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() => {
+      expect(importProjectMock).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByText("既存 label と重複している: 既往歴")).not.toBeInTheDocument();
+  });
+
+  it("detects persisted label conflicts even after an unsaved rename", async () => {
+    const userEventSetup = userEvent.setup();
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels) });
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [],
+      total: 0,
+      pending_total: 0,
+      offset: 0,
+      limit: 40,
+      search: "",
+      sort: "created",
+    });
+    const importProjectMock = vi.spyOn(api, "importProject").mockResolvedValue({
+      imported: { labels: 1, documents: 1, annotations: 0 },
+      errors: [],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
+        <Routes>
+          <Route path="/projects/:projectId/settings" element={<ProjectShell token="token" user={user} onLogout={vi.fn()} />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "Project Settings" });
+
+    await userEventSetup.click(getLabelRow("病名"));
+    await userEventSetup.clear(screen.getByLabelText("Name"));
+    await userEventSetup.type(screen.getByLabelText("Name"), "病名更新");
+    await userEventSetup.click(screen.getByRole("button", { name: "Update label" }));
+
+    const fileInput = document.querySelector('input[type="file"]');
+    if (!(fileInput instanceof HTMLInputElement)) {
+      throw new Error("Import file input not found");
+    }
+    await userEventSetup.upload(fileInput, createImportFile(createImportPayload("病名")));
+    await userEventSetup.click(screen.getByRole("button", { name: "Import" }));
+
+    expect(await screen.findByText("既存 label と重複している: 病名")).toBeInTheDocument();
+    expect(importProjectMock).not.toHaveBeenCalled();
   });
 });
