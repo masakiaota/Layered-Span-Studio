@@ -303,6 +303,7 @@
 
 ```json
 {
+  "submit": false,
   "annotations": [
     {
       "id": "uuid or null",
@@ -319,13 +320,15 @@
 ```
 
 - request の `annotations` は対象 document の最終状態全件を表す
+- `submit` は optional。未指定時は `false`
 - `id: null` は新規 annotation
 - request に含まれない既存 annotation は削除される
 - response は full `Document` を返す
 - document `created_at` / `updated_at` / `status` は backend 管理
 - Save は現在状態をそのまま送る
-- Submit は frontend が annotation `status` を `verified` にした request を同じ API に送る
-- document `status` は保存後の annotation 一覧から backend が再計算する
+- Submit は frontend が annotation `status` を `verified` にした request を同じ API に `submit: true` で送る
+- annotation が 1 件以上ある場合、document `status` は保存後の annotation 一覧から backend が再計算する
+- annotation が 0 件の場合、`submit: true` なら document `status` は `verified`、`submit: false` なら既存 status を維持する
 
 ## 組み合わせ（Exportの基本形）
 

@@ -14,30 +14,38 @@ import { SettingsView } from "./features/project-shell/SettingsView";
 import {
   DEFAULT_LABEL_COLOR,
   DOCUMENT_PAGE_SIZE,
-  EXAMPLES_BATCH_SIZE,
 } from "./features/project-shell/projectShellConstants";
 import type { LabelDraft, PendingAction, RightTab, SelectionPreview } from "./features/project-shell/projectShellTypes";
 import {
+  collectDocumentNames,
+  createEmptyLabelDraft,
+  findConflictingLabelName,
   isHexColor,
   mergeDocumentWindow,
   normalizeHexColor,
+  toLabelDraft,
   toDocumentListItem,
   trimDocumentWindow,
 } from "./features/project-shell/projectShellUtils";
 import { ShortcutPopover } from "./features/project-shell/ShortcutPopover";
 import { useBodyScrollLock } from "./features/project-shell/useBodyScrollLock";
+import { useProjectExamples } from "./features/project-shell/useProjectExamples";
 import { useProjectShortcuts } from "./features/project-shell/useProjectShortcuts";
 import { sortAnnotationsInPanelOrder } from "./features/workspace/workspaceUtils";
 import { WorkspaceView } from "./features/project-shell/WorkspaceView";
+import { useAuthSession } from "./hooks/useAuthSession";
 import { useToast } from "./hooks/useToast";
+import {
+  buildImportValidationMessage,
+  describeImportSummary,
+  validateImportPayload,
+} from "./importValidation";
 import { LoginPage } from "./pages/LoginPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import type {
   AnnotationRecord,
-  AnnotationSearchItemRecord,
   DocumentRecord,
   DocumentListItem,
-  LabelSurfaceGroupRecord,
   ProjectBundle,
   UserRecord,
 } from "./types";
@@ -55,9 +63,7 @@ import {
   setProjectGuideline,
 } from "./utils";
 
-const TOKEN_KEY = "layered-span-studio/token";
-
-function ProjectShell({
+export function ProjectShell({
   token,
   user,
   onLogout,
@@ -83,6 +89,7 @@ function ProjectShell({
   });
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [focusedLabelId, setFocusedLabelId] = useState<string | null>(null);
+  const [selectedSettingsLabelId, setSelectedSettingsLabelId] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [selectedAnnotationMetaDraft, setSelectedAnnotationMetaDraft] = useState("");
   const [selectedAnnotationMetaError, setSelectedAnnotationMetaError] = useState<string | null>(null);
@@ -97,13 +104,13 @@ function ProjectShell({
   const [createDocOpen, setCreateDocOpen] = useState(false);
   const [newDocName, setNewDocName] = useState("");
   const [newDocText, setNewDocText] = useState("");
-  const [labelDraft, setLabelDraft] = useState<LabelDraft>({
-    id: "",
-    name: "",
-    color: DEFAULT_LABEL_COLOR,
-    description: "",
-  });
+  const [labelDraft, setLabelDraft] = useState<LabelDraft>(createEmptyLabelDraft);
   const [settingsImportFile, setSettingsImportFile] = useState<File | null>(null);
+  const [settingsImportFeedback, setSettingsImportFeedback] = useState<{
+    severity: "success" | "info" | "warning" | "error";
+    message: string;
+  } | null>(null);
+  const [settingsImporting, setSettingsImporting] = useState(false);
   const [exportPending, setExportPending] = useState(true);
   const [exportVerified, setExportVerified] = useState(true);
   const [documentList, setDocumentList] = useState<DocumentListItem[]>([]);
@@ -111,15 +118,6 @@ function ProjectShell({
   const [pendingDocumentTotal, setPendingDocumentTotal] = useState(0);
   const [documentNextOffset, setDocumentNextOffset] = useState(0);
   const [documentsLoadingMore, setDocumentsLoadingMore] = useState(false);
-  const [sameLabelExamples, setSameLabelExamples] = useState<LabelSurfaceGroupRecord[]>([]);
-  const [sameLabelExamplesTotal, setSameLabelExamplesTotal] = useState(0);
-  const [sameLabelExamplesOffset, setSameLabelExamplesOffset] = useState(0);
-  const [sameLabelExamplesLoadingMore, setSameLabelExamplesLoadingMore] = useState(false);
-  const [sameLabelExampleDetails, setSameLabelExampleDetails] = useState<Record<string, AnnotationSearchItemRecord[]>>({});
-  const [sameSurfaceExamples, setSameSurfaceExamples] = useState<AnnotationSearchItemRecord[]>([]);
-  const [sameSurfaceExamplesTotal, setSameSurfaceExamplesTotal] = useState(0);
-  const [sameSurfaceExamplesOffset, setSameSurfaceExamplesOffset] = useState(0);
-  const [sameSurfaceExamplesLoadingMore, setSameSurfaceExamplesLoadingMore] = useState(false);
   const shortcutButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingActionConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
   const documentListScrollRef = useRef<HTMLDivElement | null>(null);
@@ -184,6 +182,8 @@ function ProjectShell({
       initialDocumentListLoadedRef.current = true;
       activateDocument(firstDocId);
       setFocusedLabelId(nextBundle.labels[0]?.id ?? null);
+      setSelectedSettingsLabelId(null);
+      setLabelDraft(createEmptyLabelDraft());
       setAccordionOpen(Object.fromEntries(nextBundle.labels.map((label) => [label.id, true])));
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Workspace の読み込みに失敗した", "error");
@@ -308,6 +308,28 @@ function ProjectShell({
     setSelectedAnnotationMetaDraft(formatAnnotationMetaDraft(selectedAnnotation.meta));
     setSelectedAnnotationMetaError(null);
   }, [currentDocument?.id, selectedAnnotation?.id]);
+  const {
+    sameLabelExamples,
+    sameLabelExamplesTotal,
+    sameLabelExamplesOffset,
+    sameLabelExamplesLoadingMore,
+    sameLabelExampleDetails,
+    sameSurfaceExamples,
+    sameSurfaceExamplesTotal,
+    sameSurfaceExamplesOffset,
+    sameSurfaceExamplesLoadingMore,
+    sameSurfaceTargetLabelId,
+    loadSameLabelExamples,
+    loadSameSurfaceExamples,
+    ensureSameLabelDetails,
+  } = useProjectExamples({
+    token,
+    projectId: bundle?.project.id ?? null,
+    focusedLabel,
+    selectedAnnotation,
+    selectionPreview,
+    showToast,
+  });
   const settingsDirty = useMemo(() => {
     if (!bundle || !settingsSnapshot) {
       return false;
@@ -439,111 +461,6 @@ function ProjectShell({
     return () => cancelAnimationFrame(focusTimer);
   }, [pendingAction]);
 
-  const sameSurfaceTarget = useMemo(() => {
-    return (
-      selectionPreview && selectionPreview.text.trim()
-        ? {
-            text: selectionPreview.text,
-            annotationId: null,
-            labelId: focusedLabel?.id ?? null,
-          }
-        : selectedAnnotation
-          ? {
-              text: selectedAnnotation.span_text,
-              annotationId: selectedAnnotation.id,
-              labelId: selectedAnnotation.label_id,
-            }
-          : null
-    );
-  }, [focusedLabel?.id, selectedAnnotation, selectionPreview]);
-
-  async function loadSameLabelExamples(reset: boolean) {
-    if (!focusedLabel || !bundle) {
-      setSameLabelExamples([]);
-      setSameLabelExamplesTotal(0);
-      setSameLabelExamplesOffset(0);
-      return;
-    }
-    setSameLabelExamplesLoadingMore(true);
-    try {
-      const response = await api.listLabelSurfaceGroups(token, bundle.project.id, focusedLabel.id, {
-        offset: reset ? 0 : sameLabelExamplesOffset,
-        limit: EXAMPLES_BATCH_SIZE,
-        status: "all",
-        contextWindow: 16,
-        excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
-      });
-      setSameLabelExamples((current) => (reset ? response.items : [...current, ...response.items]));
-      setSameLabelExamplesTotal(response.total);
-      setSameLabelExamplesOffset(response.offset + response.items.length);
-      if (reset) {
-        setSameLabelExampleDetails({});
-      }
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "関連例の取得に失敗した", "error");
-    } finally {
-      setSameLabelExamplesLoadingMore(false);
-    }
-  }
-
-  async function loadSameSurfaceExamples(reset: boolean) {
-    if (!sameSurfaceTarget || !bundle) {
-      setSameSurfaceExamples([]);
-      setSameSurfaceExamplesTotal(0);
-      setSameSurfaceExamplesOffset(0);
-      return;
-    }
-    setSameSurfaceExamplesLoadingMore(true);
-    try {
-      const response = await api.searchAnnotations(token, bundle.project.id, {
-        text: sameSurfaceTarget.text,
-        status: "all",
-        labelId: sameSurfaceTarget.labelId ?? null,
-        excludeAnnotationId: sameSurfaceTarget.annotationId ?? null,
-        offset: reset ? 0 : sameSurfaceExamplesOffset,
-        limit: EXAMPLES_BATCH_SIZE,
-        contextWindow: 16,
-      });
-      setSameSurfaceExamples((current) => (reset ? response.items : [...current, ...response.items]));
-      setSameSurfaceExamplesTotal(response.total);
-      setSameSurfaceExamplesOffset(response.offset + response.items.length);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "同一表層事例の取得に失敗した", "error");
-    } finally {
-      setSameSurfaceExamplesLoadingMore(false);
-    }
-  }
-
-  async function ensureSameLabelDetails(surfaceKey: string, surfaceText: string, duplicateCount: number) {
-    if (!bundle || !focusedLabel || sameLabelExampleDetails[surfaceKey]) {
-      return;
-    }
-    try {
-      const response = await api.searchAnnotations(token, bundle.project.id, {
-        text: surfaceText,
-        status: "all",
-        labelId: focusedLabel.id,
-        excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
-        limit: Math.min(Math.max(duplicateCount, 8), 24),
-        contextWindow: 42,
-      });
-      setSameLabelExampleDetails((current) => ({
-        ...current,
-        [surfaceKey]: response.items,
-      }));
-    } catch {
-      // hover 時の補助表示なので失敗は黙って握る
-    }
-  }
-
-  useEffect(() => {
-    void loadSameLabelExamples(true);
-  }, [bundle?.project.id, focusedLabel?.id, selectedAnnotation?.id]);
-
-  useEffect(() => {
-    void loadSameSurfaceExamples(true);
-  }, [bundle?.project.id, sameSurfaceTarget?.text, sameSurfaceTarget?.annotationId, sameSurfaceTarget?.labelId]);
-
   function mutateCurrentDocument(mutator: (draft: DocumentRecord) => void) {
     if (!bundle || !currentDocument) {
       return;
@@ -656,7 +573,7 @@ function ProjectShell({
     setSaving(true);
     try {
       const payload = buildDocumentBundlePayload(currentDocument, forceVerified);
-      const savedDocument = await api.saveDocumentBundle(token, bundle.project.id, currentDocument.id, payload);
+      const savedDocument = await api.saveDocumentBundle(token, bundle.project.id, currentDocument.id, payload, forceVerified);
       setBundle((current) =>
         current
           ? {
@@ -695,6 +612,8 @@ function ProjectShell({
     try {
       const projectDirty = JSON.stringify(bundle.project) !== JSON.stringify(settingsSnapshot.project);
       const labelsDirty = JSON.stringify(bundle.labels) !== JSON.stringify(settingsSnapshot.labels);
+      const selectedSettingsLabel =
+        selectedSettingsLabelId ? bundle.labels.find((label) => label.id === selectedSettingsLabelId) ?? null : null;
       let savedProject = bundle.project;
       let savedLabels = bundle.labels;
 
@@ -774,6 +693,11 @@ function ProjectShell({
                   index: -1,
                 },
           );
+          if (selectedSettingsLabel) {
+            const persistedSelectedLabel = savedLabels.find((label) => label.name === selectedSettingsLabel.name) ?? null;
+            setSelectedSettingsLabelId(persistedSelectedLabel?.id ?? null);
+            setLabelDraft(persistedSelectedLabel ? toLabelDraft(persistedSelectedLabel) : createEmptyLabelDraft());
+          }
         } catch (error) {
           showToast(
             projectDirty
@@ -1090,17 +1014,72 @@ function ProjectShell({
   }
 
   async function handleSettingsImport() {
-    if (!settingsImportFile || !bundle) {
+    if (!settingsImportFile || !bundle || settingsImporting) {
       return;
     }
+    setSettingsImporting(true);
     try {
       const payload = await readJsonFile(settingsImportFile);
+      const basicValidation = validateImportPayload(payload);
+      if (basicValidation.issues.length > 0) {
+        const message = buildImportValidationMessage(basicValidation.issues);
+        setSettingsImportFeedback({ severity: "error", message });
+        showToast("Import 前チェックで問題を検出した", "error");
+        return;
+      }
+
+      const [{ labels: persistedLabels }, firstPageResponse] = await Promise.all([
+        api.listLabels(token, bundle.project.id),
+        api.listDocuments(token, bundle.project.id, {
+          offset: 0,
+          limit: DOCUMENT_PAGE_SIZE,
+          sort: "created",
+          search: "",
+        }),
+      ]);
+      const existingDocumentNames = await collectDocumentNames(
+        firstPageResponse.total,
+        DOCUMENT_PAGE_SIZE,
+        (offset, limit) => {
+          if (offset === 0) {
+            return Promise.resolve(firstPageResponse);
+          }
+          return api.listDocuments(token, bundle.project.id, {
+            offset,
+            limit,
+            sort: "created",
+            search: "",
+          });
+        },
+      );
+      const validation = validateImportPayload(payload, {
+        existingLabelNames: persistedLabels.map((label) => label.name),
+        existingDocumentNames,
+      });
+      if (validation.issues.length > 0) {
+        const message = buildImportValidationMessage(validation.issues);
+        setSettingsImportFeedback({ severity: "error", message });
+        showToast("Import 前チェックで問題を検出した", "error");
+        return;
+      }
       await api.importProject(token, bundle.project.id, payload);
+      setSettingsImportFeedback({
+        severity: "success",
+        message: `Import 完了: ${describeImportSummary(
+          validation.summary ?? { labelCount: 0, documentCount: 0, annotationCount: 0 },
+        )}`,
+      });
       showToast("現在の project に import した", "success");
       setSettingsImportFile(null);
       await loadBundle();
     } catch (error) {
+      setSettingsImportFeedback({
+        severity: "error",
+        message: error instanceof Error ? error.message : "Import に失敗した",
+      });
       showToast(error instanceof Error ? error.message : "Import に失敗した", "error");
+    } finally {
+      setSettingsImporting(false);
     }
   }
 
@@ -1175,23 +1154,23 @@ function ProjectShell({
       showToast("Color は #RRGGBB 形式で入力する", "warning");
       return;
     }
-    const existing = bundle.labels.find((label) => label.name === labelDraft.name.trim());
+    const existing = findConflictingLabelName(bundle.labels, labelDraft);
     const editingLabel = bundle.labels.find((label) => label.id === labelDraft.id);
-    if (existing && !labelDraft.id) {
-      showToast("同名 label は追加できない", "warning");
+    if (existing) {
+      showToast("同名 label は保存できない", "warning");
       return;
     }
+    const nextLabel = {
+      id: labelDraft.id || makeLocalId("label"),
+      project_id: bundle.project.id,
+      project_name: bundle.project.name,
+      name: labelDraft.name.trim(),
+      color: normalizedLabelColor,
+      description: labelDraft.description,
+      shortcut: editingLabel?.shortcut ?? null,
+      meta: {},
+    };
     mutateSettingsBundle((draft) => {
-      const nextLabel = {
-        id: labelDraft.id || makeLocalId("label"),
-        project_id: draft.project.id,
-        project_name: draft.project.name,
-        name: labelDraft.name.trim(),
-        color: normalizedLabelColor,
-        description: labelDraft.description,
-        shortcut: editingLabel?.shortcut ?? null,
-        meta: {},
-      };
       const index = draft.labels.findIndex((label) => label.id === nextLabel.id);
       if (index >= 0) {
         draft.labels[index] = nextLabel;
@@ -1199,15 +1178,21 @@ function ProjectShell({
       }
       draft.labels.push(nextLabel);
     });
-    setLabelDraft({ id: "", name: "", color: DEFAULT_LABEL_COLOR, description: "" });
+    setSelectedSettingsLabelId(nextLabel.id);
+    setLabelDraft(toLabelDraft(nextLabel));
   }
 
   function handleDeleteLabel(labelId: string) {
+    const deletingSelectedSettingsLabel = selectedSettingsLabelId === labelId;
     mutateSettingsBundle((draft) => {
       draft.labels = draft.labels.filter((item) => item.id !== labelId);
     });
     if (focusedLabelId === labelId) {
       setFocusedLabelId(bundle?.labels.find((item) => item.id !== labelId)?.id ?? null);
+    }
+    if (deletingSelectedSettingsLabel) {
+      setSelectedSettingsLabelId(null);
+      setLabelDraft(createEmptyLabelDraft());
     }
   }
 
@@ -1285,7 +1270,7 @@ function ProjectShell({
             sameSurfaceExamplesOffset={sameSurfaceExamplesOffset}
             sameSurfaceExamplesLoadingMore={sameSurfaceExamplesLoadingMore}
             sameSurfaceExamplesScrollRef={sameSurfaceExamplesScrollRef}
-            sameSurfaceTargetLabelId={sameSurfaceTarget?.labelId ?? null}
+            sameSurfaceTargetLabelId={sameSurfaceTargetLabelId}
             dirty={dirty}
             saving={saving}
             onOpenCreateDocument={() => setCreateDocOpen(true)}
@@ -1318,7 +1303,7 @@ function ProjectShell({
         ) : (
           <SettingsView
             bundle={bundle}
-            focusedLabelId={focusedLabelId}
+            selectedLabelId={selectedSettingsLabelId}
             labelDraft={labelDraft}
             normalizedLabelColor={normalizedLabelColor}
             labelColorValid={labelColorValid}
@@ -1329,6 +1314,8 @@ function ProjectShell({
             exportVerified={exportVerified}
             dirty={dirty}
             saving={saving}
+            importing={settingsImporting}
+            importFeedback={settingsImportFeedback}
             onProjectNameChange={(value) =>
               mutateSettingsBundle((draft) => {
                 draft.project.name = value;
@@ -1354,10 +1341,23 @@ function ProjectShell({
             onOpenColorPicker={() => labelColorInputRef.current?.click()}
             onPickLabelColor={(value) => setLabelDraft((current) => ({ ...current, color: value }))}
             onSubmitLabelDraft={handleLabelDraftSubmit}
-            onResetLabelDraft={() => setLabelDraft({ id: "", name: "", color: DEFAULT_LABEL_COLOR, description: "" })}
-            onSelectLabelDraft={setLabelDraft}
+            onResetLabelDraft={() => {
+              setSelectedSettingsLabelId(null);
+              setLabelDraft(createEmptyLabelDraft());
+            }}
+            onSelectLabel={(labelId) => {
+              const selectedLabel = bundle.labels.find((label) => label.id === labelId);
+              if (!selectedLabel) {
+                return;
+              }
+              setSelectedSettingsLabelId(labelId);
+              setLabelDraft(toLabelDraft(selectedLabel));
+            }}
             onDeleteLabel={handleDeleteLabel}
-            onImportFileChange={setSettingsImportFile}
+            onImportFileChange={(file) => {
+              setSettingsImportFile(file);
+              setSettingsImportFeedback(null);
+            }}
             onImport={() => void handleSettingsImport()}
             onExportPendingChange={setExportPending}
             onExportVerifiedChange={setExportVerified}
@@ -1409,66 +1409,17 @@ function ProjectShell({
 export function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [user, setUser] = useState<UserRecord | null>(null);
-  const [loading, setLoading] = useState(Boolean(token));
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-    let active = true;
-    setLoading(true);
-    void api
-      .getMe(token)
-      .then((response) => {
-        if (!active) {
-          return;
-        }
-        setUser(response);
-      })
-      .catch(() => {
-        localStorage.removeItem(TOKEN_KEY);
-        if (!active) {
-          return;
-        }
-        setToken(null);
-        setUser(null);
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [token]);
+  const { token, user, loading, error, login, logout } = useAuthSession();
 
   async function handleLogin(username: string, password: string) {
-    setError("");
-    setLoading(true);
-    try {
-      const response = await api.login(username, password);
-      localStorage.setItem(TOKEN_KEY, response.access_token);
-      setToken(response.access_token);
-      const me = await api.getMe(response.access_token);
-      setUser(me);
+    const loggedIn = await login(username, password);
+    if (loggedIn) {
       navigate("/projects");
-    } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : "ログインに失敗した");
-    } finally {
-      setLoading(false);
     }
   }
 
   function handleLogout() {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
-    setUser(null);
+    logout();
     if (location.pathname !== "/login") {
       navigate("/login");
     }

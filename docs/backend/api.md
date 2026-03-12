@@ -933,6 +933,7 @@ Authorization: Bearer <token>
 **Request:**
 ```json
 {
+  "submit": true,
   "annotations": [
     {
       "id": "uuid",
@@ -968,7 +969,11 @@ Authorization: Bearer <token>
 - `id: null` は新規 annotation として作成される
 - 既存 annotation の `label_id/start/end/span_text` は変更不可
 - `updated_at` は backend が管理する
-- document `status` は保存後の annotation 一覧から backend が再計算する
+- `submit` は optional で、未指定時は `false`
+- annotation が 1 件以上ある場合、document `status` は保存後の annotation 一覧から backend が再計算する
+- annotation が 0 件の場合
+  - `submit=false` なら既存 document `status` を維持する
+  - `submit=true` なら document `status` を `verified` にする
 
 ---
 

@@ -1,5 +1,6 @@
-import type { DocumentListItem, DocumentRecord } from "../../types";
-import { DOCUMENT_WINDOW_SIZE } from "./projectShellConstants";
+import type { LabelDraft } from "./projectShellTypes";
+import type { DocumentListItem, DocumentListResponse, DocumentRecord, LabelRecord } from "../../types";
+import { DEFAULT_LABEL_COLOR, DOCUMENT_WINDOW_SIZE } from "./projectShellConstants";
 
 export function normalizeHexColor(value: string) {
   const trimmed = value.trim();
@@ -14,6 +15,32 @@ export function normalizeHexColor(value: string) {
 
 export function isHexColor(value: string) {
   return /^#[0-9a-fA-F]{6}$/.test(normalizeHexColor(value));
+}
+
+export function createEmptyLabelDraft(): LabelDraft {
+  return {
+    id: "",
+    name: "",
+    color: DEFAULT_LABEL_COLOR,
+    description: "",
+  };
+}
+
+export function toLabelDraft(label: Pick<LabelRecord, "id" | "name" | "color" | "description">): LabelDraft {
+  return {
+    id: label.id,
+    name: label.name,
+    color: label.color,
+    description: label.description,
+  };
+}
+
+export function findConflictingLabelName(
+  labels: Array<Pick<LabelRecord, "id" | "name">>,
+  draft: Pick<LabelDraft, "id" | "name">,
+) {
+  const normalizedName = draft.name.trim();
+  return labels.find((label) => label.id !== draft.id && label.name.trim() === normalizedName) ?? null;
 }
 
 export function toDocumentListItem(document: DocumentRecord): DocumentListItem {
@@ -55,4 +82,28 @@ export function mergeDocumentWindow(existing: DocumentListItem[], incoming: Docu
     merged.push(item);
   });
   return trimDocumentWindow(merged, selectedId);
+}
+
+export async function collectDocumentNames(
+  total: number,
+  pageSize: number,
+  fetchPage: (offset: number, limit: number) => Promise<DocumentListResponse>,
+) {
+  if (!Number.isInteger(pageSize) || pageSize <= 0) {
+    throw new Error("pageSize must be a positive integer");
+  }
+  if (total <= 0) {
+    return [];
+  }
+
+  const names: string[] = [];
+  for (let offset = 0; offset < total; offset += pageSize) {
+    const response = await fetchPage(offset, pageSize);
+    names.push(...response.documents.map((document) => document.document_name));
+    if (response.documents.length < pageSize) {
+      break;
+    }
+  }
+
+  return names;
 }

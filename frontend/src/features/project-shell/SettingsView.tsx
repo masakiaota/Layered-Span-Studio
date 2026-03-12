@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Button,
   FormControlLabel,
@@ -26,7 +27,7 @@ import { getProjectGuideline } from "../../utils";
 
 export function SettingsView({
   bundle,
-  focusedLabelId,
+  selectedLabelId,
   labelDraft,
   normalizedLabelColor,
   labelColorValid,
@@ -37,6 +38,8 @@ export function SettingsView({
   exportVerified,
   dirty,
   saving,
+  importing,
+  importFeedback,
   onProjectNameChange,
   onProjectDescriptionChange,
   onProjectGuidelineChange,
@@ -46,7 +49,7 @@ export function SettingsView({
   onPickLabelColor,
   onSubmitLabelDraft,
   onResetLabelDraft,
-  onSelectLabelDraft,
+  onSelectLabel,
   onDeleteLabel,
   onImportFileChange,
   onImport,
@@ -56,7 +59,7 @@ export function SettingsView({
   onSave,
 }: {
   bundle: ProjectBundle;
-  focusedLabelId: string | null;
+  selectedLabelId: string | null;
   labelDraft: LabelDraft;
   normalizedLabelColor: string;
   labelColorValid: boolean;
@@ -67,6 +70,8 @@ export function SettingsView({
   exportVerified: boolean;
   dirty: boolean;
   saving: boolean;
+  importing: boolean;
+  importFeedback: { severity: "success" | "info" | "warning" | "error"; message: string } | null;
   onProjectNameChange: (value: string) => void;
   onProjectDescriptionChange: (value: string) => void;
   onProjectGuidelineChange: (value: string) => void;
@@ -76,7 +81,7 @@ export function SettingsView({
   onPickLabelColor: (value: string) => void;
   onSubmitLabelDraft: () => void;
   onResetLabelDraft: () => void;
-  onSelectLabelDraft: (draft: LabelDraft) => void;
+  onSelectLabel: (labelId: string) => void;
   onDeleteLabel: (labelId: string) => void;
   onImportFileChange: (file: File | null) => void;
   onImport: () => void;
@@ -199,19 +204,21 @@ export function SettingsView({
                   </Button>
                 </Stack>
               </Stack>
-              <List sx={{ flex: 1, width: "100%", border: "1px solid #d7e2f0", borderRadius: 3, bgcolor: "#fff" }}>
+              <List
+                sx={{
+                  flex: 1,
+                  width: "100%",
+                  border: "1px solid #d7e2f0",
+                  borderRadius: 3,
+                  bgcolor: "#fff",
+                  overflow: "hidden",
+                }}
+              >
                 {bundle.labels.map((label) => (
                   <ListItemButton
                     key={label.id}
-                    selected={label.id === focusedLabelId}
-                    onClick={() =>
-                      onSelectLabelDraft({
-                        id: label.id,
-                        name: label.name,
-                        color: label.color,
-                        description: label.description,
-                      })
-                    }
+                    selected={label.id === selectedLabelId}
+                    onClick={() => onSelectLabel(label.id)}
                   >
                     <ListItemText
                       primary={
@@ -225,6 +232,7 @@ export function SettingsView({
                     <IconButton
                       edge="end"
                       color="error"
+                      aria-label={`${label.name} を削除`}
                       onClick={(event) => {
                         event.stopPropagation();
                         onDeleteLabel(label.id);
@@ -243,12 +251,24 @@ export function SettingsView({
             <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 2 }}>
               <Stack spacing={1.5} sx={{ flex: 1 }}>
                 <Typography variant="subtitle2">現在 project への追記 import</Typography>
-                <Button component="label" variant="outlined" startIcon={<UploadFileRoundedIcon />}>
+                <Alert severity="info">
+                  append 専用である。既存 project 本体は更新しない。構造不正や同名データは import 前または backend 側で失敗として扱う。
+                </Alert>
+                {importFeedback ? <Alert severity={importFeedback.severity}>{importFeedback.message}</Alert> : null}
+                <Button component="label" variant="outlined" startIcon={<UploadFileRoundedIcon />} disabled={importing}>
                   {settingsImportFile?.name ?? "Select JSON"}
-                  <input hidden type="file" accept=".json,application/json" onChange={(event) => onImportFileChange(event.target.files?.[0] ?? null)} />
+                  <input
+                    hidden
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={(event) => {
+                      onImportFileChange(event.currentTarget.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                  />
                 </Button>
-                <Button variant="contained" onClick={onImport} disabled={!settingsImportFile}>
-                  Import
+                <Button variant="contained" onClick={onImport} disabled={!settingsImportFile || importing}>
+                  {importing ? "Importing..." : "Import"}
                 </Button>
               </Stack>
               <Stack spacing={1.5} sx={{ flex: 1 }}>

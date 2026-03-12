@@ -41,6 +41,7 @@ class DocumentBundleAnnotationIn(APIModel):
 
 class DocumentBundleIn(APIModel):
     annotations: list[DocumentBundleAnnotationIn]
+    submit: bool = False
 
 
 class DocumentOut(APIModel):

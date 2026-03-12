@@ -1,0 +1,227 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildImportValidationMessage,
+  describeImportSummary,
+  validateImportPayload,
+} from "../importValidation";
+
+describe("validateImportPayload", () => {
+  it("accepts a structurally valid payload and returns summary", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [{ name: "Disease", color: "#ff0000", description: "desc" }],
+      documents: [
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
+          annotations: [
+            {
+              label_name: "Disease",
+              start: 0,
+              end: 4,
+              span_text: "text",
+              status: "verified",
+            },
+            {
+              label_name: "Disease",
+              start: 0,
+              end: 4,
+              span_text: "text",
+              status: "pending",
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(validateImportPayload(payload)).toEqual({
+      issues: [],
+      summary: {
+        labelCount: 1,
+        documentCount: 1,
+        annotationCount: 2,
+      },
+    });
+  });
+
+  it("accepts documents without annotations and counts them as zero", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [],
+      documents: [
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
+        },
+      ],
+    };
+
+    expect(validateImportPayload(payload)).toEqual({
+      issues: [],
+      summary: {
+        labelCount: 0,
+        documentCount: 1,
+        annotationCount: 0,
+      },
+    });
+  });
+
+  it("reports malformed top-level sections", () => {
+    expect(validateImportPayload({ labels: [], documents: [] }).issues).toContain("`project` が object でない");
+    expect(validateImportPayload({ project: {}, documents: [] }).issues).toContain("`labels` が配列でない");
+    expect(validateImportPayload({ project: {}, labels: [] }).issues).toContain("`documents` が配列でない");
+  });
+
+  it("reports empty project name", () => {
+    const payload = {
+      project: { name: "   " },
+      labels: [],
+      documents: [],
+    };
+
+    expect(validateImportPayload(payload).issues).toContain("`project.name` が空である");
+  });
+
+  it("reports duplicate label names in payload and existing labels", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [
+        { name: "Disease", color: "#ff0000", description: "desc" },
+        { name: "Disease", color: "#00ff00", description: "desc" },
+      ],
+      documents: [],
+    };
+
+    const issues = validateImportPayload(payload, { existingLabelNames: ["Disease"] }).issues;
+
+    expect(issues).toContain("label 名が payload 内で重複している: Disease");
+    expect(issues).toContain("既存 label と重複している: Disease");
+  });
+
+  it("reports duplicate document names in payload and existing documents", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [],
+      documents: [
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
+          annotations: [],
+        },
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
+          annotations: [],
+        },
+      ],
+    };
+
+    const issues = validateImportPayload(payload, { existingDocumentNames: ["Doc 1"] }).issues;
+
+    expect(issues).toContain("document 名が payload 内で重複している: Doc 1");
+    expect(issues).toContain("既存 document と重複している: Doc 1");
+  });
+
+  it("reports invalid document system field formats before backend import", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [],
+      documents: [
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "draft",
+          created_at: "2026-03-01T00:00:00",
+          updated_at: "not-a-timestamp",
+          annotations: [],
+        },
+      ],
+    };
+
+    const issues = validateImportPayload(payload).issues;
+
+    expect(issues).toContain("documents[0].status が不正である");
+    expect(issues).toContain("documents[0].created_at が timezone-aware ISO 8601 でない");
+    expect(issues).toContain("documents[0].updated_at が timezone-aware ISO 8601 でない");
+  });
+
+  it("reports updated_at earlier than created_at", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [],
+      documents: [
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-02-28T23:59:59Z",
+          annotations: [],
+        },
+      ],
+    };
+
+    expect(validateImportPayload(payload).issues).toContain("documents[0].updated_at が created_at より前である");
+  });
+
+  it("reports invalid annotation payload fields before backend import", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [],
+      documents: [
+        {
+          document_name: "Doc 1",
+          text: "text",
+          status: "pending",
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
+          annotations: [
+            {
+              label_name: " ",
+              start: true,
+              end: false,
+              span_text: 123,
+              status: "draft",
+            },
+          ],
+        },
+      ],
+    };
+
+    const issues = validateImportPayload(payload).issues;
+
+    expect(issues).toContain("documents[0].annotations[0].label_name が空である、または文字列でない");
+    expect(issues).toContain("documents[0].annotations[0].start が整数でない");
+    expect(issues).toContain("documents[0].annotations[0].end が整数でない");
+    expect(issues).toContain("documents[0].annotations[0].span_text が文字列でない");
+    expect(issues).toContain("documents[0].annotations[0].status が不正である");
+  });
+});
+
+describe("import validation helpers", () => {
+  it("formats issue preview compactly", () => {
+    expect(buildImportValidationMessage(["a", "b", "c", "d"])).toBe("a / b / c / 他 1 件");
+  });
+
+  it("describes summary counts", () => {
+    expect(
+      describeImportSummary({
+        labelCount: 2,
+        documentCount: 3,
+        annotationCount: 8,
+      }),
+    ).toBe("Label 2 件 / Document 3 件 / Annotation 8 件");
+  });
+});
