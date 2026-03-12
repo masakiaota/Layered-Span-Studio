@@ -50,6 +50,22 @@ describe("validateImportPayload", () => {
     expect(issues).toContain("label 名が payload 内で重複している: Disease");
     expect(issues).toContain("既存 label と重複している: Disease");
   });
+
+  it("reports duplicate document names in payload and existing documents", () => {
+    const payload = {
+      project: { name: "Project A" },
+      labels: [],
+      documents: [
+        { document_name: "Doc 1", text: "text", annotations: [] },
+        { document_name: "Doc 1", text: "text", annotations: [] },
+      ],
+    };
+
+    const issues = validateImportPayload(payload, { existingDocumentNames: ["Doc 1"] }).issues;
+
+    expect(issues).toContain("document 名が payload 内で重複している: Doc 1");
+    expect(issues).toContain("既存 document と重複している: Doc 1");
+  });
 });
 
 describe("import validation helpers", () => {

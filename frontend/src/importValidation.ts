@@ -1,5 +1,6 @@
 type ImportValidationOptions = {
   existingLabelNames?: Iterable<string>;
+  existingDocumentNames?: Iterable<string>;
 };
 
 export type ImportValidationSummary = {
@@ -87,6 +88,7 @@ export function validateImportPayload(
   });
 
   const payloadDocumentNames = new Set<string>();
+  const existingDocumentNames = options.existingDocumentNames ? normalizeNames(options.existingDocumentNames) : new Set<string>();
   let annotationCount = 0;
 
   documents.forEach((document, index) => {
@@ -100,6 +102,9 @@ export function validateImportPayload(
       const normalizedName = document.document_name.trim();
       if (payloadDocumentNames.has(normalizedName)) {
         issues.push(`document 名が payload 内で重複している: ${normalizedName}`);
+      }
+      if (existingDocumentNames.has(normalizedName)) {
+        issues.push(`既存 document と重複している: ${normalizedName}`);
       }
       payloadDocumentNames.add(normalizedName);
     }

@@ -1009,8 +1009,17 @@ function ProjectShell({
     }
     try {
       const payload = await readJsonFile(settingsImportFile);
+      const existingDocumentsResponse =
+        documentTotal > 0
+          ? await api.listDocuments(token, bundle.project.id, {
+              offset: 0,
+              limit: documentTotal,
+              sort: "created",
+            })
+          : { documents: [] };
       const validation = validateImportPayload(payload, {
         existingLabelNames: bundle.labels.map((label) => label.name),
+        existingDocumentNames: existingDocumentsResponse.documents.map((document) => document.document_name),
       });
       if (validation.issues.length > 0) {
         const message = buildImportValidationMessage(validation.issues);
