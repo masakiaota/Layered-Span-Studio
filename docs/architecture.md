@@ -21,7 +21,7 @@ Layered Span Studioは、Frontend（SPA）とBackend（APIサーバー）の2層
 ├─────────────────────────────────────────┤
 │ - データ永続化                           │
 │ - ビジネスロジック                       │
-│ - LLM連携                              │
+│ - LLM連携（将来構想）                   │
 │ - API提供                              │
 └─────────────────────────────────────────┘
               ↓
@@ -63,42 +63,40 @@ layered-span-studio/
 │   ├── src/
 │   │   ├── components/      # UIコンポーネント
 │   │   ├── features/        # 機能ごとのモジュール
-│   │   ├── services/        # API通信
 │   │   ├── hooks/           # カスタムフック
-│   │   └── types/           # TypeScript型定義
-│   ├── public/
+│   │   ├── pages/           # 画面単位のコンポーネント
+│   │   ├── api.ts           # API通信
+│   │   ├── types.ts         # TypeScript型定義
+│   │   ├── utils.ts         # 共通ユーティリティ
+│   │   └── App.tsx          # 画面全体のルート構成
+│   ├── index.html
 │   └── package.json
 │
 ├── backend/
 │   ├── src/
-│   │   ├── api/            # APIエンドポイント（ルーティング）
-│   │   │   ├── projects
-│   │   │   ├── documents
-│   │   │   ├── annotations
-│   │   │   └── llm
+│   │   └── layered_span_studio_backend/
+│   │       ├── api/            # APIエンドポイント（ルーティング）
+│   │       │   ├── auth.py
+│   │       │   ├── projects.py
+│   │       │   ├── documents.py
+│   │       │   ├── annotations.py
+│   │       │   ├── annotation_search.py
+│   │       │   ├── labels.py
+│   │       │   └── import_export.py
 │   │   │
-│   │   ├── services/       # ビジネスロジック層
-│   │   │   ├── project_service
-│   │   │   ├── annotation_service
-│   │   │   └── llm_service
+│   │       ├── services/       # ビジネスロジック層
+│   │       │   ├── projects_service.py
+│   │       │   ├── documents_service.py
+│   │       │   ├── annotations_service.py
+│   │       │   ├── labels_service.py
+│   │       │   └── import_export_service.py
 │   │   │
-│   │   ├── repositories/   # データアクセス層
-│   │   │   ├── project_repository
-│   │   │   ├── document_repository
-│   │   │   └── annotation_repository
+│   │       ├── repositories/   # データアクセス層
+│   │       ├── models/         # データモデル定義
+│   │       ├── storage/        # SQLite ベースの永続化実装
+│   │       ├── core/           # 設定・依存解決
+│   │       └── utils/          # ユーティリティ
 │   │   │
-│   │   ├── models/         # データモデル定義
-│   │   │   ├── project
-│   │   │   ├── document
-│   │   │   └── annotation
-│   │   │
-│   │   ├── storage/        # 永続化の実装
-│   │   │   ├── json_storage       # JSONファイル実装
-│   │   │   ├── sqlite_storage     # SQLite実装（オプション）
-│   │   │   └── storage_interface  # 抽象インターフェース
-│   │   │
-│   │   └── utils/          # ユーティリティ
-│   │
 │   ├── data/               # データ保存先（gitignore）
 │   │   └── projects/
 │   │       ├── project-001/
@@ -108,7 +106,7 @@ layered-span-studio/
 │   │       │       └── doc-002.json
 │   │       └── project-002/
 │   │
-│   └── package.json / requirements.txt
+│   └── pyproject.toml
 │
 ├── docs/
 │   ├── requirements.md
@@ -141,23 +139,32 @@ layered-span-studio/
 ### 3. キーボードショートカット
 
 - 全てのショートカット処理
-- ラベルへのキー割り当て
+- 共通ショートカットの処理
+- `label.shortcut` のようなラベル個別ショートカットは backend / API では保持可能だが、frontend での編集 UI と直接操作は未対応であり、将来の拡張候補とする
 - スパン選択・編集の操作
 
 ### 4. 一時的な状態管理
 
 - 現在選択中のテキスト範囲
-- 編集中のアノテーション
+- 編集中の project bundle 全体
+- 保存済み snapshot との差分
+- Undo / Redo 用の履歴
+- local ID を含む未保存エンティティ
 - UI表示状態（パネルの開閉等）
 - 現在のプロジェクト/ドキュメント
+- Document 一覧のページング状態と表示ウィンドウ
+- 選択中 Document の本文・Annotation 詳細
 
 ### 5. バックエンドとの通信
 
 - API呼び出し
 - データの送受信
 - エラーハンドリング
+- Save / Submit 時の差分同期
+- Document 一覧検索・並び替え・追加読み込みの要求
+- project 横断の関連例検索要求
 
-**要約**: 見た目・操作・一時的な状態の管理
+**要約**: 見た目・操作・未保存の編集中状態の管理
 
 ## Backend の責務
 
@@ -176,6 +183,8 @@ layered-span-studio/
 - データの整合性チェック
 - エクスポート処理（JSON生成）
 - インポート処理（JSON解析・検証）
+- Document 一覧の検索・並び替え・件数集計
+- project 横断の関連例集約・表層検索
 
 ### 3. データ永続化
 
@@ -183,7 +192,9 @@ layered-span-studio/
 - データ構造の管理
 - ファイル/ディレクトリの作成・削除
 
-### 4. LLM連携
+### 4. LLM連携（将来構想）
+
+現行実装には LLM 呼び出し UI / API は含まれていない。以下は、将来的に導入する場合の backend 側責務を示す。
 
 - LLM APIへのリクエスト
 - プロンプト生成
@@ -233,38 +244,37 @@ class SqliteStorage implements StorageInterface {
 
 ## データフロー例
 
-### 例1: スパンを新規作成する操作
+### 例1: スパンを新規作成して保存する操作
 
 1. **Frontend**: ユーザーがテキストをドラッグ → 範囲を一時保持
 2. **Frontend**: ユーザーがラベルを選択
-3. **Frontend**: `POST /api/annotations` でBackendに送信
-4. **Backend**: アノテーションデータを検証
-5. **Backend**: JSONファイルに保存
-6. **Backend**: 保存したデータをレスポンスで返す
-7. **Frontend**: 受け取ったデータで画面を更新
+3. **Frontend**: annotation をローカルの project bundle に追加する
+4. **Frontend**: 未保存状態として画面を更新する
+5. **Frontend**: ユーザーが `Save` または `Submit` を実行する
+6. **Frontend**: 保存前 snapshot と現在の bundle を比較し、必要な API を順次呼び出す
+7. **Backend**: アノテーションデータを検証し、必要な create / update / delete を保存する
+8. **Backend**: 永続化後のデータを返す
+9. **Frontend**: 受け取ったデータで snapshot を更新し、未保存状態を解消する
 
-### 例2: LLMで自動アノテーション
+### 例2: Document を Submit する操作
 
-1. **Frontend**: 「LLMで自動補完」ボタンをクリック
-2. **Frontend**: `POST /api/llm/annotate` でBackendにリクエスト
-3. **Backend**: 既存アノテーションを取得
-4. **Backend**: プロンプト生成
-5. **Backend**: LLM APIに送信
-6. **Backend**: レスポンスを解析してアノテーション候補を作成
-7. **Backend**: 候補データを返す
-8. **Frontend**: 候補を画面に表示（確認・編集可能な状態）
-9. **Frontend**: ユーザーが承認 → `POST /api/annotations` で保存
+1. **Frontend**: ユーザーが `Submit` を押す
+2. **Frontend**: 対象 Document の `status` を `verified` にし、配下 Annotation も `verified` に更新する
+3. **Frontend**: `Save` と同じ差分同期処理で backend API を呼ぶ
+4. **Backend**: Document / Annotation の更新を保存する
+5. **Frontend**: 保存後、次の `pending` Document を選択する
+6. **Frontend**: 右ペインや Annotation 選択状態を初期化する
 
 ### 例3: プロジェクトを開く
 
 1. **Frontend**: プロジェクト選択画面でプロジェクトをクリック
-2. **Frontend**: `GET /api/projects/{id}` でプロジェクト情報取得
-3. **Backend**: プロジェクトデータを読み込み
-4. **Backend**: ラベル定義、ガイドライン等を含めて返す
-5. **Frontend**: プロジェクト情報を表示
-6. **Frontend**: `GET /api/projects/{id}/documents` でドキュメント一覧取得
-7. **Backend**: ドキュメント一覧を返す
-8. **Frontend**: ドキュメント一覧を表示
+2. **Frontend**: `GET /projects/{project_id}` でプロジェクト情報を取得する
+3. **Frontend**: `GET /projects/{project_id}/labels` でラベル一覧を取得する
+4. **Frontend**: `GET /projects/{project_id}/documents?offset=0&limit=...&search=&sort=created` で Document 一覧の先頭ページを取得する
+5. **Frontend**: 先頭 Document があれば `GET /projects/{project_id}/documents/{document_id}` で詳細を取得する
+6. **Backend**: プロジェクトデータ、ラベル、Document 一覧、選択中 Document 詳細を返す
+7. **Frontend**: Project bundle と Document 一覧ウィンドウを初期化する
+8. **Frontend**: Workspace を表示する
 
 ## 実装の判断基準
 
@@ -326,7 +336,8 @@ npm run dev  # port 3000
 
 # Backend
 cd backend
-npm run dev  # port 8000
+export JWT_SECRET='dev-secret'
+uv run uvicorn layered_span_studio_backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 ### 本番デプロイ（必要な場合）
@@ -347,29 +358,47 @@ services:
 
 ### RESTful API
 
-基本的なCRUD操作をRESTfulに設計します。
+基本的な CRUD 操作を RESTful に設計する。現在の実装では、frontend が編集中の bundle を保持し、`Save` / `Submit` 時に必要な API を順次呼び出して backend と同期する。
+
+- 新規作成は `POST`
+- 部分更新は `PATCH`
+- 削除は `DELETE`
+- 取得は `GET`
+- 全置換更新を表す `PUT` は、設定やラベル、ドキュメント bundle など一部のリソースで限定的に利用する
 
 ```
-GET    /api/projects              # プロジェクト一覧
-POST   /api/projects              # プロジェクト作成
-GET    /api/projects/:id          # プロジェクト取得
-PUT    /api/projects/:id          # プロジェクト更新
-DELETE /api/projects/:id          # プロジェクト削除
+POST   /auth/login                                               # ログイン
+GET    /auth/me                                                  # ログイン中ユーザー取得
 
-GET    /api/projects/:id/documents           # ドキュメント一覧
-POST   /api/projects/:id/documents           # ドキュメント追加
-GET    /api/projects/:id/documents/:docId    # ドキュメント取得
-PUT    /api/projects/:id/documents/:docId    # ドキュメント更新
-DELETE /api/projects/:id/documents/:docId    # ドキュメント削除
+GET    /projects                                                 # プロジェクト一覧
+POST   /projects                                                 # プロジェクト作成
+GET    /projects/{project_id}                                    # プロジェクト取得
+PATCH  /projects/{project_id}                                    # プロジェクト部分更新
+DELETE /projects/{project_id}                                    # プロジェクト削除
 
-GET    /api/documents/:docId/annotations     # アノテーション一覧
-POST   /api/documents/:docId/annotations     # アノテーション追加
-PUT    /api/annotations/:id                  # アノテーション更新
-DELETE /api/annotations/:id                  # アノテーション削除
+GET    /projects/{project_id}/labels                             # ラベル一覧
+POST   /projects/{project_id}/labels                             # ラベル作成
+GET    /projects/{project_id}/labels/{label_id}                  # ラベル取得
+PATCH  /projects/{project_id}/labels/{label_id}                  # ラベル部分更新
+DELETE /projects/{project_id}/labels/{label_id}                  # ラベル削除
 
-POST   /api/documents/:docId/llm-annotate    # LLM自動アノテーション
-POST   /api/projects/:id/export              # エクスポート
-POST   /api/projects/import                  # インポート
+GET    /projects/{project_id}/documents                          # ドキュメント一覧
+POST   /projects/{project_id}/documents                          # ドキュメント作成
+GET    /projects/{project_id}/documents/{document_id}            # ドキュメント取得
+PATCH  /projects/{project_id}/documents/{document_id}            # ドキュメント部分更新
+DELETE /projects/{project_id}/documents/{document_id}            # ドキュメント削除
+
+GET    /projects/{project_id}/annotations/search                 # アノテーション横断検索
+POST   /projects/{project_id}/documents/{document_id}/annotations        # アノテーション作成
+POST   /projects/{project_id}/documents/{document_id}/annotations/bulk   # アノテーション一括作成
+GET    /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}   # アノテーション取得
+PATCH  /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}   # アノテーション部分更新
+DELETE /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}   # アノテーション削除
+
+GET    /projects/{project_id}/labels/{label_id}/surface-groups   # 同一表層グループ取得
+POST   /projects/{project_id}/export                             # エクスポート
+POST   /projects/import                                          # 新規 project import
+POST   /projects/{project_id}/import                             # 既存 project 追記 import
 ```
 
 ## まとめ

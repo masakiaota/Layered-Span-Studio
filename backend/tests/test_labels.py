@@ -4,6 +4,11 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from layered_span_studio_backend.core.config import Settings
+from layered_span_studio_backend.repositories.projects import project_db_path
+from layered_span_studio_backend.storage.project_db import annotations_table, get_project_engine
+from layered_span_studio_backend.utils.json_utils import encode_meta
+
 
 def _create_project(client: TestClient, auth_headers: dict[str, str]) -> str:
     response = client.post(
@@ -12,6 +17,35 @@ def _create_project(client: TestClient, auth_headers: dict[str, str]) -> str:
         headers=auth_headers,
     )
     return response.json()["id"]
+
+
+def _insert_annotation_row(
+    settings: Settings,
+    project_id: str,
+    *,
+    annotation_id: str,
+    document_id: str,
+    label_id: str,
+    start: int,
+    end: int,
+    span_text: str,
+    status: str = "verified",
+) -> None:
+    engine = get_project_engine(str(project_db_path(settings, project_id)))
+    with engine.begin() as conn:
+        conn.execute(
+            annotations_table.insert().values(
+                id=annotation_id,
+                document_id=document_id,
+                label_id=label_id,
+                start=start,
+                end=end,
+                span_text=span_text,
+                comment="",
+                status=status,
+                meta=encode_meta({}),
+            )
+        )
 
 
 def test_label_crud(client: TestClient, auth_headers: dict[str, str]) -> None:
@@ -62,6 +96,204 @@ def test_label_color_validation(client: TestClient, auth_headers: dict[str, str]
         headers=auth_headers,
     )
     assert response.status_code == 422
+
+
+def test_labels_put_syncs_create_update_delete(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+    first = client.post(
+        f"/projects/{project_id}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    second = client.post(
+        f"/projects/{project_id}/labels",
+        json={"name": "Label2", "color": "#33AA44", "description": "desc", "shortcut": "b", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "labels": [
+                {
+                    "id": first["id"],
+                    "name": "Label1Updated",
+                    "color": "#FF6644",
+                    "description": "updated",
+                    "shortcut": "x",
+                    "meta": {"note": "changed"},
+                },
+                {
+                    "id": None,
+                    "name": "Label3",
+                    "color": "#1133AA",
+                    "description": "new",
+                    "shortcut": None,
+                    "meta": {},
+                },
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()["labels"]
+    assert len(payload) == 2
+    assert {label["name"] for label in payload} == {"Label1Updated", "Label3"}
+    assert all(label["id"] != second["id"] for label in payload)
+
+
+def test_labels_put_rejects_duplicate_name_in_payload(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "labels": [
+                {"id": None, "name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": None, "meta": {}},
+                {"id": None, "name": "Label1", "color": "#33AA44", "description": "desc", "shortcut": None, "meta": {}},
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+
+
+def test_labels_put_rejects_duplicate_id_in_payload(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+    first = client.post(
+        f"/projects/{project_id}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "labels": [
+                {"id": first["id"], "name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
+                {"id": first["id"], "name": "Label2", "color": "#33AA44", "description": "desc", "shortcut": "b", "meta": {}},
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+
+
+def test_labels_put_unknown_id_returns_404(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "labels": [
+                {
+                    "id": "00000000-0000-0000-0000-000000000000",
+                    "name": "Label1",
+                    "color": "#FF5733",
+                    "description": "desc",
+                    "shortcut": None,
+                    "meta": {},
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+
+
+def test_labels_put_delete_cascades_annotations(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+    label = client.post(
+        f"/projects/{project_id}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    document = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Doc1", "text": "Hello world", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    client.post(
+        f"/projects/{project_id}/documents/{document['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 0,
+            "end": 5,
+            "span_text": "Hello",
+            "comment": "",
+            "status": "pending",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={"labels": []},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+    document_detail = client.get(
+        f"/projects/{project_id}/documents/{document['id']}",
+        headers=auth_headers,
+    )
+    assert document_detail.status_code == 200
+    assert document_detail.json()["annotations"] == []
+
+
+def test_labels_put_response_uses_latest_project_name(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+    client.put(
+        f"/projects/{project_id}/settings",
+        json={"name": "Project Renamed", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    )
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "labels": [
+                {"id": None, "name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": None, "meta": {}}
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["labels"][0]["project_name"] == "Project Renamed"
+
+
+def test_labels_put_does_not_delete_other_project_labels(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    first_project_id = _create_project(client, auth_headers)
+    second_project_id = client.post(
+        "/projects",
+        json={"name": "Project B", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()["id"]
+
+    client.post(
+        f"/projects/{first_project_id}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{second_project_id}/labels",
+        json={"name": "Label2", "color": "#33AA44", "description": "desc"},
+        headers=auth_headers,
+    )
+
+    response = client.put(
+        f"/projects/{first_project_id}/labels",
+        json={"labels": []},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+    remaining = client.get(f"/projects/{second_project_id}/labels", headers=auth_headers)
+    assert remaining.status_code == 200
+    assert [label["name"] for label in remaining.json()["labels"]] == ["Label2"]
 
 
 def _setup_examples_fixture(client: TestClient, auth_headers: dict[str, str]) -> dict[str, Any]:
@@ -333,3 +565,239 @@ def test_label_examples_not_found(client: TestClient, auth_headers: dict[str, st
         headers=auth_headers,
     )
     assert response.status_code == 404
+
+
+def test_label_surface_groups_are_grouped_and_paginated(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    data = _setup_examples_fixture(client, auth_headers)
+    response = client.get(
+        (
+            f"/projects/{data['project_id']}/labels/{data['target_label_id']}/surface-groups"
+            "?status=all&limit=1"
+        ),
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 2
+    assert payload["limit"] == 1
+    assert payload["items"][0]["surface_text"] == "alpha"
+    assert payload["items"][0]["duplicate_count"] == 1
+
+    second_page = client.get(
+        (
+            f"/projects/{data['project_id']}/labels/{data['target_label_id']}/surface-groups"
+            "?status=all&offset=1&limit=1"
+        ),
+        headers=auth_headers,
+    )
+    assert second_page.status_code == 200
+    second_payload = second_page.json()
+    assert second_payload["items"][0]["surface_text"] == "bravo"
+    assert second_payload["items"][0]["duplicate_count"] == 2
+
+
+def test_label_surface_groups_exclude_annotation_id(client: TestClient, auth_headers: dict[str, str]) -> None:
+    data = _setup_examples_fixture(client, auth_headers)
+    response = client.get(
+        (
+            f"/projects/{data['project_id']}/labels/{data['target_label_id']}/surface-groups"
+            f"?status=all&exclude_annotation_id={data['target_annotation_ids_in_sequential_order'][0]}"
+        ),
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    surfaces = {item["surface_text"] for item in payload["items"]}
+    assert surfaces == {"bravo"}
+
+
+def test_label_surface_groups_choose_verified_representative(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    data = _setup_examples_fixture(client, auth_headers)
+    response = client.get(
+        f"/projects/{data['project_id']}/labels/{data['target_label_id']}/surface-groups?status=all",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    by_surface = {item["surface_text"]: item for item in payload["items"]}
+    assert by_surface["bravo"]["duplicate_count"] == 2
+    assert by_surface["bravo"]["representative"]["status"] == "verified"
+    assert by_surface["bravo"]["representative"]["annotation_id"] == data["target_annotation_ids_in_sequential_order"][2]
+
+
+def test_label_surface_groups_tie_break_by_document_name_start_and_annotation_id(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Surface Tie Project", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Disease", "color": "#AA1122", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    alpha_doc = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "AlphaDoc", "text": "alpha alpha", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    omega_doc = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "OmegaDoc", "text": "alpha alpha", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-z",
+        document_id=omega_doc["id"],
+        label_id=label["id"],
+        start=0,
+        end=5,
+        span_text="alpha",
+    )
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-b",
+        document_id=alpha_doc["id"],
+        label_id=label["id"],
+        start=6,
+        end=11,
+        span_text="alpha",
+    )
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-a",
+        document_id=alpha_doc["id"],
+        label_id=label["id"],
+        start=6,
+        end=11,
+        span_text="alpha",
+    )
+
+    response = client.get(
+        f"/projects/{project['id']}/labels/{label['id']}/surface-groups?status=verified",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    representative = payload["items"][0]["representative"]
+    assert representative["annotation_id"] == "ann-a"
+    assert representative["document_name"] == "AlphaDoc"
+    assert representative["start"] == 6
+
+
+def test_label_surface_groups_ignore_empty_surface_text(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Surface Empty Project", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Disease", "color": "#AA3322", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    doc = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "DocA", "text": "alpha", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-empty",
+        document_id=doc["id"],
+        label_id=label["id"],
+        start=0,
+        end=1,
+        span_text="",
+    )
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-alpha",
+        document_id=doc["id"],
+        label_id=label["id"],
+        start=0,
+        end=5,
+        span_text="alpha",
+    )
+
+    response = client.get(
+        f"/projects/{project['id']}/labels/{label['id']}/surface-groups?status=verified",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert [item["surface_text"] for item in payload["items"]] == ["alpha"]
+
+
+def test_label_surface_groups_do_not_normalize_surface_text(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Surface Group Project", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Disease", "color": "#AA1122", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    doc = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "Doc1", "text": "COVID-19 / COVID 19", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 0,
+            "end": 8,
+            "span_text": "COVID-19",
+            "comment": "",
+            "status": "verified",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 11,
+            "end": 19,
+            "span_text": "COVID 19",
+            "comment": "",
+            "status": "verified",
+            "meta": {},
+        },
+        headers=auth_headers,
+    )
+
+    response = client.get(
+        f"/projects/{project['id']}/labels/{label['id']}/surface-groups?status=all",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 2
+    assert [item["surface_text"] for item in payload["items"]] == ["COVID-19", "COVID 19"]

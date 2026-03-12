@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from layered_span_studio_backend.core.config import Settings
@@ -62,6 +63,25 @@ def _require_integer(value: Any, message: str) -> int:
     return value
 
 
+def _parse_import_timestamp(value: Any, path: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{path}: timezone-aware ISO 8601 timestamp is required")
+
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{path}: timezone-aware ISO 8601 timestamp is required") from exc
+
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{path}: timezone-aware ISO 8601 timestamp is required")
+
+    return parsed.astimezone(timezone.utc)
+
+
+def _format_import_timestamp(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def _validate_import_labels(incoming_labels: List[Dict[str, Any]]) -> None:
     for label in incoming_labels:
         label_payload = _require_import_dict(label, "Each label must be an object")
@@ -70,11 +90,30 @@ def _validate_import_labels(incoming_labels: List[Dict[str, Any]]) -> None:
         _require_string(label_payload.get("description"), "Label description is required")
 
 
-def _validate_import_documents(incoming_documents: List[Dict[str, Any]]) -> None:
-    for doc in incoming_documents:
+def _normalize_and_validate_import_documents(
+    incoming_documents: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    normalized_documents: List[Dict[str, Any]] = []
+
+    for index, doc in enumerate(incoming_documents):
         doc_payload = _require_import_dict(doc, "Each document must be an object")
         _require_non_empty_string(doc_payload.get("document_name"), "Document name is required")
         _require_string(doc_payload.get("text"), "Document text is required")
+        status = doc_payload.get("status")
+        if status not in {"pending", "verified"}:
+            raise ValueError("Document status is required")
+        created_at = _parse_import_timestamp(
+            doc_payload.get("created_at"),
+            f"documents[{index}].created_at",
+        )
+        updated_at = _parse_import_timestamp(
+            doc_payload.get("updated_at"),
+            f"documents[{index}].updated_at",
+        )
+        if updated_at < created_at:
+            raise ValueError(
+                f"documents[{index}].updated_at: must be greater than or equal to created_at"
+            )
         annotations = doc_payload.get("annotations", [])
         for ann in _require_import_list(annotations, "Document annotations must be an array"):
             ann_payload = _require_import_dict(ann, "Each annotation must be an object")
@@ -82,6 +121,16 @@ def _validate_import_documents(incoming_documents: List[Dict[str, Any]]) -> None
             _require_integer(ann_payload.get("start"), "Annotation start must be an integer")
             _require_integer(ann_payload.get("end"), "Annotation end must be an integer")
             _require_string(ann_payload.get("span_text"), "Annotation span_text is required")
+
+        normalized_documents.append(
+            {
+                **doc_payload,
+                "created_at": _format_import_timestamp(created_at),
+                "updated_at": _format_import_timestamp(updated_at),
+            }
+        )
+
+    return normalized_documents
 
 
 def _validate_name_conflicts(
@@ -129,10 +178,10 @@ def _validate_import_payload(
     incoming_labels: List[Dict[str, Any]],
     incoming_documents: List[Dict[str, Any]],
     incoming_meta: Dict[str, Any],
-) -> None:
+) -> List[Dict[str, Any]]:
     _validate_import_meta(incoming_meta)
     _validate_import_labels(incoming_labels)
-    _validate_import_documents(incoming_documents)
+    normalized_documents = _normalize_and_validate_import_documents(incoming_documents)
 
     incoming_label_names = [label["name"] for label in incoming_labels]
     _validate_name_conflicts(
@@ -142,7 +191,7 @@ def _validate_import_payload(
         "Label name already exists in this project",
     )
 
-    incoming_document_names = [doc["document_name"] for doc in incoming_documents]
+    incoming_document_names = [doc["document_name"] for doc in normalized_documents]
     _validate_name_conflicts(
         incoming_document_names,
         existing_document_names,
@@ -151,7 +200,8 @@ def _validate_import_payload(
     )
 
     label_names_set = set(existing_label_by_name.keys()) | set(incoming_label_names)
-    _validate_annotations(incoming_documents, label_names_set)
+    _validate_annotations(normalized_documents, label_names_set)
+    return normalized_documents
 
 
 def _build_import_counts(
@@ -188,12 +238,15 @@ def _import_entities(
         label_id_by_name[created["name"]] = created["id"]
 
     for doc in incoming_documents:
-        created_doc = documents_repo.create_document(
+        created_doc = documents_repo.create_document_with_system_fields(
             settings,
             project_id,
             doc["document_name"],
             doc["text"],
             doc.get("meta"),
+            status=doc["status"],
+            created_at=doc["created_at"],
+            updated_at=doc["updated_at"],
         )
         for ann in doc.get("annotations", []):
             annotations_repo.create_annotation(
@@ -208,6 +261,14 @@ def _import_entities(
                 ann["status"],
                 ann.get("meta"),
             )
+        documents_repo.set_document_system_fields(
+            settings,
+            project_id,
+            created_doc["id"],
+            status=doc["status"],
+            created_at=doc["created_at"],
+            updated_at=doc["updated_at"],
+        )
 
     return _build_import_counts(incoming_labels, incoming_documents)
 
@@ -240,7 +301,7 @@ def export_project(
         raise ValueError("Project not found")
 
     labels = labels_repo.list_labels(settings, project_id)
-    documents, _ = documents_repo.list_documents(settings, project_id, 0, 1000000)
+    documents = documents_repo.list_all_documents(settings, project_id)
     allowed_statuses = set()
     if include_pending:
         allowed_statuses.add("pending")
@@ -265,9 +326,9 @@ def import_project(settings: Settings, project_id: str, payload: Dict[str, Any])
     _, incoming_labels, incoming_documents, incoming_meta = _extract_import_payload(payload)
     existing_labels = labels_repo.list_labels(settings, project_id)
     existing_label_by_name = {label["name"]: label for label in existing_labels}
-    existing_documents, _ = documents_repo.list_documents(settings, project_id, 0, 1000000)
+    existing_documents = documents_repo.list_all_documents(settings, project_id)
     existing_document_names = {doc["document_name"] for doc in existing_documents}
-    _validate_import_payload(
+    normalized_documents = _validate_import_payload(
         existing_label_by_name,
         existing_document_names,
         incoming_labels,
@@ -280,14 +341,16 @@ def import_project(settings: Settings, project_id: str, payload: Dict[str, Any])
         project_id,
         existing_label_by_name,
         incoming_labels,
-        incoming_documents,
+        normalized_documents,
     )
     return {"imported": counts, "errors": []}
 
 
 def import_project_as_new(settings: Settings, payload: Dict[str, Any]) -> Dict[str, Any]:
     incoming_project, incoming_labels, incoming_documents, incoming_meta = _extract_import_payload(payload)
-    _validate_import_payload({}, set(), incoming_labels, incoming_documents, incoming_meta)
+    normalized_documents = _validate_import_payload(
+        {}, set(), incoming_labels, incoming_documents, incoming_meta
+    )
 
     project = projects_repo.create_project(
         settings,
@@ -296,7 +359,7 @@ def import_project_as_new(settings: Settings, payload: Dict[str, Any]) -> Dict[s
         incoming_project.get("meta"),
     )
     try:
-        counts = _import_entities(settings, project["id"], {}, incoming_labels, incoming_documents)
+        counts = _import_entities(settings, project["id"], {}, incoming_labels, normalized_documents)
     except Exception:
         projects_repo.delete_project(settings, project["id"])
         raise

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from pydantic import Field
 
@@ -19,6 +19,12 @@ class ProjectUpdate(APIModel):
     meta: Meta = None
 
 
+class ProjectSettingsPut(APIModel):
+    name: str = Field(..., min_length=1)
+    description: str
+    meta: Dict[str, Any]
+
+
 class ProjectOut(APIModel):
     id: str
     name: str
@@ -26,5 +32,16 @@ class ProjectOut(APIModel):
     meta: Meta = None
 
 
+class ProjectSummaryOut(APIModel):
+    labels_count: int
+    documents_count: int
+    pending_documents_count: int
+    updated_at: Optional[str] = None
+
+
+class ProjectListItemOut(ProjectOut):
+    summary: ProjectSummaryOut
+
+
 class ProjectListResponse(APIModel):
-    projects: list[ProjectOut]
+    projects: list[ProjectListItemOut]

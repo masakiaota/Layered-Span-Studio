@@ -25,28 +25,33 @@
 - `GET /projects` - プロジェクト一覧を取得
 - `POST /projects` - プロジェクトを作成
 - `GET /projects/{project_id}` - プロジェクト詳細を取得
+- `PUT /projects/{project_id}/settings` - プロジェクト settings を上書き保存
 - `PATCH /projects/{project_id}` - プロジェクトを更新（主に `name` / `description` / `meta`）
 - `DELETE /projects/{project_id}` - プロジェクトを削除（配下も連動削除）
 
 ### Labels
 
 - `GET /projects/{project_id}/labels` - ラベル一覧を取得
+- `PUT /projects/{project_id}/labels` - ラベル一覧を上書き保存
 - `POST /projects/{project_id}/labels` - ラベルを作成
 - `GET /projects/{project_id}/labels/{label_id}` - ラベル詳細を取得
 - `GET /projects/{project_id}/labels/{label_id}/examples` - ラベルの使用例をドキュメント横断で取得
+- `GET /projects/{project_id}/labels/{label_id}/surface-groups` - ラベル配下の同一表層グループをドキュメント横断で取得
 - `PATCH /projects/{project_id}/labels/{label_id}` - ラベルを更新（色/説明/ショートカット等）
 - `DELETE /projects/{project_id}/labels/{label_id}` - ラベルを削除（関連アノテも連動削除）
 
 ### Documents
 
-- `GET /projects/{project_id}/documents` - ドキュメント一覧を取得（`offset/limit`）
+- `GET /projects/{project_id}/documents` - ドキュメント一覧を取得（`offset/limit/search/sort`）
 - `POST /projects/{project_id}/documents` - ドキュメントを作成（`text` は作成時のみ）
 - `GET /projects/{project_id}/documents/{document_id}` - ドキュメント詳細を取得（`annotations` 全件含む）
+- `PUT /projects/{project_id}/documents/{document_id}/bundle` - 現在 document の annotation 一覧を一括保存
 - `PATCH /projects/{project_id}/documents/{document_id}` - ドキュメントの `document_name` / `meta` を更新（`text` は更新不可）
 - `DELETE /projects/{project_id}/documents/{document_id}` - ドキュメントを削除（関連アノテも連動削除）
 
 ### Annotations
 
+- `GET /projects/{project_id}/annotations/search` - 表層条件でアノテーションをプロジェクト横断検索
 - `POST /projects/{project_id}/documents/{document_id}/annotations` - アノテーションを1件作成
 - `POST /projects/{project_id}/documents/{document_id}/annotations/bulk` - アノテーションを一括作成（事前アノテ投入向け）
 - `GET /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}` - アノテーション詳細を取得
@@ -141,17 +146,39 @@ Authorization: Bearer <token>
       "id": "uuid",
       "name": "医療文書NER",
       "description": "医療分野の固有表現抽出",
-      "meta": {}
+      "meta": {},
+      "summary": {
+        "labels_count": 12,
+        "documents_count": 248,
+        "pending_documents_count": 5,
+        "updated_at": "2026-03-11T01:23:45Z"
+      }
     },
     {
       "id": "uuid",
       "name": "法律文書NER",
       "description": "法律文書からの固有表現抽出",
-      "meta": {}
+      "meta": {},
+      "summary": {
+        "labels_count": 8,
+        "documents_count": 90,
+        "pending_documents_count": 0,
+        "updated_at": "2026-03-08T10:00:00Z"
+      }
     }
   ]
 }
 ```
+
+**注記:**
+- `summary.labels_count`: project 配下 label の総数
+- `summary.documents_count`: project 配下 document の総数
+- `summary.pending_documents_count`: `document.status != verified` の document 総数
+- `summary.updated_at`: 各 document の `updated_at` の最大値。document が 0 件なら `null`
+- 一覧順は backend の既定ソートで返る
+  - `pending_documents_count` 降順
+  - `updated_at` 降順
+  - `name` 昇順
 
 ---
 
@@ -250,6 +277,45 @@ Authorization: Bearer <token>
 
 ---
 
+### PUT /projects/{project_id}/settings
+
+settings 画面の project フォームを全項目まとめて上書き保存する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "name": "医療文書NER v2",
+  "description": "医療分野の固有表現抽出（改訂版）",
+  "meta": {
+    "guideline": "共通ガイドライン"
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "name": "医療文書NER v2",
+  "description": "医療分野の固有表現抽出（改訂版）",
+  "meta": {
+    "guideline": "共通ガイドライン"
+  }
+}
+```
+
+**注記:**
+- `name` / `description` / `meta` はすべて必須
+- 省略フィールドは保持されない。settings 画面の完全な現在値を送る
+- `PATCH /projects/{project_id}` は残るが、settings 画面からはこの API を想定する
+
+---
+
 ### DELETE /projects/{project_id}
 
 プロジェクトを削除する。関連する全てのラベル、ドキュメント、アノテーションも削除される。
@@ -308,6 +374,75 @@ Authorization: Bearer <token>
   ]
 }
 ```
+
+---
+
+### PUT /projects/{project_id}/labels
+
+project 配下の label 一覧を現在値で上書き保存する。request の `labels` は最終状態全件を表す。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "labels": [
+    {
+      "id": "uuid",
+      "name": "疾患名",
+      "color": "#FF6644",
+      "description": "更新後の説明",
+      "shortcut": "d",
+      "meta": {}
+    },
+    {
+      "id": null,
+      "name": "薬剤名",
+      "color": "#33FF57",
+      "description": "薬品や医薬品の名前",
+      "shortcut": "m",
+      "meta": {}
+    }
+  ]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "labels": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "name": "疾患名",
+      "color": "#FF6644",
+      "description": "更新後の説明",
+      "shortcut": "d",
+      "meta": {}
+    },
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "name": "薬剤名",
+      "color": "#33FF57",
+      "description": "薬品や医薬品の名前",
+      "shortcut": "m",
+      "meta": {}
+    }
+  ]
+}
+```
+
+**注記:**
+- `id = null` は新規 label 作成
+- request に含まれない既存 label は削除
+- payload 内 duplicate name / duplicate id は `400`
+- unknown id は `404`
 
 ---
 
@@ -381,7 +516,7 @@ Authorization: Bearer <token>
 
 ### GET /projects/{project_id}/labels/{label_id}/examples
 
-指定ラベルのアノテーション例を、同一プロジェクト内のドキュメントを横断して取得する。
+指定ラベルのアノテーション例を、同一プロジェクト内のドキュメントを横断して取得する。将来的な LLM 連携やガイドライン補助での事例取得も想定する。
 
 **Headers:**
 ```
@@ -443,6 +578,59 @@ Authorization: Bearer <token>
 - `sample=random` は重複なし抽出で返す
 - `sample=random` の場合、`offset` は無効で `offset_applied` は常に `0`
 - `seed` を指定すると `sample=random` の結果を再現可能
+- 実装上は `sample=sequential` の絞り込みとページングを SQL 側で処理し、service は前後文脈生成とレスポンス整形を担う
+
+---
+
+### GET /projects/{project_id}/labels/{label_id}/surface-groups
+
+指定ラベルのアノテーションを、`span_text` の完全一致ごとに集約して取得する。Workspace 右ペインの `同一ラベルの他アノテーション` 向けの API である。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `offset` (integer, optional): スキップする件数（デフォルト: 0）
+- `limit` (integer, optional): 取得上限（デフォルト: 50, 最小: 1, 最大: 100）
+- `status` (string, optional): `pending` / `verified` / `all`（デフォルト: `verified`）
+- `context_window` (integer, optional): representative 事例の前後文脈文字数（デフォルト: 20, 最小: 0, 最大: 200）
+- `exclude_annotation_id` (string, optional): 現在選択中 annotation を一覧から除外したいときに使う
+
+**Response (200 OK):**
+```json
+{
+  "items": [
+    {
+      "surface_text": "糖尿病",
+      "duplicate_count": 12,
+      "representative": {
+        "annotation_id": "uuid",
+        "document_id": "uuid",
+        "document_name": "患者記録_001",
+        "span_text": "糖尿病",
+        "start": 24,
+        "end": 27,
+        "status": "verified",
+        "context_before": "既往歴に",
+        "context_after": "あり。"
+      }
+    }
+  ],
+  "total": 36,
+  "offset": 0,
+  "limit": 50,
+  "status": "verified",
+  "context_window": 20,
+  "exclude_annotation_id": null
+}
+```
+
+**注記:**
+- `duplicate_count` は同一 `surface_text` に完全一致する annotation 件数
+- `representative` は該当グループの表示代表であり、優先順は `verified`、次に `document_name ASC`、`start ASC`、`annotation_id ASC`
+- 実装上は repository が SQL で絞り込み・集約・ページングを行い、service は representative の前後文脈生成とレスポンス整形のみを担う
 
 ---
 
@@ -513,6 +701,8 @@ Authorization: Bearer <token>
 **Query Parameters:**
 - `offset` (integer, optional): スキップする件数（デフォルト: 0）
 - `limit` (integer, optional): 取得する最大件数（デフォルト: 50, 最大: 100）
+- `search` (string, optional): `Document.text` に対する単純な部分一致検索。大文字小文字差は無視し、`%` / `_` も通常文字として扱う
+- `sort` (string, optional): `created` / `pending` / `updated` / `name`（デフォルト: `created`）
 
 **Response (200 OK):**
 ```json
@@ -524,6 +714,9 @@ Authorization: Bearer <token>
       "project_name": "医療文書NER",
       "document_name": "患者記録_001",
       "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+      "status": "pending",
+      "created_at": "2026-03-11T01:23:45Z",
+      "updated_at": "2026-03-11T01:23:45Z",
       "meta": {
         "source": "hospital_records"
       }
@@ -534,18 +727,27 @@ Authorization: Bearer <token>
       "project_name": "医療文書NER",
       "document_name": "患者記録_002",
       "text": "患者は腹痛で来院。検査の結果、胃潰瘍と診断。",
+      "status": "verified",
+      "created_at": "2026-03-10T10:00:00Z",
+      "updated_at": "2026-03-11T08:00:00Z",
       "meta": {}
     }
   ],
   "total": 120,
   "offset": 0,
-  "limit": 50
+  "limit": 50,
+  "search": "",
+  "sort": "created"
 }
 ```
 
 **注記:**
 - `offset/limit` 方式のページングを採用（シンプルさを優先）
-- 将来的に検索条件やソート機能を追加する可能性がある
+- `search` は `document_name` ではなく `text` にのみ適用する
+- `search` は SQL LIKE ではなく、`%` / `_` も通常文字として扱う
+- `sort=pending` は `pending` を先頭に寄せ、その後 `document_name ASC` で並べる
+- `sort=updated` は `updated_at` 降順を基本とする
+- `sort=created` は `created_at` 昇順を基本とする
 
 ---
 
@@ -578,6 +780,9 @@ Authorization: Bearer <token>
   "project_name": "医療文書NER",
   "document_name": "患者記録_001",
   "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "status": "pending",
+  "created_at": "2026-03-11T01:23:45Z",
+  "updated_at": "2026-03-11T01:23:45Z",
   "meta": {
     "source": "hospital_records",
     "date": "2024-01-15"
@@ -611,6 +816,9 @@ Authorization: Bearer <token>
   "project_name": "医療文書NER",
   "document_name": "患者記録_001",
   "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "status": "pending",
+  "created_at": "2026-03-11T01:23:45Z",
+  "updated_at": "2026-03-11T01:23:45Z",
   "annotations": [
     {
       "id": "uuid",
@@ -696,6 +904,9 @@ Authorization: Bearer <token>
   "project_name": "医療文書NER",
   "document_name": "患者記録_001_revised",
   "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "status": "pending",
+  "created_at": "2026-03-11T01:23:45Z",
+  "updated_at": "2026-03-12T02:00:00Z",
   "meta": {
     "source": "hospital_records",
     "date": "2024-01-15",
@@ -707,6 +918,57 @@ Authorization: Bearer <token>
 **注記:**
 - `text` フィールドは更新不可（既存のアノテーションが壊れるため）
 - `document_name` と `meta` のみ更新可能
+
+---
+
+### PUT /projects/{project_id}/documents/{document_id}/bundle
+
+現在の document に対する annotation 一覧を一括保存する。request の `annotations` はその document の最終状態全件を表す。通常の Save では現在状態をそのまま送り、Submit では frontend が `pending` を `verified` に変換したうえで同じ endpoint に送る。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "annotations": [
+    {
+      "id": "uuid",
+      "label_id": "uuid",
+      "start": 0,
+      "end": 5,
+      "span_text": "Hello",
+      "comment": "updated",
+      "status": "verified",
+      "meta": {
+        "source": "bundle"
+      }
+    },
+    {
+      "id": null,
+      "label_id": "uuid",
+      "start": 6,
+      "end": 11,
+      "span_text": "world",
+      "comment": "",
+      "status": "pending",
+      "meta": {}
+    }
+  ]
+}
+```
+
+**Response (200 OK):**
+- `GET /projects/{project_id}/documents/{document_id}` と同じ full document を返す
+
+**注記:**
+- request に含まれない既存 annotation は削除される
+- `id: null` は新規 annotation として作成される
+- 既存 annotation の `label_id/start/end/span_text` は変更不可
+- `updated_at` は backend が管理する
+- document `status` は保存後の annotation 一覧から backend が再計算する
 
 ---
 
@@ -731,6 +993,60 @@ Authorization: Bearer <token>
 ---
 
 ## Annotation API
+
+### GET /projects/{project_id}/annotations/search
+
+表層文字列を条件に、annotation をプロジェクト横断で検索する。Workspace 右ペインの `同一表層の他アノテーション` 向け API である。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `text` (string, required): 検索対象の表層
+- `status` (string, optional): `pending` / `verified` / `all`（デフォルト: `verified`）
+- `label_id` (string, optional): 指定時は他ラベル事例を上位に寄せるための比較基準として使う
+- `exclude_annotation_id` (string, optional): 現在選択中 annotation を除外したいときに使う
+- `offset` (integer, optional): スキップする件数（デフォルト: 0）
+- `limit` (integer, optional): 取得上限（デフォルト: 50, 最小: 1, 最大: 100）
+- `context_window` (integer, optional): 前後文脈の文字数（デフォルト: 20, 最小: 0, 最大: 200）
+
+**Response (200 OK):**
+```json
+{
+  "items": [
+    {
+      "annotation_id": "uuid",
+      "document_id": "uuid",
+      "document_name": "患者記録_002",
+      "label_id": "uuid",
+      "label_name": "所見",
+      "label_color": "#33AA44",
+      "start": 12,
+      "end": 15,
+      "span_text": "糖尿病",
+      "status": "verified",
+      "context_before": "母に",
+      "context_after": "の既往あり"
+    }
+  ],
+  "total": 14,
+  "offset": 0,
+  "limit": 50,
+  "text": "糖尿病",
+  "status": "all",
+  "context_window": 20,
+  "label_id": "uuid",
+  "exclude_annotation_id": null
+}
+```
+
+**注記:**
+- `text` は `span_text` への完全一致として扱う
+- `label_id` 指定時は、同一表層の中で「他ラベルの事例」を先に返す
+
+---
 
 ### POST /projects/{project_id}/documents/{document_id}/annotations
 
@@ -1032,6 +1348,9 @@ Authorization: Bearer <token>
       "project_name": "医療文書NER",
       "document_name": "患者記録_001",
       "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+      "status": "pending",
+      "created_at": "2026-03-11T01:23:45Z",
+      "updated_at": "2026-03-11T01:23:45Z",
       "annotations": [
         {
           "id": "uuid",
@@ -1161,6 +1480,8 @@ Authorization: Bearer <token>
 - payload の `project.name` / `project.description` / `project.meta` を新規プロジェクトの初期値として使う
 - payload の `id`（project/labels/documents/annotations）や `project_id` / `document_id` / `label_id` は無視し、新しい UUID を生成する
 - 同名プロジェクトが既に存在する場合は、自動で `"(imported)"`, `"(imported 2)"` ... の suffix を付けて一意な名前にする
+- `documents[].created_at` / `documents[].updated_at` は timezone 付き ISO 8601 必須。受理後は UTC (`Z`) に正規化して保存する
+- `documents[].updated_at >= documents[].created_at` が必須
 - payload の `labels` / `documents` / `annotations` に不整合がある場合は、インポート全体を中断する（400）
 
 ---
@@ -1202,6 +1523,9 @@ Authorization: Bearer <token>
       "project_name": "医療文書NER",
       "document_name": "患者記録_001",
       "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+      "status": "pending",
+      "created_at": "2026-03-11T01:23:45Z",
+      "updated_at": "2026-03-11T01:23:45Z",
       "annotations": [
         {
           "id": "uuid",
@@ -1244,6 +1568,8 @@ Authorization: Bearer <token>
 - payload の `project.name` / `project.description` / `project.meta` は受け取るが、既存プロジェクト情報の更新には使わない
 - インポート時は `id`（project/labels/documents/annotations）を無視し、新しい UUID を生成
 - payload の `labels` に既存ラベル名と同名が含まれている場合は、競合としてインポート全体を中断（400）
+- `documents[].created_at` / `documents[].updated_at` は timezone 付き ISO 8601 必須。受理後は UTC (`Z`) に正規化して保存する
+- `documents[].updated_at >= documents[].created_at` が必須
 - `label_name` は「既存ラベル」または「今回 payload に含めた新規ラベル」を参照可能
 - 同一ドキュメント内で、同一ラベルの区間重複は不可（400）
   - 判定は半開区間 `[start, end)` を使用
@@ -1282,6 +1608,9 @@ Authorization: Bearer <token>
 ### ページング
 
 - Document一覧には `offset/limit` 方式を採用
+- Document一覧は `search` / `sort` を同時指定可能
+- 右ペイン向けの `surface-groups` / `annotations/search` も `offset/limit` を持つ
+- `surface-groups` / `annotations/search` は全件を service にロードせず、repository の SQL で絞り込み・集約・ページングする
 - シンプルさを優先し、将来的に cursor 方式への移行も検討可能
 
 ### データの不変性

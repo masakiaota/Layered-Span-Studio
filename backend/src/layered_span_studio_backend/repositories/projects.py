@@ -2,17 +2,14 @@ from __future__ import annotations
 
 import shutil
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from layered_span_studio_backend.core.config import Settings
-from layered_span_studio_backend.storage.project_db import (
-    get_project_engine,
-    init_project_db,
-    project_table,
-)
+from layered_span_studio_backend.storage.project_db import documents_table, get_project_engine, init_project_db, labels_table, project_table
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
 
 
@@ -25,6 +22,29 @@ def _project_dir(settings: Settings, project_id: str) -> Path:
 
 def _project_db_path(settings: Settings, project_id: str) -> Path:
     return _project_dir(settings, project_id) / PROJECT_DB_FILENAME
+
+
+def _parse_timestamp(value: Any) -> Optional[float]:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc).timestamp()
+
+
+def _project_sort_key(project: Dict[str, Any]) -> tuple[Any, ...]:
+    summary = project["summary"]
+    updated_at_timestamp = _parse_timestamp(summary["updated_at"])
+    return (
+        -summary["pending_documents_count"],
+        updated_at_timestamp is None,
+        -(updated_at_timestamp or 0),
+        project["name"],
+    )
 
 
 def list_projects(settings: Settings) -> List[Dict[str, Any]]:
@@ -40,15 +60,31 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
         engine = get_project_engine(str(db_path))
         with engine.connect() as conn:
             row = conn.execute(select(project_table)).mappings().first()
-        if row:
-            projects.append(
-                {
-                    "id": row["id"],
-                    "name": row["name"],
-                    "description": row["description"],
-                    "meta": decode_meta(row["meta"]),
-                }
-            )
+            if not row:
+                continue
+
+            labels_count = conn.execute(select(func.count()).select_from(labels_table)).scalar_one()
+            documents_count = conn.execute(select(func.count()).select_from(documents_table)).scalar_one()
+            pending_documents_count = conn.execute(
+                select(func.count()).select_from(documents_table).where(documents_table.c.status != "verified")
+            ).scalar_one()
+            updated_at = conn.execute(select(func.max(documents_table.c.updated_at))).scalar_one()
+
+        projects.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "description": row["description"],
+                "meta": decode_meta(row["meta"]),
+                "summary": {
+                    "labels_count": labels_count,
+                    "documents_count": documents_count,
+                    "pending_documents_count": pending_documents_count,
+                    "updated_at": updated_at,
+                },
+            }
+        )
+    projects.sort(key=_project_sort_key)
     return projects
 
 
@@ -118,6 +154,34 @@ def update_project(
             )
         )
     return {"id": project_id, "name": new_name, "description": new_description, "meta": new_meta or {}}
+
+
+def replace_project(
+    settings: Settings,
+    project_id: str,
+    name: str,
+    description: str,
+    meta: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    project = get_project(settings, project_id)
+    if not project:
+        return None
+    if name != project["name"]:
+        existing_names = {p["name"] for p in list_projects(settings) if p["id"] != project_id}
+        if name in existing_names:
+            raise ValueError("Project name already exists")
+
+    db_path = _project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    with engine.begin() as conn:
+        conn.execute(
+            project_table.update().where(project_table.c.id == project_id).values(
+                name=name,
+                description=description,
+                meta=encode_meta(meta),
+            )
+        )
+    return {"id": project_id, "name": name, "description": description, "meta": meta}
 
 
 def delete_project(settings: Settings, project_id: str) -> bool:

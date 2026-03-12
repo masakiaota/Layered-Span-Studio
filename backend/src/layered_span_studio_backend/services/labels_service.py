@@ -63,6 +63,29 @@ def delete_label(settings: Settings, project_id: str, label_id: str) -> bool:
     return labels_repo.delete_label(settings, project_id, label_id)
 
 
+def save_labels(
+    settings: Settings,
+    project_id: str,
+    items: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    _ensure_project(settings, project_id)
+
+    seen_ids: set[str] = set()
+    seen_names: set[str] = set()
+    for item in items:
+        label_id = item.get("id")
+        if label_id:
+            if label_id in seen_ids:
+                raise ValueError("Duplicate label id in payload")
+            seen_ids.add(label_id)
+        name = item["name"]
+        if name in seen_names:
+            raise ValueError("Duplicate label name in payload")
+        seen_names.add(name)
+
+    return labels_repo.save_labels(settings, project_id, items)
+
+
 def list_label_examples(
     settings: Settings,
     project_id: str,
@@ -79,16 +102,22 @@ def list_label_examples(
         raise ValueError("Label not found")
 
     statuses = ["pending", "verified"] if status_filter == "all" else [status_filter]
-    rows = labels_repo.list_label_examples(settings, project_id, label_id, statuses)
-    total_matched = len(rows)
-
     if sample == "random":
-        picked = rows[:]
-        random.Random(seed).shuffle(picked)
-        picked = picked[:limit]
+        annotation_ids = labels_repo.list_label_example_ids(settings, project_id, label_id, statuses)
+        total_matched = len(annotation_ids)
+        picked_ids = annotation_ids[:]
+        random.Random(seed).shuffle(picked_ids)
+        picked = labels_repo.list_label_examples(settings, project_id, picked_ids[:limit])
         offset_applied = 0
     else:
-        picked = rows[offset : offset + limit]
+        picked, total_matched = labels_repo.list_label_examples_page(
+            settings,
+            project_id,
+            label_id,
+            statuses,
+            offset,
+            limit,
+        )
         offset_applied = offset
 
     examples: List[Dict[str, Any]] = []
@@ -121,4 +150,65 @@ def list_label_examples(
         "sample": sample,
         "seed": seed,
         "context_window": context_window,
+    }
+
+
+def list_label_surface_groups(
+    settings: Settings,
+    project_id: str,
+    label_id: str,
+    offset: int,
+    limit: int,
+    status_filter: str,
+    context_window: int,
+    exclude_annotation_id: Optional[str],
+) -> Dict[str, Any]:
+    _ensure_project(settings, project_id)
+    if not labels_repo.get_label(settings, project_id, label_id):
+        raise ValueError("Label not found")
+
+    statuses = ["pending", "verified"] if status_filter == "all" else [status_filter]
+    rows, total = labels_repo.list_label_surface_groups_page(
+        settings,
+        project_id,
+        label_id,
+        statuses,
+        exclude_annotation_id,
+        offset,
+        limit,
+    )
+
+    items: List[Dict[str, Any]] = []
+    for row in rows:
+        text = row["document_text"]
+        start = row["start"]
+        end = row["end"]
+        before_start = max(0, start - context_window)
+        after_end = min(len(text), end + context_window)
+        items.append(
+            {
+                "surface_text": row["surface_text"],
+                "duplicate_count": row["duplicate_count"],
+                "representative": {
+                    "annotation_id": row["annotation_id"],
+                    "document_id": row["document_id"],
+                    "document_name": row["document_name"],
+                    "span_text": row["surface_text"],
+                    "start": start,
+                    "end": end,
+                    "status": row["status"],
+                    "context_before": text[before_start:start],
+                    "context_after": text[end:after_end],
+                },
+            }
+        )
+
+    return {
+        "items": items,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "status": status_filter,
+        "context_window": context_window,
+        "exclude_annotation_id": exclude_annotation_id,
     }

@@ -16,7 +16,7 @@
   - `start`: 0-indexed / inclusive
   - `end`: 0-indexed / exclusive
   - 例: `text[start:end]` がスパン文字列になる
-- **時刻**: この基本スキーマでは `created_at` / `updated_at` を必須にしません（必要になったAPIで追加してOK）
+- **時刻**: `Document` では `created_at` / `updated_at` を top-level field として扱う
 
 ## エンティティ定義
 
@@ -41,6 +41,28 @@
 - **任意**: `shortcut`, `meta`
 
 - アノテーションガイドラインは `Label.description` に記述します。
+
+#### Label Sync API の派生ルール
+
+```json
+{
+  "labels": [
+    {
+      "id": "uuid or null",
+      "name": "疾患名",
+      "color": "#ff6b6b",
+      "description": "ガイドラインもここに書く",
+      "shortcut": "1",
+      "meta": {}
+    }
+  ]
+}
+```
+
+- request の `labels` は project 配下 label の最終状態全件
+- `id: null` は新規 label
+- request に含まれない既存 label は削除
+- response は `labels: Label[]`
 
 ---
 
@@ -80,6 +102,55 @@
 
 ---
 
+### Label Surface Group（同一ラベルの表層集約）
+
+```json
+{
+  "surface_text": "糖尿病",
+  "duplicate_count": 12,
+  "representative": {
+    "annotation_id": "uuid",
+    "document_id": "uuid",
+    "document_name": "患者記録_001",
+    "span_text": "糖尿病",
+    "start": 24,
+    "end": 27,
+    "status": "verified",
+    "context_before": "既往歴に",
+    "context_after": "あり。"
+  }
+}
+```
+
+- `duplicate_count` は同一 `surface_text` に完全一致する annotation 件数
+- `representative` は一覧表示用の代表事例
+
+---
+
+### Annotation Search Item（同一表層検索）
+
+```json
+{
+  "annotation_id": "uuid",
+  "document_id": "uuid",
+  "document_name": "患者記録_002",
+  "label_id": "uuid",
+  "label_name": "所見",
+  "label_color": "#33AA44",
+  "start": 12,
+  "end": 15,
+  "span_text": "糖尿病",
+  "status": "verified",
+  "context_before": "母に",
+  "context_after": "の既往あり"
+}
+```
+
+- `label_color` は frontend でバッジ強調に使うために含める
+- `span_text` と検索語 `text` は完全一致で比較する
+
+---
+
 ### Project
 
 ```json
@@ -99,6 +170,48 @@
 メモ:
 - `settings` はこの段階では設けません（必要になったときに新規フィールド追加を検討）。
 - `Project` は `labels` を内包しません（後述のExportで別フィールドとして扱う）。
+
+#### Project List API の派生ルール
+
+```json
+{
+  "projects": [
+    {
+      "id": "uuid",
+      "name": "医療文書NER",
+      "description": "医療文書からエンティティ抽出",
+      "meta": {},
+      "summary": {
+        "labels_count": 12,
+        "documents_count": 248,
+        "pending_documents_count": 5,
+        "updated_at": "2026-03-11T01:23:45Z"
+      }
+    }
+  ]
+}
+```
+
+- response の `projects` は一覧用の `summary` を持つ
+- `summary.labels_count`: project 配下 label の総数
+- `summary.documents_count`: project 配下 document の総数
+- `summary.pending_documents_count`: `document.status != "verified"` の document 総数
+- `summary.updated_at`: 各 document の `updated_at` の最大値。document が 0 件なら `null`
+
+#### Project Settings Save API の派生ルール
+
+```json
+{
+  "name": "医療文書NER",
+  "description": "医療文書からエンティティ抽出",
+  "meta": {
+    "guideline": "共通ガイドライン"
+  }
+}
+```
+
+- settings 画面の project フォーム全体を表す
+- response は通常の `Project`
 
 ---
 
@@ -153,6 +266,9 @@
   "project_name": "医療文書NER",
   "document_name": "患者記録_001",
   "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+  "status": "pending",
+  "created_at": "2026-03-11T01:23:45Z",
+  "updated_at": "2026-03-11T01:23:45Z",
   "annotations": [
     {
       "id": "uuid",
@@ -174,8 +290,42 @@
 }
 ```
 
-- **必須**: `id`, `project_id`, `project_name`, `document_name`, `text`, `annotations`
+- **必須**: `id`, `project_id`, `project_name`, `document_name`, `text`, `status`, `created_at`, `updated_at`, `annotations`
 - **任意**: `meta`
+
+#### Document List API の派生ルール
+
+- 一覧 API も基本の `Document` 形を使うが、`annotations` は含めない
+- 一覧 API は `offset/limit/search/sort` を持つ
+- `search` は `text` にのみ適用し、`document_name` は検索対象に含めない
+
+#### Document Bundle Save API の派生ルール
+
+```json
+{
+  "annotations": [
+    {
+      "id": "uuid or null",
+      "label_id": "uuid",
+      "start": 0,
+      "end": 5,
+      "span_text": "Hello",
+      "comment": "",
+      "status": "pending",
+      "meta": {}
+    }
+  ]
+}
+```
+
+- request の `annotations` は対象 document の最終状態全件を表す
+- `id: null` は新規 annotation
+- request に含まれない既存 annotation は削除される
+- response は full `Document` を返す
+- document `created_at` / `updated_at` / `status` は backend 管理
+- Save は現在状態をそのまま送る
+- Submit は frontend が annotation `status` を `verified` にした request を同じ API に送る
+- document `status` は保存後の annotation 一覧から backend が再計算する
 
 ## 組み合わせ（Exportの基本形）
 
@@ -208,6 +358,9 @@
       "project_name": "医療文書NER",
       "document_name": "患者記録_001",
       "text": "患者は…",
+      "status": "pending",
+      "created_at": "2026-03-11T01:23:45Z",
+      "updated_at": "2026-03-11T01:23:45Z",
       "annotations": [
         {
           "id": "uuid",
@@ -238,12 +391,16 @@
   - `project.name` / `project.description` / `project.meta` を新規 project の初期値に使う
   - payload 内の `id` / `project_id` / `document_id` / `label_id` は無視し、新しい UUID を再採番する
   - 同名 project が既に存在する場合は `"(imported)"`, `"(imported 2)"` ... を付けて自動改名する
+  - `documents[].created_at` / `documents[].updated_at` は timezone 付き ISO 8601 必須で、保存時は UTC `Z` に正規化する
+  - `documents[].updated_at >= documents[].created_at` が必須
 
 - `POST /projects/{project_id}/import`
   - Export JSON を受け取り、既存 project に labels / documents / annotations を追記する
   - payload の `project.*` は受け取るが、既存 project 本体の更新には使わない
   - payload 内の `id` / `project_id` / `document_id` / `label_id` は無視し、新しい UUID を再採番する
   - 既存と同名の label / document が含まれる場合は全体失敗する
+  - `documents[].created_at` / `documents[].updated_at` は timezone 付き ISO 8601 必須で、保存時は UTC `Z` に正規化する
+  - `documents[].updated_at >= documents[].created_at` が必須
 
 ### 新規 Project Import のレスポンス
 
