@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import shutil
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -28,9 +28,12 @@ def _parse_timestamp(value: Any) -> Optional[float]:
     if not isinstance(value, str):
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
     except ValueError:
         return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc).timestamp()
 
 
 def _project_sort_key(project: Dict[str, Any]) -> tuple[Any, ...]:

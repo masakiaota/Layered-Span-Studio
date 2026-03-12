@@ -307,6 +307,145 @@ def test_import_rejects_old_document_system_fields_format(
     assert response.json()["detail"] == "Document status is required"
 
 
+def test_import_rejects_naive_created_at_without_creating_project(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    before_projects = client.get("/projects", headers=auth_headers)
+    assert before_projects.status_code == 200
+
+    payload = {
+        "project": {"name": "Project Naive Created At", "description": "desc", "meta": {}},
+        "labels": [],
+        "documents": [
+            _import_document_payload(
+                "DocNaiveCreatedAt",
+                "Hello world",
+                [],
+                status="verified",
+                created_at="2026-03-01T00:00:00",
+                updated_at="2026-03-02T00:00:00Z",
+            )
+        ],
+        "meta": {"format": "layered-span-studio/export", "version": "1.0"},
+    }
+
+    response = client.post("/projects/import", json=payload, headers=auth_headers)
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "documents[0].created_at: timezone-aware ISO 8601 timestamp is required"
+    )
+
+    after_projects = client.get("/projects", headers=auth_headers)
+    assert after_projects.status_code == 200
+    assert len(after_projects.json()["projects"]) == len(before_projects.json()["projects"])
+
+
+def test_import_rejects_invalid_updated_at_without_mutating_existing_project(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    target_project = client.post(
+        "/projects", json={"name": "Project Invalid Updated At", "description": "desc"}, headers=auth_headers
+    ).json()
+
+    payload = {
+        "project": {"name": "Project Invalid Updated At", "description": "desc", "meta": {}},
+        "labels": [],
+        "documents": [
+            _import_document_payload(
+                "DocInvalidUpdatedAt",
+                "Hello world",
+                [],
+                status="verified",
+                created_at="2026-03-01T00:00:00Z",
+                updated_at="not-a-timestamp",
+            )
+        ],
+        "meta": {"format": "layered-span-studio/export", "version": "1.0"},
+    }
+
+    response = client.post(
+        f"/projects/{target_project['id']}/import", json=payload, headers=auth_headers
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "documents[0].updated_at: timezone-aware ISO 8601 timestamp is required"
+    )
+
+    docs_response = client.get(
+        f"/projects/{target_project['id']}/documents", headers=auth_headers
+    )
+    assert docs_response.status_code == 200
+    assert docs_response.json()["documents"] == []
+
+
+def test_import_rejects_updated_at_earlier_than_created_at(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    target_project = client.post(
+        "/projects", json={"name": "Project Timestamp Order", "description": "desc"}, headers=auth_headers
+    ).json()
+
+    payload = {
+        "project": {"name": "Project Timestamp Order", "description": "desc", "meta": {}},
+        "labels": [],
+        "documents": [
+            _import_document_payload(
+                "DocTimestampOrder",
+                "Hello world",
+                [],
+                status="verified",
+                created_at="2026-03-02T00:00:00Z",
+                updated_at="2026-03-01T23:59:59Z",
+            )
+        ],
+        "meta": {"format": "layered-span-studio/export", "version": "1.0"},
+    }
+
+    response = client.post(
+        f"/projects/{target_project['id']}/import", json=payload, headers=auth_headers
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "documents[0].updated_at: must be greater than or equal to created_at"
+    )
+
+    docs_response = client.get(
+        f"/projects/{target_project['id']}/documents", headers=auth_headers
+    )
+    assert docs_response.status_code == 200
+    assert docs_response.json()["documents"] == []
+
+
+def test_import_normalizes_offset_timestamps_to_utc_z(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    payload = {
+        "project": {"name": "Project Offset Timestamp", "description": "desc", "meta": {}},
+        "labels": [],
+        "documents": [
+            _import_document_payload(
+                "DocOffsetTimestamp",
+                "Hello world",
+                [],
+                status="verified",
+                created_at="2026-03-01T09:00:00+09:00",
+                updated_at="2026-03-01T10:15:30+09:00",
+            )
+        ],
+        "meta": {"format": "layered-span-studio/export", "version": "1.0"},
+    }
+
+    response = client.post("/projects/import", json=payload, headers=auth_headers)
+    assert response.status_code == 201
+
+    project = response.json()["project"]
+    docs_response = client.get(f"/projects/{project['id']}/documents", headers=auth_headers)
+    assert docs_response.status_code == 200
+    document = docs_response.json()["documents"][0]
+    assert document["created_at"] == "2026-03-01T00:00:00Z"
+    assert document["updated_at"] == "2026-03-01T01:15:30Z"
+
+
 def test_import_allows_existing_label_reference(client: TestClient, auth_headers: dict[str, str]) -> None:
     target_project = client.post(
         "/projects", json={"name": "Project D", "description": "desc"}, headers=auth_headers

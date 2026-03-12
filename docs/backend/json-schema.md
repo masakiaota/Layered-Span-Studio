@@ -391,12 +391,16 @@
   - `project.name` / `project.description` / `project.meta` を新規 project の初期値に使う
   - payload 内の `id` / `project_id` / `document_id` / `label_id` は無視し、新しい UUID を再採番する
   - 同名 project が既に存在する場合は `"(imported)"`, `"(imported 2)"` ... を付けて自動改名する
+  - `documents[].created_at` / `documents[].updated_at` は timezone 付き ISO 8601 必須で、保存時は UTC `Z` に正規化する
+  - `documents[].updated_at >= documents[].created_at` が必須
 
 - `POST /projects/{project_id}/import`
   - Export JSON を受け取り、既存 project に labels / documents / annotations を追記する
   - payload の `project.*` は受け取るが、既存 project 本体の更新には使わない
   - payload 内の `id` / `project_id` / `document_id` / `label_id` は無視し、新しい UUID を再採番する
   - 既存と同名の label / document が含まれる場合は全体失敗する
+  - `documents[].created_at` / `documents[].updated_at` は timezone 付き ISO 8601 必須で、保存時は UTC `Z` に正規化する
+  - `documents[].updated_at >= documents[].created_at` が必須
 
 ### 新規 Project Import のレスポンス
 

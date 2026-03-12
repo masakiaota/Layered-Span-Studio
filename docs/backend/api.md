@@ -701,7 +701,7 @@ Authorization: Bearer <token>
 **Query Parameters:**
 - `offset` (integer, optional): スキップする件数（デフォルト: 0）
 - `limit` (integer, optional): 取得する最大件数（デフォルト: 50, 最大: 100）
-- `search` (string, optional): `Document.text` に対する部分一致検索。大文字小文字差は無視する
+- `search` (string, optional): `Document.text` に対する単純な部分一致検索。大文字小文字差は無視し、`%` / `_` も通常文字として扱う
 - `sort` (string, optional): `created` / `pending` / `updated` / `name`（デフォルト: `created`）
 
 **Response (200 OK):**
@@ -744,6 +744,7 @@ Authorization: Bearer <token>
 **注記:**
 - `offset/limit` 方式のページングを採用（シンプルさを優先）
 - `search` は `document_name` ではなく `text` にのみ適用する
+- `search` は SQL LIKE ではなく、`%` / `_` も通常文字として扱う
 - `sort=pending` は `pending` を先頭に寄せ、その後 `document_name ASC` で並べる
 - `sort=updated` は `updated_at` 降順を基本とする
 - `sort=created` は `created_at` 昇順を基本とする
@@ -1347,6 +1348,9 @@ Authorization: Bearer <token>
       "project_name": "医療文書NER",
       "document_name": "患者記録_001",
       "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+      "status": "pending",
+      "created_at": "2026-03-11T01:23:45Z",
+      "updated_at": "2026-03-11T01:23:45Z",
       "annotations": [
         {
           "id": "uuid",
@@ -1476,6 +1480,8 @@ Authorization: Bearer <token>
 - payload の `project.name` / `project.description` / `project.meta` を新規プロジェクトの初期値として使う
 - payload の `id`（project/labels/documents/annotations）や `project_id` / `document_id` / `label_id` は無視し、新しい UUID を生成する
 - 同名プロジェクトが既に存在する場合は、自動で `"(imported)"`, `"(imported 2)"` ... の suffix を付けて一意な名前にする
+- `documents[].created_at` / `documents[].updated_at` は timezone 付き ISO 8601 必須。受理後は UTC (`Z`) に正規化して保存する
+- `documents[].updated_at >= documents[].created_at` が必須
 - payload の `labels` / `documents` / `annotations` に不整合がある場合は、インポート全体を中断する（400）
 
 ---
@@ -1517,6 +1523,9 @@ Authorization: Bearer <token>
       "project_name": "医療文書NER",
       "document_name": "患者記録_001",
       "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
+      "status": "pending",
+      "created_at": "2026-03-11T01:23:45Z",
+      "updated_at": "2026-03-11T01:23:45Z",
       "annotations": [
         {
           "id": "uuid",
@@ -1559,6 +1568,8 @@ Authorization: Bearer <token>
 - payload の `project.name` / `project.description` / `project.meta` は受け取るが、既存プロジェクト情報の更新には使わない
 - インポート時は `id`（project/labels/documents/annotations）を無視し、新しい UUID を生成
 - payload の `labels` に既存ラベル名と同名が含まれている場合は、競合としてインポート全体を中断（400）
+- `documents[].created_at` / `documents[].updated_at` は timezone 付き ISO 8601 必須。受理後は UTC (`Z`) に正規化して保存する
+- `documents[].updated_at >= documents[].created_at` が必須
 - `label_name` は「既存ラベル」または「今回 payload に含めた新規ラベル」を参照可能
 - 同一ドキュメント内で、同一ラベルの区間重複は不可（400）
   - 判定は半開区間 `[start, end)` を使用

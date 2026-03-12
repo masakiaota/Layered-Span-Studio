@@ -53,7 +53,12 @@ def _document_filter_conditions(project_id: str, search: str = "") -> List[Any]:
     conditions: List[Any] = [documents_table.c.project_id == project_id]
     normalized_search = search.strip().lower()
     if normalized_search:
-        conditions.append(func.lower(documents_table.c.text).contains(normalized_search))
+        conditions.append(
+            func.lower(documents_table.c.text).contains(
+                normalized_search,
+                autoescape=True,
+            )
+        )
     return conditions
 
 

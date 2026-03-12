@@ -4,6 +4,8 @@ from datetime import datetime
 
 from fastapi.testclient import TestClient
 
+from layered_span_studio_backend.repositories.projects import _parse_timestamp
+
 
 def test_project_crud(client: TestClient, auth_headers: dict[str, str]) -> None:
     # create
@@ -215,3 +217,8 @@ def test_projects_list_is_sorted_by_pending_then_updated_then_name(client: TestC
     assert datetime.fromisoformat(payload[0]["summary"]["updated_at"].replace("Z", "+00:00")) >= datetime.fromisoformat(
         payload[1]["summary"]["updated_at"].replace("Z", "+00:00")
     )
+
+
+def test_project_timestamp_parser_rejects_naive_datetime() -> None:
+    assert _parse_timestamp("2026-03-01T00:00:00") is None
+    assert _parse_timestamp("2026-03-01T00:00:00Z") is not None

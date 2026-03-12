@@ -221,6 +221,47 @@ def test_document_list_pages_and_sorts_in_sql(
     assert [item["document_name"] for item in pending_sorted.json()["documents"]] == ["Alpha", "Mu", "Zeta"]
 
 
+def test_document_list_search_treats_percent_and_underscore_as_literals(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project_id = _create_project(client, auth_headers)
+
+    client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "PercentMatch", "text": "completion is 100% done"},
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "PercentWildcardCandidate", "text": "completion is 100 percent done"},
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "UnderscoreMatch", "text": "token value_a appears here"},
+        headers=auth_headers,
+    )
+    client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "UnderscoreWildcardCandidate", "text": "token valueXa appears here"},
+        headers=auth_headers,
+    )
+
+    percent_response = client.get(
+        f"/projects/{project_id}/documents?search=100%25",
+        headers=auth_headers,
+    )
+    assert percent_response.status_code == 200
+    assert [item["document_name"] for item in percent_response.json()["documents"]] == ["PercentMatch"]
+
+    underscore_response = client.get(
+        f"/projects/{project_id}/documents?search=value_a",
+        headers=auth_headers,
+    )
+    assert underscore_response.status_code == 200
+    assert [item["document_name"] for item in underscore_response.json()["documents"]] == ["UnderscoreMatch"]
+
+
 def test_document_create_and_update_reject_duplicate_name(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
