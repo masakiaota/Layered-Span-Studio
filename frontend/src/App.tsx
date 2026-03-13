@@ -6,7 +6,7 @@ import {
   Snackbar,
 } from "@mui/material";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { api } from "./api";
+import { ApiError, api } from "./api";
 import { CreateDocumentDialog } from "./features/project-shell/CreateDocumentDialog";
 import { DeleteDocumentDialog } from "./features/project-shell/DeleteDocumentDialog";
 import { PendingChangesDialog } from "./features/project-shell/PendingChangesDialog";
@@ -915,13 +915,13 @@ export function ProjectShell({
     return visibleDocuments[currentIndex + 1]?.id ?? visibleDocuments[currentIndex - 1]?.id ?? null;
   }
 
-  function removeDocumentFromLocalState(deletedId: string, nextSelectedId: string | null) {
+  function removeDocumentFromLocalState(deletedId: string, nextSelectedId: string | null, deletingCurrent: boolean) {
     setBundle((current) => {
       if (!current) {
         return current;
       }
       const remainingDocuments = current.documents.filter((document) => document.id !== deletedId);
-      if (deleteTarget?.isCurrent && !nextSelectedId) {
+      if (deletingCurrent && !nextSelectedId) {
         return {
           ...current,
           documents: [],
@@ -970,7 +970,7 @@ export function ProjectShell({
         nextDocument = await api.getDocument(token, bundle.project.id, nextSelectedId);
       }
 
-      removeDocumentFromLocalState(deletedId, nextSelectedId);
+      removeDocumentFromLocalState(deletedId, nextSelectedId, deletingCurrent);
 
       if (deletingCurrent) {
         if (nextDocument) {
@@ -1001,12 +1001,12 @@ export function ProjectShell({
       showToast("Document を削除した", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Document の削除に失敗した";
-      if (message.toLowerCase().includes("not found")) {
+      if (error instanceof ApiError && error.status === 404) {
         let nextDocument = existingNextDocument;
         if (deletingCurrent && nextSelectedId && !nextDocument) {
           nextDocument = await api.getDocument(token, bundle.project.id, nextSelectedId).catch(() => null);
         }
-        removeDocumentFromLocalState(deletedId, nextSelectedId);
+        removeDocumentFromLocalState(deletedId, nextSelectedId, deletingCurrent);
         if (deletingCurrent) {
           if (nextDocument) {
             setBundle((current) =>

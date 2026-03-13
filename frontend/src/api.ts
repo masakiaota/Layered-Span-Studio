@@ -18,6 +18,16 @@ import { toJsonObject } from "./utils";
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
 
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 function headers(token?: string, contentType?: string) {
   const result = new Headers();
   if (token) {
@@ -72,9 +82,10 @@ async function parseResponse<T>(response: Response): Promise<T> {
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
       const json = (await response.json()) as { detail?: unknown };
-      throw new Error(formatErrorDetail(json.detail) ?? "Request failed");
+      throw new ApiError(formatErrorDetail(json.detail) ?? "Request failed", response.status);
     }
-    throw new Error(await response.text());
+    const text = (await response.text()).trim();
+    throw new ApiError(text || response.statusText || "Request failed", response.status);
   }
   return (await response.json()) as T;
 }
@@ -225,9 +236,10 @@ export class ApiClient {
       const contentType = response.headers.get("content-type") ?? "";
       if (contentType.includes("application/json")) {
         const json = (await response.json()) as { detail?: unknown };
-        throw new Error(formatErrorDetail(json.detail) ?? "Request failed");
+        throw new ApiError(formatErrorDetail(json.detail) ?? "Request failed", response.status);
       }
-      throw new Error(await response.text());
+      const text = (await response.text()).trim();
+      throw new ApiError(text || response.statusText || "Request failed", response.status);
     }
   }
 

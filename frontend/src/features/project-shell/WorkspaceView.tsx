@@ -164,6 +164,7 @@ export function WorkspaceView({
 }) {
   const groupedAnnotations = currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : [];
   const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
+  const [focusedDocumentId, setFocusedDocumentId] = useState<string | null>(null);
 
   return (
     <>
@@ -238,7 +239,8 @@ export function WorkspaceView({
             </Alert>
           ) : null}
           {visibleDocuments.map((document) => {
-            const deleteButtonVisible = document.id === currentDocument?.id || hoveredDocumentId === document.id;
+            const deleteButtonVisible =
+              document.id === currentDocument?.id || hoveredDocumentId === document.id || focusedDocumentId === document.id;
             const documentStatus = getDocumentStatus(document);
             return (
               <Tooltip
@@ -260,6 +262,13 @@ export function WorkspaceView({
                   onClick={() => onSelectDocument(document.id)}
                   onMouseEnter={() => setHoveredDocumentId(document.id)}
                   onMouseLeave={() => setHoveredDocumentId((current) => (current === document.id ? null : current))}
+                  onFocus={() => setFocusedDocumentId(document.id)}
+                  onBlur={(event) => {
+                    const nextFocused = event.relatedTarget as Node | null;
+                    if (!event.currentTarget.contains(nextFocused)) {
+                      setFocusedDocumentId((current) => (current === document.id ? null : current));
+                    }
+                  }}
                   sx={{
                     position: "relative",
                     alignItems: "flex-start",

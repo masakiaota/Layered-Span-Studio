@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
-import { api } from "../api";
+import { ApiError, api } from "../api";
 import type { AnnotationRecord, DocumentListItem, DocumentRecord, LabelRecord, ProjectRecord, UserRecord } from "../types";
 
 vi.mock("../features/project-shell/useProjectExamples", () => ({
@@ -167,7 +167,7 @@ function setupDocumentApis(initialDocuments: DocumentRecord[]) {
     }
     if (deleteTargetId === documentId && deleteMode === "not-found") {
       documents = documents.filter((item) => item.id !== documentId);
-      throw new Error(deleteMessage);
+      throw new ApiError(deleteMessage, 404);
     }
     documents = documents.filter((item) => item.id !== documentId);
   });
@@ -239,6 +239,24 @@ describe("ProjectShell document deletion", () => {
     await userEventSetup.unhover(getDocumentRow("Doc 2"));
     await waitFor(() => {
       expect(within(getDocumentRow("Doc 2")).queryByRole("button", { name: "Delete document Doc 2" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows the delete button when a non-selected row receives keyboard focus", async () => {
+    setupDocumentApis([
+      createDocument({ id: "doc-1", document_name: "Doc 1" }),
+      createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
+    ]);
+
+    renderWorkspace();
+
+    await screen.findByText("2 pending / 2 docs");
+
+    const doc2Row = getDocumentRow("Doc 2");
+    doc2Row.focus();
+
+    await waitFor(() => {
+      expect(within(doc2Row).getByRole("button", { name: "Delete document Doc 2" })).toBeInTheDocument();
     });
   });
 
