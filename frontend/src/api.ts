@@ -77,15 +77,22 @@ function formatErrorDetail(detail: unknown): string | null {
   return null;
 }
 
-async function parseResponse<T>(response: Response): Promise<T> {
+async function toApiError(response: Response): Promise<ApiError> {
   if (!response.ok) {
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
       const json = (await response.json()) as { detail?: unknown };
-      throw new ApiError(formatErrorDetail(json.detail) ?? "Request failed", response.status);
+      return new ApiError(formatErrorDetail(json.detail) ?? "Request failed", response.status);
     }
     const text = (await response.text()).trim();
-    throw new ApiError(text || response.statusText || "Request failed", response.status);
+    return new ApiError(text || response.statusText || "Request failed", response.status);
+  }
+  return new ApiError("Request failed", response.status);
+}
+
+async function parseResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    throw await toApiError(response);
   }
   return (await response.json()) as T;
 }
@@ -233,13 +240,7 @@ export class ApiClient {
       headers: headers(token),
     });
     if (!response.ok) {
-      const contentType = response.headers.get("content-type") ?? "";
-      if (contentType.includes("application/json")) {
-        const json = (await response.json()) as { detail?: unknown };
-        throw new ApiError(formatErrorDetail(json.detail) ?? "Request failed", response.status);
-      }
-      const text = (await response.text()).trim();
-      throw new ApiError(text || response.statusText || "Request failed", response.status);
+      throw await toApiError(response);
     }
   }
 

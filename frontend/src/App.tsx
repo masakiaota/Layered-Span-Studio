@@ -921,12 +921,6 @@ export function ProjectShell({
         return current;
       }
       const remainingDocuments = current.documents.filter((document) => document.id !== deletedId);
-      if (deletingCurrent && !nextSelectedId) {
-        return {
-          ...current,
-          documents: [],
-        };
-      }
       return {
         ...current,
         documents: remainingDocuments,

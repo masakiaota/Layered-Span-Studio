@@ -193,7 +193,7 @@ function renderWorkspace() {
 
 function getDocumentRow(documentName: string) {
   const label = screen.getByText(documentName);
-  const row = label.closest(".MuiListItemButton-root");
+  const row = label.closest('[role="button"]');
   if (!(row instanceof HTMLElement)) {
     throw new Error(`Unable to find row for document: ${documentName}`);
   }
