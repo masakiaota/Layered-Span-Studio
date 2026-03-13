@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -165,6 +165,10 @@ export function WorkspaceView({
   const groupedAnnotations = currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : [];
   const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
   const [focusedDocumentId, setFocusedDocumentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFocusedDocumentId((current) => (current && current !== currentDocument?.id ? null : current));
+  }, [currentDocument?.id]);
 
   return (
     <>
