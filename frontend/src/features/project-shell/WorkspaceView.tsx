@@ -352,39 +352,47 @@ export function WorkspaceView({
                       }}
                     />
                     <Tooltip title="Delete document">
-                      <IconButton
-                        aria-label={`Delete document ${document.document_name}`}
-                        color="error"
-                        size="small"
-                        disabled={deleteDisabled}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onRequestDeleteDocument(document.id);
-                        }}
+                      <Box
+                        component="span"
                         sx={{
                           position: "absolute",
                           right: 0,
                           top: "50%",
                           width: 24,
                           height: 24,
-                          p: 0,
-                          zIndex: 1,
-                          bgcolor: "background.paper",
-                          border: "1px solid",
-                          borderColor: alpha("#d93025", 0.18),
-                          boxShadow: "0 2px 10px rgba(15, 23, 42, 0.08)",
+                          transform: deleteButtonVisible ? "translateY(-50%)" : "translate(6px, -50%)",
                           transition: "opacity 140ms ease, transform 140ms ease, visibility 140ms ease",
                           visibility: deleteButtonVisible ? "visible" : "hidden",
                           opacity: deleteButtonVisible ? 1 : 0,
-                          transform: deleteButtonVisible ? "translateY(-50%)" : "translate(6px, -50%)",
-                          "&:hover": {
-                            bgcolor: alpha("#d93025", 0.08),
-                            borderColor: alpha("#d93025", 0.28),
-                          },
+                          zIndex: 1,
                         }}
                       >
-                        <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
-                      </IconButton>
+                        <IconButton
+                          aria-label={`Delete document ${document.document_name}`}
+                          color="error"
+                          size="small"
+                          disabled={deleteDisabled}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onRequestDeleteDocument(document.id);
+                          }}
+                          sx={{
+                            width: 24,
+                            height: 24,
+                            p: 0,
+                            bgcolor: "background.paper",
+                            border: "1px solid",
+                            borderColor: alpha("#d93025", 0.18),
+                            boxShadow: "0 2px 10px rgba(15, 23, 42, 0.08)",
+                            "&:hover": {
+                              bgcolor: alpha("#d93025", 0.08),
+                              borderColor: alpha("#d93025", 0.28),
+                            },
+                          }}
+                        >
+                          <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Box>
                     </Tooltip>
                   </Box>
                 </ListItemButton>

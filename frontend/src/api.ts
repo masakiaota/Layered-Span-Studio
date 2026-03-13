@@ -82,11 +82,15 @@ async function toApiError(response: Response): Promise<ApiError> {
     throw new Error("toApiError called with ok response");
   }
   const contentType = response.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    const json = (await response.json()) as { detail?: unknown };
-    return new ApiError(formatErrorDetail(json.detail) ?? "Request failed", response.status);
-  }
   const text = (await response.text()).trim();
+  if (contentType.includes("application/json") && text) {
+    try {
+      const json = JSON.parse(text) as { detail?: unknown };
+      return new ApiError(formatErrorDetail(json.detail) ?? text, response.status);
+    } catch {
+      // Fall back to the raw body/status text when the server claims JSON but returns malformed content.
+    }
+  }
   return new ApiError(text || response.statusText || "Request failed", response.status);
 }
 

@@ -915,7 +915,7 @@ export function ProjectShell({
     return visibleDocuments[currentIndex + 1]?.id ?? visibleDocuments[currentIndex - 1]?.id ?? null;
   }
 
-  function removeDocumentFromLocalState(deletedId: string, nextSelectedId: string | null, deletingCurrent: boolean) {
+  function removeDocumentFromLocalState(deletedId: string) {
     setBundle((current) => {
       if (!current) {
         return current;
@@ -954,7 +954,7 @@ export function ProjectShell({
     deletingCurrent: boolean;
     nextDocument: DocumentRecord | null;
   }) {
-    removeDocumentFromLocalState(deletedId, nextSelectedId, deletingCurrent);
+    removeDocumentFromLocalState(deletedId);
 
     if (deletingCurrent) {
       if (nextDocument) {
