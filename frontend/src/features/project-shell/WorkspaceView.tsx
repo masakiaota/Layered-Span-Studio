@@ -337,7 +337,7 @@ export function WorkspaceView({
                         position: "absolute",
                         right: 0,
                         top: "50%",
-                        transform: deleteButtonVisible ? "translate(-10px, -50%)" : "translate(0, -50%)",
+                        transform: deleteButtonVisible ? "translate(-30px, -50%)" : "translate(0, -50%)",
                         transition: "transform 140ms ease",
                         height: 24,
                         "& .MuiChip-label": {
