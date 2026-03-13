@@ -18,6 +18,16 @@ import { toJsonObject } from "./utils";
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
 
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 function headers(token?: string, contentType?: string) {
   const result = new Headers();
   if (token) {
@@ -67,14 +77,26 @@ function formatErrorDetail(detail: unknown): string | null {
   return null;
 }
 
+async function toApiError(response: Response): Promise<ApiError> {
+  if (response.ok) {
+    throw new Error("toApiError called with ok response");
+  }
+  const contentType = response.headers.get("content-type") ?? "";
+  const text = (await response.text()).trim();
+  if (contentType.includes("application/json") && text) {
+    try {
+      const json = JSON.parse(text) as { detail?: unknown };
+      return new ApiError(formatErrorDetail(json.detail) ?? text, response.status);
+    } catch {
+      // Fall back to the raw body/status text when the server claims JSON but returns malformed content.
+    }
+  }
+  return new ApiError(text || response.statusText || "Request failed", response.status);
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const contentType = response.headers.get("content-type") ?? "";
-    if (contentType.includes("application/json")) {
-      const json = (await response.json()) as { detail?: unknown };
-      throw new Error(formatErrorDetail(json.detail) ?? "Request failed");
-    }
-    throw new Error(await response.text());
+    throw await toApiError(response);
   }
   return (await response.json()) as T;
 }
@@ -214,6 +236,16 @@ export class ApiClient {
       }),
     });
     return parseResponse<Omit<DocumentRecord, "annotations">>(response);
+  }
+
+  async deleteDocument(token: string, projectId: string, documentId: string) {
+    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents/${documentId}`, {
+      method: "DELETE",
+      headers: headers(token),
+    });
+    if (!response.ok) {
+      throw await toApiError(response);
+    }
   }
 
   async listLabelSurfaceGroups(
