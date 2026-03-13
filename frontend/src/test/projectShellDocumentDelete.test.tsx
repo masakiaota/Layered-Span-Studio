@@ -203,10 +203,8 @@ function getDocumentRow(documentName: string) {
 async function revealDeleteButton(userEventSetup: ReturnType<typeof userEvent.setup>, documentName: string) {
   const row = getDocumentRow(documentName);
   await userEventSetup.hover(row);
-  const button = within(row).getByRole("button", { name: `Delete document ${documentName}` });
-  await waitFor(() => {
-    expect(button).toHaveStyle({ visibility: "visible" });
-  });
+  const button = await within(row).findByRole("button", { name: `Delete document ${documentName}` });
+  expect(button).toHaveStyle({ visibility: "visible" });
   return { row, button };
 }
 

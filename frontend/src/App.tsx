@@ -943,6 +943,46 @@ export function ProjectShell({
     );
   }
 
+  function applyDeletionResult({
+    deletedId,
+    nextSelectedId,
+    deletingCurrent,
+    nextDocument,
+  }: {
+    deletedId: string;
+    nextSelectedId: string | null;
+    deletingCurrent: boolean;
+    nextDocument: DocumentRecord | null;
+  }) {
+    removeDocumentFromLocalState(deletedId, nextSelectedId, deletingCurrent);
+
+    if (deletingCurrent) {
+      if (nextDocument) {
+        setBundle((current) =>
+          current
+            ? {
+                ...current,
+                documents: [...current.documents.filter((document) => document.id !== nextDocument.id), nextDocument],
+              }
+            : current,
+        );
+        setDocumentSnapshotsById((current) => ({
+          ...current,
+          [nextDocument.id]: deepClone(nextDocument),
+        }));
+        setHistoryState({
+          documentId: nextDocument.id,
+          entries: [deepClone(nextDocument)],
+          index: 0,
+        });
+      }
+      activateDocument(nextSelectedId);
+    }
+
+    setDeleteDialogOpen(false);
+    setDeleteTarget(null);
+  }
+
   async function confirmDeleteDocument() {
     if (!bundle || !deleteTarget || workspaceBusy) {
       return;
@@ -964,33 +1004,7 @@ export function ProjectShell({
         nextDocument = await api.getDocument(token, bundle.project.id, nextSelectedId);
       }
 
-      removeDocumentFromLocalState(deletedId, nextSelectedId, deletingCurrent);
-
-      if (deletingCurrent) {
-        if (nextDocument) {
-          setBundle((current) =>
-            current
-              ? {
-                  ...current,
-                  documents: [...current.documents.filter((document) => document.id !== nextDocument?.id), nextDocument],
-                }
-              : current,
-          );
-          setDocumentSnapshotsById((current) => ({
-            ...current,
-            [nextDocument.id]: deepClone(nextDocument),
-          }));
-          setHistoryState({
-            documentId: nextDocument.id,
-            entries: [deepClone(nextDocument)],
-            index: 0,
-          });
-        }
-        activateDocument(nextSelectedId);
-      }
-
-      setDeleteDialogOpen(false);
-      setDeleteTarget(null);
+      applyDeletionResult({ deletedId, nextSelectedId, deletingCurrent, nextDocument });
       await fetchDocumentPage(true, nextSelectedId);
       showToast("Document を削除した", "success");
     } catch (error) {
@@ -1000,31 +1014,7 @@ export function ProjectShell({
         if (deletingCurrent && nextSelectedId && !nextDocument) {
           nextDocument = await api.getDocument(token, bundle.project.id, nextSelectedId).catch(() => null);
         }
-        removeDocumentFromLocalState(deletedId, nextSelectedId, deletingCurrent);
-        if (deletingCurrent) {
-          if (nextDocument) {
-            setBundle((current) =>
-              current
-                ? {
-                    ...current,
-                    documents: [...current.documents.filter((document) => document.id !== nextDocument?.id), nextDocument],
-                  }
-                : current,
-            );
-            setDocumentSnapshotsById((current) => ({
-              ...current,
-              [nextDocument.id]: deepClone(nextDocument),
-            }));
-            setHistoryState({
-              documentId: nextDocument.id,
-              entries: [deepClone(nextDocument)],
-              index: 0,
-            });
-          }
-          activateDocument(nextSelectedId);
-        }
-        setDeleteDialogOpen(false);
-        setDeleteTarget(null);
+        applyDeletionResult({ deletedId, nextSelectedId, deletingCurrent, nextDocument });
         await fetchDocumentPage(true, nextSelectedId);
         showToast("Document は既に削除されている", "info");
       } else {

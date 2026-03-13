@@ -78,16 +78,16 @@ function formatErrorDetail(detail: unknown): string | null {
 }
 
 async function toApiError(response: Response): Promise<ApiError> {
-  if (!response.ok) {
-    const contentType = response.headers.get("content-type") ?? "";
-    if (contentType.includes("application/json")) {
-      const json = (await response.json()) as { detail?: unknown };
-      return new ApiError(formatErrorDetail(json.detail) ?? "Request failed", response.status);
-    }
-    const text = (await response.text()).trim();
-    return new ApiError(text || response.statusText || "Request failed", response.status);
+  if (response.ok) {
+    throw new Error("toApiError called with ok response");
   }
-  return new ApiError("Request failed", response.status);
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const json = (await response.json()) as { detail?: unknown };
+    return new ApiError(formatErrorDetail(json.detail) ?? "Request failed", response.status);
+  }
+  const text = (await response.text()).trim();
+  return new ApiError(text || response.statusText || "Request failed", response.status);
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
