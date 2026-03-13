@@ -289,10 +289,16 @@ export function ProjectShell({
     );
   }, [bundle]);
 
-  const currentDocument = useMemo(
-    () => bundle?.documents.find((document) => document.id === selectedDocId) ?? bundle?.documents[0] ?? null,
-    [bundle, selectedDocId],
-  );
+  const currentDocument = useMemo(() => {
+    if (!bundle) {
+      return null;
+    }
+    if (selectedDocId) {
+      return bundle.documents.find((document) => document.id === selectedDocId) ?? null;
+    }
+    return bundle.documents[0] ?? null;
+  }, [bundle, selectedDocId]);
+  const currentDocumentLoading = Boolean(selectedDocId && !currentDocument);
   const currentDocumentSnapshot = currentDocument ? documentSnapshotsById[currentDocument.id] ?? null : null;
   const workspaceBusy = saving || deletingDocument;
 
@@ -913,7 +919,7 @@ export function ProjectShell({
     setDeleteTarget({
       id: document.id,
       documentName: document.document_name,
-      isCurrent: document.id === currentDocument?.id,
+      isCurrent: document.id === selectedDocId,
     });
     setDeleteDialogOpen(true);
   }
@@ -1397,6 +1403,8 @@ export function ProjectShell({
           <WorkspaceView
             bundle={bundle}
             currentDocument={currentDocument}
+            selectedDocumentId={selectedDocId}
+            currentDocumentLoading={currentDocumentLoading}
             currentHiddenBySearch={currentHiddenBySearch}
             visibleDocuments={visibleDocuments}
             pinnedCurrentDocument={pinnedCurrentDocument}

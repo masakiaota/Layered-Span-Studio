@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Chip,
+  CircularProgress,
   Divider,
   IconButton,
   InputAdornment,
@@ -44,6 +45,8 @@ import { getDocumentSnippetParts, getDocumentStatus, groupAnnotationsByLabel } f
 export function WorkspaceView({
   bundle,
   currentDocument,
+  selectedDocumentId,
+  currentDocumentLoading,
   currentHiddenBySearch,
   visibleDocuments,
   pinnedCurrentDocument,
@@ -104,6 +107,8 @@ export function WorkspaceView({
 }: {
   bundle: ProjectBundle;
   currentDocument: DocumentRecord | null;
+  selectedDocumentId: string | null;
+  currentDocumentLoading: boolean;
   currentHiddenBySearch: boolean;
   visibleDocuments: DocumentListItem[];
   pinnedCurrentDocument: DocumentListItem | null;
@@ -167,8 +172,8 @@ export function WorkspaceView({
   const [focusedDocumentId, setFocusedDocumentId] = useState<string | null>(null);
 
   useEffect(() => {
-    setFocusedDocumentId((current) => (current && current !== currentDocument?.id ? null : current));
-  }, [currentDocument?.id]);
+    setFocusedDocumentId((current) => (current && current !== selectedDocumentId ? null : current));
+  }, [selectedDocumentId]);
 
   return (
     <>
@@ -246,7 +251,7 @@ export function WorkspaceView({
           ) : null}
           {visibleDocuments.map((document) => {
             const deleteButtonVisible =
-              document.id === currentDocument?.id || hoveredDocumentId === document.id || focusedDocumentId === document.id;
+              document.id === selectedDocumentId || hoveredDocumentId === document.id || focusedDocumentId === document.id;
             const documentStatus = getDocumentStatus(document);
             return (
               <Tooltip
@@ -264,7 +269,7 @@ export function WorkspaceView({
                 }
               >
                 <ListItemButton
-                  selected={document.id === currentDocument?.id}
+                  selected={document.id === selectedDocumentId}
                   onClick={() => onSelectDocument(document.id)}
                   onMouseEnter={() => setHoveredDocumentId(document.id)}
                   onMouseLeave={() => setHoveredDocumentId((current) => (current === document.id ? null : current))}
@@ -283,7 +288,7 @@ export function WorkspaceView({
                     py: 1.25,
                     borderRadius: 1,
                     border: "1px solid",
-                    borderColor: document.id === currentDocument?.id ? "primary.main" : "#dbe3ee",
+                    borderColor: document.id === selectedDocumentId ? "primary.main" : "#dbe3ee",
                   }}
                 >
                   <Box sx={{ minWidth: 0 }}>
@@ -481,6 +486,13 @@ export function WorkspaceView({
               }
             }}
           />
+        ) : currentDocumentLoading ? (
+          <Paper sx={{ p: 4, display: "grid", placeItems: "center", gap: 1.5 }}>
+            <CircularProgress size={28} />
+            <Typography variant="body2" color="text.secondary">
+              Document を読み込み中
+            </Typography>
+          </Paper>
         ) : (
           <Paper sx={{ p: 4 }}>
             <Typography variant="h6">Document がない</Typography>

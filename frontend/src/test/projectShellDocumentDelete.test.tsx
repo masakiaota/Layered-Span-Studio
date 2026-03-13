@@ -154,7 +154,7 @@ function setupDocumentApis(initialDocuments: DocumentRecord[]) {
       sort: options?.sort ?? "created",
     };
   });
-  vi.spyOn(api, "getDocument").mockImplementation(async (_token, _projectId, documentId) => {
+  const getDocumentMock = vi.spyOn(api, "getDocument").mockImplementation(async (_token, _projectId, documentId) => {
     const document = documents.find((item) => item.id === documentId);
     if (!document) {
       throw new Error("Document not found");
@@ -173,12 +173,27 @@ function setupDocumentApis(initialDocuments: DocumentRecord[]) {
   });
 
   return {
+    setGetDocumentImplementation(
+      implementation: (token: string, projectId: string, documentId: string) => Promise<DocumentRecord>,
+    ) {
+      getDocumentMock.mockImplementation(implementation);
+    },
     setDeleteBehavior(mode: "success" | "not-found" | "error", targetId: string, message = "Document not found") {
       deleteMode = mode;
       deleteTargetId = targetId;
       deleteMessage = message;
     },
   };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 function renderWorkspace() {
@@ -256,6 +271,43 @@ describe("ProjectShell document deletion", () => {
     await waitFor(() => {
       expect(within(doc2Row).getByRole("button", { name: "Delete document Doc 2" })).toBeInTheDocument();
     });
+  });
+
+  it("keeps the newly selected row highlighted while its document is loading for the first time", async () => {
+    const userEventSetup = userEvent.setup();
+    const apiState = setupDocumentApis([
+      createDocument({ id: "doc-1", document_name: "Doc 1" }),
+      createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
+    ]);
+    const deferredDoc2 = createDeferred<DocumentRecord>();
+
+    apiState.setGetDocumentImplementation(async (_token, _projectId, documentId) => {
+      if (documentId === "doc-2") {
+        return deferredDoc2.promise;
+      }
+      return createDocument({ id: "doc-1", document_name: "Doc 1" });
+    });
+
+    renderWorkspace();
+
+    await screen.findByText("2 pending / 2 docs");
+    const doc1Row = getDocumentRow("Doc 1");
+    const doc2Row = getDocumentRow("Doc 2");
+
+    await userEventSetup.click(doc2Row);
+
+    expect(doc2Row).toHaveClass("Mui-selected");
+    expect(doc1Row).not.toHaveClass("Mui-selected");
+    expect(screen.getByText("Document を読み込み中")).toBeInTheDocument();
+
+    deferredDoc2.resolve(
+      createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText("Document を読み込み中")).not.toBeInTheDocument();
+    });
+    expect(getDocumentRow("Doc 2")).toHaveClass("Mui-selected");
   });
 
   it("does not change the current selection when deleting from a non-selected row", async () => {
