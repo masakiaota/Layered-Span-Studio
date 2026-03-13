@@ -181,9 +181,11 @@ export function WorkspaceView({
               </Typography>
             </Box>
             <Tooltip title="Create Document">
-              <IconButton onClick={onOpenCreateDocument} disabled={saving}>
-                <AddRoundedIcon />
-              </IconButton>
+              <span>
+                <IconButton onClick={onOpenCreateDocument} disabled={saving}>
+                  <AddRoundedIcon />
+                </IconButton>
+              </span>
             </Tooltip>
           </Stack>
           <TextField
