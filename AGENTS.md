@@ -29,3 +29,10 @@
 - Frontend の画面遷移、URL、画面間導線の変更は [`docs/frontend/navigation.md`](docs/frontend/navigation.md) を更新する。
 - Frontend の Workspace / Project Settings UI、ショートカット、Import/Export、Annotation 操作仕様の変更は [`docs/frontend/workspace-spec.md`](docs/frontend/workspace-spec.md) を更新する。
 - 横断的な設計変更は [`docs/architecture.md`](docs/architecture.md) と [`docs/requirements.md`](docs/requirements.md) を確認し、必要なら更新する。
+
+## Development Philosophy
+
+- 重視するのは最終成果物の UI/UX 品質である。
+- 実装判断では、その場しのぎの対症療法よりも、将来的な改変・拡張・保守のしやすさを優先する。
+- 変更は責務の境界が分かる形で行い、読みやすく整理されたコードを保つ。場当たり的なパッチワークで辻褄を合わせない。
+- 新機能追加や不具合修正の際は、必要に応じて周辺の構造も見直し、一貫した設計に寄せる。
