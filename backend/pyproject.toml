@@ -5,7 +5,7 @@ description = "Layered Span Studio backend API"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
-authors = [{ name = "Layered Span Studio" }]
+authors = [{ name = "Masaki Aota" }]
 
 dependencies = [
   "fastapi>=0.110",
