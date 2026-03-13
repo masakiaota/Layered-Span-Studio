@@ -124,6 +124,7 @@ export function ProjectShell({
   const [deletingDocument, setDeletingDocument] = useState(false);
   const shortcutButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingActionConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
+  const deleteDocumentConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
   const documentListScrollRef = useRef<HTMLDivElement | null>(null);
   const sameLabelExamplesScrollRef = useRef<HTMLDivElement | null>(null);
   const sameSurfaceExamplesScrollRef = useRef<HTMLDivElement | null>(null);
@@ -465,6 +466,16 @@ export function ProjectShell({
     });
     return () => cancelAnimationFrame(focusTimer);
   }, [pendingAction]);
+
+  useEffect(() => {
+    if (!deleteDialogOpen || !deleteTarget) {
+      return;
+    }
+    const focusTimer = requestAnimationFrame(() => {
+      deleteDocumentConfirmButtonRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(focusTimer);
+  }, [deleteDialogOpen, deleteTarget]);
 
   function mutateCurrentDocument(mutator: (draft: DocumentRecord) => void) {
     if (!bundle || !currentDocument) {
@@ -1549,9 +1560,10 @@ export function ProjectShell({
 
       <DeleteDocumentDialog
         open={deleteDialogOpen && Boolean(deleteTarget)}
-        deleting={deletingDocument}
+        busy={workspaceBusy}
         documentName={deleteTarget?.documentName ?? ""}
         currentDocumentDirty={Boolean(deleteTarget?.isCurrent && currentDocumentDirty)}
+        confirmButtonRef={deleteDocumentConfirmButtonRef}
         onClose={closeDeleteDialog}
         onDelete={() => void confirmDeleteDocument()}
       />

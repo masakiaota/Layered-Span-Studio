@@ -352,9 +352,8 @@ export function WorkspaceView({
                       }}
                     />
                     <Tooltip title="Delete document">
-                      <Box
-                        component="span"
-                        sx={{
+                      <span
+                        style={{
                           position: "absolute",
                           right: 0,
                           top: "50%",
@@ -392,7 +391,7 @@ export function WorkspaceView({
                         >
                           <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
                         </IconButton>
-                      </Box>
+                      </span>
                     </Tooltip>
                   </Box>
                 </ListItemButton>

@@ -297,7 +297,7 @@ describe("ProjectShell document deletion", () => {
 
     const { button } = await revealDeleteButton(userEventSetup, "Doc 2");
     await userEventSetup.click(button);
-    await userEventSetup.click(screen.getByRole("button", { name: "削除" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "削除 ↵" }));
 
     await waitFor(() => {
       expect(screen.queryByText("Doc 2")).not.toBeInTheDocument();
@@ -319,7 +319,32 @@ describe("ProjectShell document deletion", () => {
     await screen.findByText("3 pending / 3 docs");
 
     await userEventSetup.click(within(getDocumentRow("Doc 1")).getByRole("button", { name: "Delete document Doc 1" }));
-    await userEventSetup.click(screen.getByRole("button", { name: "削除" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "削除 ↵" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Doc 1")).not.toBeInTheDocument();
+    });
+    expect(getDocumentRow("Doc 2")).toHaveClass("Mui-selected");
+  });
+
+  it("confirms document deletion with Enter from the dialog", async () => {
+    const userEventSetup = userEvent.setup();
+    setupDocumentApis([
+      createDocument({ id: "doc-1", document_name: "Doc 1" }),
+      createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
+    ]);
+
+    renderWorkspace();
+
+    await screen.findByText("2 pending / 2 docs");
+
+    await userEventSetup.click(within(getDocumentRow("Doc 1")).getByRole("button", { name: "Delete document Doc 1" }));
+    const deleteButton = await screen.findByRole("button", { name: "削除 ↵" });
+    await waitFor(() => {
+      expect(deleteButton).toHaveFocus();
+    });
+
+    await userEventSetup.keyboard("{Enter}");
 
     await waitFor(() => {
       expect(screen.queryByText("Doc 1")).not.toBeInTheDocument();
@@ -344,7 +369,7 @@ describe("ProjectShell document deletion", () => {
     });
 
     await userEventSetup.click(within(getDocumentRow("Doc 2")).getByRole("button", { name: "Delete document Doc 2" }));
-    await userEventSetup.click(screen.getByRole("button", { name: "削除" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "削除 ↵" }));
 
     await waitFor(() => {
       expect(screen.queryByText("Doc 2")).not.toBeInTheDocument();
@@ -361,7 +386,7 @@ describe("ProjectShell document deletion", () => {
     await screen.findByText("1 pending / 1 docs");
 
     await userEventSetup.click(within(getDocumentRow("Doc 1")).getByRole("button", { name: "Delete document Doc 1" }));
-    await userEventSetup.click(screen.getByRole("button", { name: "削除" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "削除 ↵" }));
 
     expect(await screen.findByText("一致する Document がない")).toBeInTheDocument();
     expect(screen.getByText("Document がない")).toBeInTheDocument();
@@ -405,7 +430,7 @@ describe("ProjectShell document deletion", () => {
     await screen.findByText("2 pending / 2 docs");
 
     await userEventSetup.click(within(getDocumentRow("Doc 1")).getByRole("button", { name: "Delete document Doc 1" }));
-    await userEventSetup.click(screen.getByRole("button", { name: "削除" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "削除 ↵" }));
 
     await waitFor(() => {
       expect(screen.queryByText("Doc 1")).not.toBeInTheDocument();
@@ -428,7 +453,7 @@ describe("ProjectShell document deletion", () => {
 
     const { button } = await revealDeleteButton(userEventSetup, "Doc 2");
     await userEventSetup.click(button);
-    await userEventSetup.click(screen.getByRole("button", { name: "削除" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "削除 ↵" }));
 
     expect(await screen.findByText('"Doc 2" を削除する。')).toBeInTheDocument();
     expect(screen.getByText("Network broken")).toBeInTheDocument();
