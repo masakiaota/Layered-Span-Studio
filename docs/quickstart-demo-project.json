@@ -1,0 +1,503 @@
+{
+  "project": {
+    "name": "Layered Span Studio クイックスタートデモ",
+    "description": "文章を読みながら、重なり span、既存 annotation 参照、Import / Export を順に体験できるデモ project",
+    "meta": {
+      "seed": "quickstart-guided-ja",
+      "guideline": "説明文を読みながら span を確認し、同じ語が別 document に現れたら右ペインの既存 annotation も見て判断をそろえる。重なり合う span は異なるラベルで積極的に残してよい。"
+    }
+  },
+  "labels": [
+    {
+      "name": "プロダクト",
+      "color": "#1565C0",
+      "description": "ツール名や製品名そのものに付与する。画面名や説明文の一部に含まれていても独立して付与する。"
+    },
+    {
+      "name": "画面要素",
+      "color": "#2E7D32",
+      "description": "画面名、ボタン名、ペイン名など、UI 上で見える要素に付与する。プロダクト名を含む長い span でもよい。"
+    },
+    {
+      "name": "操作",
+      "color": "#EF6C00",
+      "description": "ユーザーが行う操作や確認手順に付与する。画面要素や概念を含む span と重なってよい。"
+    },
+    {
+      "name": "概念",
+      "color": "#6A1B9A",
+      "description": "アノテーション、ショートカット、LLM 連携など、このプロダクトで扱う概念や用語に付与する。"
+    },
+    {
+      "name": "強み",
+      "color": "#C62828",
+      "description": "このプロダクトの利点や、実際に価値が出る操作のまとまりに付与する。操作や概念と重なってよい。"
+    }
+  ],
+  "documents": [
+    {
+      "document_name": "01_重なりラベルを試す",
+      "text": "Layered Span Studio のワークスペースでは、文字列をドラッグして重なり合う複数ラベルを付与できる。注目しているラベルはマーカー、それ以外のラベルはアンダーラインで表示される。ショートカットでも操作可能で、←や→、hやl でラベルを切り替えられることを確かめてみてほしい。j/k で doc の移動も可能である。j で次の doc に移動してみよう。",
+      "status": "pending",
+      "created_at": "2026-03-15T00:00:00Z",
+      "updated_at": "2026-03-15T00:10:00Z",
+      "annotations": [
+        {
+          "label_name": "プロダクト",
+          "start": 0,
+          "end": 19,
+          "span_text": "Layered Span Studio",
+          "comment": "画面名の中に含まれていても独立したラベルとして残す。",
+          "status": "pending"
+        },
+        {
+          "label_name": "画面要素",
+          "start": 0,
+          "end": 28,
+          "span_text": "Layered Span Studio のワークスペース",
+          "comment": "プロダクト名を含む長い span の例。",
+          "status": "pending"
+        },
+        {
+          "label_name": "操作",
+          "start": 31,
+          "end": 41,
+          "span_text": "文字列をドラッグして",
+          "comment": "最初に試す基本操作。",
+          "status": "pending"
+        },
+        {
+          "label_name": "概念",
+          "start": 41,
+          "end": 51,
+          "span_text": "重なり合う複数ラベル",
+          "comment": "このツールの中心的な概念。",
+          "status": "pending"
+        },
+        {
+          "label_name": "強み",
+          "start": 31,
+          "end": 57,
+          "span_text": "文字列をドラッグして重なり合う複数ラベルを付与できる",
+          "comment": "操作 span と概念 span を内側に含む。",
+          "status": "pending"
+        },
+        {
+          "label_name": "概念",
+          "start": 68,
+          "end": 72,
+          "span_text": "マーカー",
+          "comment": "注目中ラベルの表示方法。",
+          "status": "pending"
+        },
+        {
+          "label_name": "概念",
+          "start": 82,
+          "end": 89,
+          "span_text": "アンダーライン",
+          "comment": "非注目ラベルの表示方法。",
+          "status": "pending"
+        },
+        {
+          "label_name": "強み",
+          "start": 58,
+          "end": 95,
+          "span_text": "注目しているラベルはマーカー、それ以外のラベルはアンダーラインで表示される",
+          "comment": "表示の違いで現在注目しているラベルを把握しやすい。",
+          "status": "pending"
+        },
+        {
+          "label_name": "概念",
+          "start": 96,
+          "end": 103,
+          "span_text": "ショートカット",
+          "comment": "キーボード操作の中心概念。",
+          "status": "pending"
+        },
+        {
+          "label_name": "操作",
+          "start": 111,
+          "end": 131,
+          "span_text": "←や→、hやl でラベルを切り替えられる",
+          "comment": "ラベル切り替えをその場で試せる。",
+          "status": "pending"
+        },
+        {
+          "label_name": "操作",
+          "start": 144,
+          "end": 163,
+          "span_text": "j/k で doc の移動も可能である",
+          "comment": "文書移動のショートカット。",
+          "status": "pending"
+        },
+        {
+          "label_name": "操作",
+          "start": 164,
+          "end": 182,
+          "span_text": "j で次の doc に移動してみよう",
+          "comment": "次の説明文へ進む誘導。",
+          "status": "pending"
+        }
+      ],
+      "meta": {
+        "source": "quickstart",
+        "scenario": "overlap 体験の入口"
+      }
+    },
+    {
+      "document_name": "02_右ペインで判断をそろえる",
+      "text": "右ペインでは、ラベル定義と既存アノテーションを見比べながら、同じ表層テキストへの判断をそろえられる。次に右ペインでアノテーション例を確認する。\n\nアノテーションはドラッグすることで行うことができる。この文章の「アノテーション」をドラッグしてみよう。右方には、\n- 現在注目してるラベル視点での関連例、や\n- 選択中の文章に対する同一表層の他アノテーション\nを確認することができる。\n\nドラッグしたらadd annotationボタンをクリックするか、そのままenterでアノテーションを一時確定できる。ドキュメント全体のアノテーションを確認したら、submitボタンを押すか (cmd / command) + enter のショートカットでアノテーションを確定できる。実際にアノテーションを作成してから確定させてみよう。次の文章に進む。",
+      "status": "verified",
+      "created_at": "2026-03-15T00:20:00Z",
+      "updated_at": "2026-03-15T00:35:00Z",
+      "annotations": [
+        {
+          "label_name": "画面要素",
+          "start": 0,
+          "end": 4,
+          "span_text": "右ペイン",
+          "comment": "実際に参照しながら作業する場所。",
+          "status": "verified"
+        },
+        {
+          "label_name": "概念",
+          "start": 7,
+          "end": 12,
+          "span_text": "ラベル定義",
+          "comment": "アノテーション方針の確認対象。",
+          "status": "verified"
+        },
+        {
+          "label_name": "概念",
+          "start": 15,
+          "end": 22,
+          "span_text": "アノテーション",
+          "comment": "別 document でも同じ表層を参照できる。",
+          "status": "verified"
+        },
+        {
+          "label_name": "強み",
+          "start": 7,
+          "end": 49,
+          "span_text": "ラベル定義と既存アノテーションを見比べながら、同じ表層テキストへの判断をそろえられる",
+          "comment": "右ペインの価値が伝わる一文。",
+          "status": "verified"
+        },
+        {
+          "label_name": "画面要素",
+          "start": 52,
+          "end": 56,
+          "span_text": "右ペイン",
+          "comment": "同一表層の再出現。",
+          "status": "verified"
+        },
+        {
+          "label_name": "概念",
+          "start": 57,
+          "end": 64,
+          "span_text": "アノテーション",
+          "comment": "例の一覧でも同じ語が現れる。",
+          "status": "verified"
+        },
+        {
+          "label_name": "操作",
+          "start": 57,
+          "end": 70,
+          "span_text": "アノテーション例を確認する",
+          "comment": "参照しながら判断をそろえる操作。",
+          "status": "verified"
+        },
+        {
+          "label_name": "概念",
+          "start": 73,
+          "end": 80,
+          "span_text": "アノテーション",
+          "comment": "ここを実際にドラッグして試せる。",
+          "status": "verified"
+        },
+        {
+          "label_name": "操作",
+          "start": 99,
+          "end": 123,
+          "span_text": "この文章の「アノテーション」をドラッグしてみよう",
+          "comment": "具体的な操作を促す文。",
+          "status": "verified"
+        },
+        {
+          "label_name": "画面要素",
+          "start": 124,
+          "end": 126,
+          "span_text": "右方",
+          "comment": "参照情報が並ぶ領域。",
+          "status": "verified"
+        },
+        {
+          "label_name": "概念",
+          "start": 146,
+          "end": 149,
+          "span_text": "関連例",
+          "comment": "注目ラベル視点での参考情報。",
+          "status": "verified"
+        },
+        {
+          "label_name": "概念",
+          "start": 164,
+          "end": 168,
+          "span_text": "同一表層",
+          "comment": "同じ文字列に対する他文書の判断を参照できる。",
+          "status": "verified"
+        },
+        {
+          "label_name": "概念",
+          "start": 170,
+          "end": 177,
+          "span_text": "アノテーション",
+          "comment": "他の例への参照対象。",
+          "status": "verified"
+        },
+        {
+          "label_name": "強み",
+          "start": 132,
+          "end": 189,
+          "span_text": "現在注目してるラベル視点での関連例、や\n- 選択中の文章に対する同一表層の他アノテーション\nを確認することができる",
+          "comment": "右ペインで判断をそろえやすい理由。",
+          "status": "verified"
+        },
+        {
+          "label_name": "画面要素",
+          "start": 199,
+          "end": 216,
+          "span_text": "add annotationボタン",
+          "comment": "一時確定の入口。",
+          "status": "verified"
+        },
+        {
+          "label_name": "操作",
+          "start": 199,
+          "end": 223,
+          "span_text": "add annotationボタンをクリックする",
+          "comment": "選択範囲を追加する操作。",
+          "status": "verified"
+        },
+        {
+          "label_name": "概念",
+          "start": 235,
+          "end": 242,
+          "span_text": "アノテーション",
+          "comment": "一時確定の対象。",
+          "status": "verified"
+        },
+        {
+          "label_name": "操作",
+          "start": 229,
+          "end": 250,
+          "span_text": "enterでアノテーションを一時確定できる",
+          "comment": "キーボードだけでも進められる。",
+          "status": "verified"
+        },
+        {
+          "label_name": "画面要素",
+          "start": 274,
+          "end": 283,
+          "span_text": "submitボタン",
+          "comment": "文書全体の確定操作。",
+          "status": "verified"
+        },
+        {
+          "label_name": "概念",
+          "start": 313,
+          "end": 320,
+          "span_text": "ショートカット",
+          "comment": "submit にもショートカットがある。",
+          "status": "verified"
+        },
+        {
+          "label_name": "概念",
+          "start": 321,
+          "end": 328,
+          "span_text": "アノテーション",
+          "comment": "最終確定の対象。",
+          "status": "verified"
+        },
+        {
+          "label_name": "操作",
+          "start": 274,
+          "end": 286,
+          "span_text": "submitボタンを押す",
+          "comment": "確定の基本操作。",
+          "status": "verified"
+        },
+        {
+          "label_name": "操作",
+          "start": 288,
+          "end": 334,
+          "span_text": "(cmd / command) + enter のショートカットでアノテーションを確定できる",
+          "comment": "ショートカットによる submit。",
+          "status": "verified"
+        },
+        {
+          "label_name": "操作",
+          "start": 338,
+          "end": 360,
+          "span_text": "アノテーションを作成してから確定させてみよう",
+          "comment": "ここまでの流れを実践する誘導。",
+          "status": "verified"
+        },
+        {
+          "label_name": "操作",
+          "start": 361,
+          "end": 368,
+          "span_text": "次の文章に進む",
+          "comment": "次の doc へ進む誘導。",
+          "status": "verified"
+        }
+      ],
+      "meta": {
+        "source": "quickstart",
+        "scenario": "既存 annotation の参照"
+      }
+    },
+    {
+      "document_name": "03_ショートカットを確認する",
+      "text": "ショートカットを使うと、アノテーションの追加や確認を止めずに進めやすい。慣れてきたら右上の?ボタンから操作一覧を開き、手元の流れに合うキー配置を確認する。",
+      "status": "pending",
+      "created_at": "2026-03-15T01:20:00Z",
+      "updated_at": "2026-03-15T01:30:00Z",
+      "annotations": [
+        {
+          "label_name": "概念",
+          "start": 0,
+          "end": 7,
+          "span_text": "ショートカット",
+          "comment": "作業速度に直結する概念。",
+          "status": "pending"
+        },
+        {
+          "label_name": "概念",
+          "start": 12,
+          "end": 19,
+          "span_text": "アノテーション",
+          "comment": "他 document と同じ語を再利用している。",
+          "status": "pending"
+        },
+        {
+          "label_name": "強み",
+          "start": 0,
+          "end": 35,
+          "span_text": "ショートカットを使うと、アノテーションの追加や確認を止めずに進めやすい",
+          "comment": "連続作業のしやすさを示す span。",
+          "status": "pending"
+        },
+        {
+          "label_name": "画面要素",
+          "start": 45,
+          "end": 49,
+          "span_text": "?ボタン",
+          "comment": "ショートカット一覧の入口。",
+          "status": "pending"
+        },
+        {
+          "label_name": "操作",
+          "start": 51,
+          "end": 58,
+          "span_text": "操作一覧を開き",
+          "comment": "まず開いて確認する。",
+          "status": "pending"
+        },
+        {
+          "label_name": "操作",
+          "start": 67,
+          "end": 76,
+          "span_text": "キー配置を確認する",
+          "comment": "自分の流れに合わせて確認する。",
+          "status": "pending"
+        }
+      ],
+      "meta": {
+        "source": "quickstart",
+        "scenario": "ショートカット確認"
+      }
+    },
+    {
+      "document_name": "04_ImportとExportを試す",
+      "text": "Project Settings では、Import Project でデモを読み込み、Export JSON で現在の設定とアノテーションを持ち出せる。設定を変えたあとに Export JSON を比べると差分を追いやすい。",
+      "status": "pending",
+      "created_at": "2026-03-15T00:40:00Z",
+      "updated_at": "2026-03-15T00:55:00Z",
+      "annotations": [
+        {
+          "label_name": "画面要素",
+          "start": 0,
+          "end": 16,
+          "span_text": "Project Settings",
+          "comment": "設定・入出力をまとめて扱う画面。",
+          "status": "pending"
+        },
+        {
+          "label_name": "画面要素",
+          "start": 20,
+          "end": 34,
+          "span_text": "Import Project",
+          "comment": "デモ project 読み込みボタン。",
+          "status": "pending"
+        },
+        {
+          "label_name": "操作",
+          "start": 20,
+          "end": 43,
+          "span_text": "Import Project でデモを読み込み",
+          "comment": "UI 要素を含む操作 span。",
+          "status": "pending"
+        },
+        {
+          "label_name": "画面要素",
+          "start": 44,
+          "end": 55,
+          "span_text": "Export JSON",
+          "comment": "現在の状態を書き出す入口。",
+          "status": "pending"
+        },
+        {
+          "label_name": "概念",
+          "start": 63,
+          "end": 70,
+          "span_text": "アノテーション",
+          "comment": "設定と一緒に持ち出される中心データ。",
+          "status": "pending"
+        },
+        {
+          "label_name": "強み",
+          "start": 44,
+          "end": 76,
+          "span_text": "Export JSON で現在の設定とアノテーションを持ち出せる",
+          "comment": "Import / Export の価値がまとまった span。",
+          "status": "pending"
+        },
+        {
+          "label_name": "画面要素",
+          "start": 87,
+          "end": 98,
+          "span_text": "Export JSON",
+          "comment": "比較時にも同じ要素を使う。",
+          "status": "pending"
+        },
+        {
+          "label_name": "操作",
+          "start": 87,
+          "end": 103,
+          "span_text": "Export JSON を比べる",
+          "comment": "変更前後の差分確認に向いた使い方。",
+          "status": "pending"
+        }
+      ],
+      "meta": {
+        "source": "quickstart",
+        "scenario": "Import / Export の確認"
+      }
+    }
+  ],
+  "meta": {
+    "format": "layered-span-studio/export",
+    "version": "1.0"
+  }
+}
