@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -40,7 +40,7 @@ import type {
   ProjectBundle,
   StatusValue,
 } from "../../types";
-import { getDocumentSnippetParts, getDocumentStatus, groupAnnotationsByLabel } from "../../utils";
+import { getDocumentSnippetParts, groupAnnotationsByLabel } from "../../utils";
 
 export function WorkspaceView({
   bundle,
@@ -78,6 +78,7 @@ export function WorkspaceView({
   sameSurfaceExamplesLoadingMore,
   sameSurfaceExamplesScrollRef,
   sameSurfaceTargetLabelId,
+  getDisplayDocumentStatus,
   dirty,
   saving,
   onOpenCreateDocument,
@@ -140,6 +141,7 @@ export function WorkspaceView({
   sameSurfaceExamplesLoadingMore: boolean;
   sameSurfaceExamplesScrollRef: React.Ref<HTMLDivElement>;
   sameSurfaceTargetLabelId: string | null;
+  getDisplayDocumentStatus: (document: Pick<DocumentListItem, "id" | "status">) => StatusValue;
   dirty: boolean;
   saving: boolean;
   onOpenCreateDocument: () => void;
@@ -170,10 +172,34 @@ export function WorkspaceView({
   const groupedAnnotations = currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : [];
   const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
   const [focusedDocumentId, setFocusedDocumentId] = useState<string | null>(null);
+  const documentRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const annotationRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     setFocusedDocumentId((current) => (current && current !== selectedDocumentId ? null : current));
   }, [selectedDocumentId]);
+
+  useEffect(() => {
+    if (!selectedDocumentId) {
+      return;
+    }
+    const row = documentRowRefs.current[selectedDocumentId];
+    if (!row) {
+      return;
+    }
+    row.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [selectedDocumentId, visibleDocuments]);
+
+  useEffect(() => {
+    if (!selectedAnnotationId) {
+      return;
+    }
+    const row = annotationRowRefs.current[selectedAnnotationId];
+    if (!row) {
+      return;
+    }
+    row.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [selectedAnnotationId, groupedAnnotations]);
 
   return (
     <>
@@ -252,7 +278,7 @@ export function WorkspaceView({
           {visibleDocuments.map((document) => {
             const deleteButtonVisible =
               document.id === selectedDocumentId || hoveredDocumentId === document.id || focusedDocumentId === document.id;
-            const documentStatus = getDocumentStatus(document);
+            const documentStatus = getDisplayDocumentStatus(document);
             return (
               <Tooltip
                 key={document.id}
@@ -269,6 +295,13 @@ export function WorkspaceView({
                 }
               >
                 <ListItemButton
+                  ref={(element) => {
+                    if (element) {
+                      documentRowRefs.current[document.id] = element;
+                      return;
+                    }
+                    delete documentRowRefs.current[document.id];
+                  }}
                   selected={document.id === selectedDocumentId}
                   onClick={() => onSelectDocument(document.id)}
                   onMouseEnter={() => setHoveredDocumentId(document.id)}
@@ -829,6 +862,13 @@ export function WorkspaceView({
                           return (
                             <Paper
                               key={annotation.id}
+                              ref={(element) => {
+                                if (element) {
+                                  annotationRowRefs.current[annotation.id] = element;
+                                  return;
+                                }
+                                delete annotationRowRefs.current[annotation.id];
+                              }}
                               variant="outlined"
                               sx={{
                                 p: 1.25,

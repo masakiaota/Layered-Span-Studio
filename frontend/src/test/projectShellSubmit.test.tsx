@@ -1,5 +1,5 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
@@ -89,6 +89,15 @@ function createAnnotation(overrides: Partial<AnnotationRecord> = {}): Annotation
     meta: {},
     ...overrides,
   };
+}
+
+function getDocumentRow(documentName: string) {
+  const label = screen.getByText(documentName);
+  const row = label.closest('[role="button"]');
+  if (!(row instanceof HTMLElement)) {
+    throw new Error(`Unable to find row for document: ${documentName}`);
+  }
+  return row;
 }
 
 function renderWorkspace() {
@@ -211,5 +220,80 @@ describe("ProjectShell submit behavior", () => {
         false,
       );
     });
+  });
+
+  it("shows verified doc as pending while unsaved and returns to verified after save", async () => {
+    const userEventSetup = userEvent.setup();
+    const annotation = createAnnotation({ status: "verified" });
+    const initialDocument = createDocument({ status: "verified", annotations: [annotation] });
+    const savedDocument = createDocument({
+      status: "verified",
+      annotations: [{ ...annotation, comment: "updated comment" }],
+      updated_at: "2026-03-02T00:00:00Z",
+    });
+
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [{ ...initialDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+        total: 1,
+        pending_total: 0,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: [{ ...savedDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+        total: 1,
+        pending_total: 0,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument").mockResolvedValue(initialDocument);
+    const saveDocumentBundleSpy = vi.spyOn(api, "saveDocumentBundle").mockResolvedValue(savedDocument);
+
+    renderWorkspace();
+
+    await screen.findByText("0 pending / 1 docs");
+    expect(within(getDocumentRow("Doc 1")).getByText("verified")).toBeInTheDocument();
+
+    await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
+    await userEventSetup.click(screen.getByText("0-5"));
+    await userEventSetup.click(screen.getByText("選択中 Annotation"));
+    const commentInput = await screen.findByLabelText("Comment");
+    await userEventSetup.type(commentInput, "updated comment");
+
+    await waitFor(() => {
+      expect(within(getDocumentRow("Doc 1")).getByText("pending")).toBeInTheDocument();
+      expect(screen.getByText("1 pending / 1 docs")).toBeInTheDocument();
+    });
+
+    await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(saveDocumentBundleSpy).toHaveBeenCalledWith(
+        "token",
+        "project-1",
+        "doc-1",
+        [
+          {
+            id: "annotation-1",
+            label_id: "label-1",
+            start: 0,
+            end: 5,
+            span_text: "Hello",
+            comment: "updated comment",
+            status: "verified",
+            meta: {},
+          },
+        ],
+        false,
+      );
+    });
+
+    expect(await screen.findByText("0 pending / 1 docs")).toBeInTheDocument();
+    expect(within(getDocumentRow("Doc 1")).getByText("verified")).toBeInTheDocument();
   });
 });
