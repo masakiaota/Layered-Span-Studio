@@ -6,6 +6,7 @@
 
 ## High
 
+- 新しいアノテーションを追加(→ アノテにpendingが存在) したときにdocがverifiedからpendingにならない。そのため、frontでも本来pendingのハズのdocがverifiedのままになっている。少なくともfrontでは即時反映されてない。
 - shortcut使用時、docがスクロール追従しない。(関連のスクロール追従問題がないかも調査せよ)
 - README の作成
 - handson の作成
