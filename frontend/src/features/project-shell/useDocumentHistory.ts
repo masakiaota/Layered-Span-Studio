@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { DocumentRecord, ProjectBundle } from "../../types";
 import { deepClone } from "../../utils";
 
@@ -45,14 +45,11 @@ export function useDocumentHistory({
     historyState.documentId === currentDocument?.id &&
     historyState.index > 0;
 
-  const canRedo = useMemo(
-    () =>
-      view === "workspace" &&
-      historyState.documentId === currentDocument?.id &&
-      historyState.index >= 0 &&
-      historyState.index < historyState.entries.length - 1,
-    [view, historyState, currentDocument?.id],
-  );
+  const canRedo =
+    view === "workspace" &&
+    historyState.documentId === currentDocument?.id &&
+    historyState.index >= 0 &&
+    historyState.index < historyState.entries.length - 1;
 
   function mutateCurrentDocument(mutator: (draft: DocumentRecord) => void) {
     if (!bundle || !currentDocument) {
@@ -135,6 +132,14 @@ export function useDocumentHistory({
     setHistoryState((current) => ({ ...current, index: nextIndex }));
   }
 
+  function clearDocumentHistory(documentId?: string) {
+    setHistoryState((current) =>
+      documentId === undefined || current.documentId === documentId
+        ? { documentId: null, entries: [], index: -1 }
+        : current,
+    );
+  }
+
   return {
     historyState,
     setHistoryState,
@@ -143,5 +148,6 @@ export function useDocumentHistory({
     mutateCurrentDocument,
     undoBundle,
     redoBundle,
+    clearDocumentHistory,
   };
 }

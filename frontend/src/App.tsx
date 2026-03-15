@@ -158,6 +158,7 @@ export function ProjectShell({
     mutateCurrentDocument,
     undoBundle,
     redoBundle,
+    clearDocumentHistory,
   } = useDocumentHistory({
     bundle,
     setBundle,
@@ -745,11 +746,7 @@ export function ProjectShell({
     nextDocument: DocumentRecord | null;
   }) {
     removeDocumentFromLocalState(deletedId);
-    setHistoryState((current) =>
-      current.documentId === deletedId
-        ? { documentId: null, entries: [], index: -1 }
-        : current,
-    );
+    clearDocumentHistory(deletedId);
 
     if (deletingCurrent) {
       if (nextDocument) {

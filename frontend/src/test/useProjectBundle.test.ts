@@ -1,0 +1,306 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api } from "../api";
+import { useProjectBundle } from "../features/project-shell/useProjectBundle";
+import type { DocumentListItem, DocumentRecord, LabelRecord, ProjectRecord } from "../types";
+
+const project: ProjectRecord = {
+  id: "project-1",
+  name: "Test Project",
+  description: "",
+  meta: {},
+};
+
+const labels: LabelRecord[] = [
+  {
+    id: "label-1",
+    project_id: "project-1",
+    project_name: "Test Project",
+    name: "Entity",
+    color: "#e74c3c",
+    description: "",
+    shortcut: null,
+    meta: {},
+  },
+];
+
+function createDocument(overrides: Partial<DocumentRecord> = {}): DocumentRecord {
+  return {
+    id: "doc-1",
+    project_id: "project-1",
+    project_name: "Test Project",
+    document_name: "Doc 1",
+    text: "Hello world",
+    status: "pending",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    annotations: [],
+    meta: {},
+    ...overrides,
+  };
+}
+
+function createDocumentListItem(overrides: Partial<DocumentListItem> = {}): DocumentListItem {
+  return {
+    id: "doc-1",
+    project_id: "project-1",
+    document_name: "Doc 1",
+    text: "Hello world",
+    status: "pending",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    meta: {},
+    ...overrides,
+  };
+}
+
+function makeShowToast() {
+  return vi.fn();
+}
+
+describe("useProjectBundle", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("loads bundle on initial render", async () => {
+    const doc = createDocument();
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels });
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [createDocumentListItem()],
+      total: 1,
+      pending_total: 1,
+      offset: 0,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "getDocument").mockResolvedValue(doc);
+
+    const showToast = makeShowToast();
+    const onLoaded = vi.fn();
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast,
+      }),
+    );
+
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      await result.current.loadBundle(onLoaded);
+    });
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.bundle).not.toBeNull();
+    expect(result.current.bundle?.project.id).toBe("project-1");
+    expect(result.current.bundle?.labels).toHaveLength(1);
+    expect(result.current.bundle?.documents).toHaveLength(1);
+    expect(result.current.documentTotal).toBe(1);
+    expect(result.current.pendingDocumentTotal).toBe(1);
+    expect(onLoaded).toHaveBeenCalledWith(
+      expect.objectContaining({ project, labels }),
+      "doc-1",
+    );
+  });
+
+  it("shows toast on load error", async () => {
+    vi.spyOn(api, "getProject").mockRejectedValue(new Error("Network error"));
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [],
+      total: 0,
+      pending_total: 0,
+      offset: 0,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+
+    const showToast = makeShowToast();
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+
+    expect(showToast).toHaveBeenCalledWith("Network error", "error");
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("mutateSettingsBundle updates project and labels in bundle", async () => {
+    const doc = createDocument();
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels });
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [createDocumentListItem()],
+      total: 1,
+      pending_total: 1,
+      offset: 0,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "getDocument").mockResolvedValue(doc);
+
+    const showToast = makeShowToast();
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+
+    act(() => {
+      result.current.mutateSettingsBundle((draft) => {
+        draft.project.name = "Renamed Project";
+      });
+    });
+
+    expect(result.current.bundle?.project.name).toBe("Renamed Project");
+  });
+
+  it("removeDocumentFromLocalState removes document from bundle and document list", async () => {
+    const doc1 = createDocument({ id: "doc-1", document_name: "Doc 1" });
+    const doc2 = createDocument({ id: "doc-2", document_name: "Doc 2" });
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [
+        createDocumentListItem({ id: "doc-1", document_name: "Doc 1" }),
+        createDocumentListItem({ id: "doc-2", document_name: "Doc 2" }),
+      ],
+      total: 2,
+      pending_total: 2,
+      offset: 0,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "getDocument").mockResolvedValue(doc1);
+
+    const showToast = makeShowToast();
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+
+    // Manually add doc2 to bundle for testing
+    act(() => {
+      result.current.setBundle((current) =>
+        current
+          ? { ...current, documents: [...current.documents, doc2] }
+          : current,
+      );
+    });
+
+    expect(result.current.documentList).toHaveLength(2);
+
+    act(() => {
+      result.current.removeDocumentFromLocalState("doc-1");
+    });
+
+    expect(result.current.bundle?.documents).toHaveLength(1);
+    expect(result.current.bundle?.documents[0].id).toBe("doc-2");
+    expect(result.current.documentList).toHaveLength(1);
+    expect(result.current.documentList[0].id).toBe("doc-2");
+    expect(result.current.documentSnapshotsById["doc-1"]).toBeUndefined();
+  });
+
+  it("fetchDocumentPage appends to document list when not resetting", async () => {
+    const doc = createDocument();
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [createDocumentListItem({ id: "doc-1", document_name: "Doc 1" })],
+        total: 3,
+        pending_total: 3,
+        offset: 0,
+        limit: 20,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: [
+          createDocumentListItem({ id: "doc-2", document_name: "Doc 2" }),
+          createDocumentListItem({ id: "doc-3", document_name: "Doc 3" }),
+        ],
+        total: 3,
+        pending_total: 3,
+        offset: 1,
+        limit: 20,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument").mockResolvedValue(doc);
+
+    const showToast = makeShowToast();
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+
+    expect(result.current.documentList).toHaveLength(1);
+
+    await act(async () => {
+      await result.current.fetchDocumentPage(false);
+    });
+
+    await waitFor(() => {
+      expect(result.current.documentList.length).toBeGreaterThan(1);
+    });
+  });
+});
