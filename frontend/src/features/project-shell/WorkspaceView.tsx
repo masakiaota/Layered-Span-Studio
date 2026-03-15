@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -40,7 +40,14 @@ import type {
   ProjectBundle,
   StatusValue,
 } from "../../types";
-import { getDocumentSnippetParts, getDocumentStatus, groupAnnotationsByLabel } from "../../utils";
+import { getDocumentSnippetParts, groupAnnotationsByLabel } from "../../utils";
+
+function scrollRowIntoView(row: Element | null) {
+  if (!row || typeof row.scrollIntoView !== "function") {
+    return;
+  }
+  row.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
 
 export function WorkspaceView({
   bundle,
@@ -78,6 +85,7 @@ export function WorkspaceView({
   sameSurfaceExamplesLoadingMore,
   sameSurfaceExamplesScrollRef,
   sameSurfaceTargetLabelId,
+  getDisplayDocumentStatus,
   dirty,
   saving,
   onOpenCreateDocument,
@@ -140,6 +148,7 @@ export function WorkspaceView({
   sameSurfaceExamplesLoadingMore: boolean;
   sameSurfaceExamplesScrollRef: React.Ref<HTMLDivElement>;
   sameSurfaceTargetLabelId: string | null;
+  getDisplayDocumentStatus: (document: DocumentListItem) => StatusValue;
   dirty: boolean;
   saving: boolean;
   onOpenCreateDocument: () => void;
@@ -167,13 +176,46 @@ export function WorkspaceView({
   onDeleteSelectedAnnotation: () => void;
   onToggleAnnotationGroup: (labelId: string) => void;
 }) {
-  const groupedAnnotations = currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : [];
+  const groupedAnnotations = useMemo(
+    () => (currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : []),
+    [currentDocument, bundle.labels],
+  );
   const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
   const [focusedDocumentId, setFocusedDocumentId] = useState<string | null>(null);
+  const documentRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const annotationRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const annotationOrderKey = useMemo(() => {
+    return groupedAnnotations
+      .map(
+        (group) =>
+          `${group.label.id}:${group.annotations
+            .map((annotation) => `${annotation.id}:${annotation.start}:${annotation.end}`)
+            .join(",")}`,
+      )
+      .join("|");
+  }, [groupedAnnotations]);
+  const selectedDocumentVisible = useMemo(
+    () => Boolean(selectedDocumentId && visibleDocuments.some((document) => document.id === selectedDocumentId)),
+    [selectedDocumentId, visibleDocuments],
+  );
 
   useEffect(() => {
     setFocusedDocumentId((current) => (current && current !== selectedDocumentId ? null : current));
   }, [selectedDocumentId]);
+
+  useEffect(() => {
+    if (!selectedDocumentId || !selectedDocumentVisible) {
+      return;
+    }
+    scrollRowIntoView(documentRowRefs.current[selectedDocumentId]);
+  }, [selectedDocumentId, selectedDocumentVisible]);
+
+  useEffect(() => {
+    if (!selectedAnnotationId || rightTab !== "annotations") {
+      return;
+    }
+    scrollRowIntoView(annotationRowRefs.current[selectedAnnotationId]);
+  }, [annotationOrderKey, rightTab, selectedAnnotationId]);
 
   return (
     <>
@@ -252,7 +294,7 @@ export function WorkspaceView({
           {visibleDocuments.map((document) => {
             const deleteButtonVisible =
               document.id === selectedDocumentId || hoveredDocumentId === document.id || focusedDocumentId === document.id;
-            const documentStatus = getDocumentStatus(document);
+            const documentStatus = getDisplayDocumentStatus(document);
             return (
               <Tooltip
                 key={document.id}
@@ -269,6 +311,13 @@ export function WorkspaceView({
                 }
               >
                 <ListItemButton
+                  ref={(element) => {
+                    if (element) {
+                      documentRowRefs.current[document.id] = element;
+                      return;
+                    }
+                    delete documentRowRefs.current[document.id];
+                  }}
                   selected={document.id === selectedDocumentId}
                   onClick={() => onSelectDocument(document.id)}
                   onMouseEnter={() => setHoveredDocumentId(document.id)}
@@ -829,6 +878,13 @@ export function WorkspaceView({
                           return (
                             <Paper
                               key={annotation.id}
+                              ref={(element) => {
+                                if (element) {
+                                  annotationRowRefs.current[annotation.id] = element;
+                                  return;
+                                }
+                                delete annotationRowRefs.current[annotation.id];
+                              }}
                               variant="outlined"
                               sx={{
                                 p: 1.25,

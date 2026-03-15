@@ -358,6 +358,20 @@ export function ProjectShell({
     return JSON.stringify(currentDocument) !== JSON.stringify(currentDocumentSnapshot);
   }, [currentDocument, currentDocumentSnapshot]);
   const dirty = view === "workspace" ? currentDocumentDirty : settingsDirty;
+  const getDisplayDocumentStatus = (document: DocumentListItem) => {
+    if (currentDocument?.id === document.id && currentDocumentDirty && currentDocument?.status === "verified") {
+      return "pending";
+    }
+    return getDocumentStatus(document);
+  };
+  const currentHiddenBySearch = Boolean(
+    currentDocument && searchQuery.trim() && !documentMatchesSearch(currentDocument, searchQuery),
+  );
+  const displayedPendingDocumentTotal = useMemo(() => {
+    const localOffset =
+      currentDocument?.status === "verified" && currentDocumentDirty && !currentHiddenBySearch ? 1 : 0;
+    return pendingDocumentTotal + localOffset;
+  }, [currentDocument?.status, currentDocumentDirty, currentHiddenBySearch, pendingDocumentTotal]);
   const canUndo =
     view === "workspace" &&
     historyState.documentId === currentDocument?.id &&
@@ -367,10 +381,6 @@ export function ProjectShell({
     historyState.documentId === currentDocument?.id &&
     historyState.index >= 0 &&
     historyState.index < historyState.entries.length - 1;
-
-  const currentHiddenBySearch = Boolean(
-    currentDocument && searchQuery.trim() && !documentMatchesSearch(currentDocument, searchQuery),
-  );
 
   const pinnedCurrentDocument = useMemo(() => {
     if (!currentDocument) {
@@ -763,7 +773,7 @@ export function ProjectShell({
     let index = currentIndex + direction;
     while (index >= 0 && index < visibleDocuments.length) {
       const candidate = visibleDocuments[index];
-      if (!pendingOnly || getDocumentStatus(candidate) === "pending") {
+      if (!pendingOnly || getDisplayDocumentStatus(candidate) === "pending") {
         requestAction({ type: "doc", docId: candidate.id });
         return;
       }
@@ -771,7 +781,10 @@ export function ProjectShell({
     }
     if (direction > 0 && documentNextOffset < documentTotal) {
       const appendedDocuments = await fetchDocumentPage(false);
-      const nextCandidate = appendedDocuments.find((document) => !pendingOnly || getDocumentStatus(document) === "pending");
+      const nextCandidate = appendedDocuments.find((document) => {
+        const status = getDisplayDocumentStatus(document);
+        return !pendingOnly || status === "pending";
+      });
       if (nextCandidate) {
         requestAction({ type: "doc", docId: nextCandidate.id });
         return;
@@ -1408,7 +1421,7 @@ export function ProjectShell({
             currentHiddenBySearch={currentHiddenBySearch}
             visibleDocuments={visibleDocuments}
             pinnedCurrentDocument={pinnedCurrentDocument}
-            pendingDocumentTotal={pendingDocumentTotal}
+            pendingDocumentTotal={displayedPendingDocumentTotal}
             documentTotal={documentTotal}
             searchQuery={searchQuery}
             sortMode={sortMode}
@@ -1436,6 +1449,7 @@ export function ProjectShell({
             sameSurfaceExamplesLoadingMore={sameSurfaceExamplesLoadingMore}
             sameSurfaceExamplesScrollRef={sameSurfaceExamplesScrollRef}
             sameSurfaceTargetLabelId={sameSurfaceTargetLabelId}
+            getDisplayDocumentStatus={getDisplayDocumentStatus}
             dirty={dirty}
             saving={workspaceBusy}
             onOpenCreateDocument={() => setCreateDocOpen(true)}

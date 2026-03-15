@@ -1,6 +1,6 @@
 # Workspace UI/UX 仕様（初版）
 
-最終更新: 2026-03-10
+最終更新: 2026-03-15
 
 ## 1. 目的
 
@@ -50,6 +50,9 @@
 - 現在選択中 Doc に未保存変更がある場合でも削除は可能とし、確認ダイアログ内で「未保存の変更も破棄される」ことを明示する。
 - 現在選択中 Doc を削除した後は、削除直前の左ペイン表示順に基づいて次の Doc、なければ前の Doc、どちらもなければ empty state へ遷移する。
 - 削除後の遷移判定では `pending` / `verified` を考慮しない。
+- 現在選択中 Document の `status` が `verified` であっても、`status` / `comment` / `meta` の編集で未保存状態になった場合は、表示上 `pending` として扱う。
+- 左ペイン上部の `pending / docs` には、未保存変更中の `verified` Document を加算して表示する。
+- `Shift+J` / `Shift+K` での pendingOnly 遷移は、表示上の `pending` 判定に基づいて行う。
 
 ## 4. 中央ペイン仕様（Annotation Canvas）
 
@@ -118,12 +121,15 @@
 - 各 Annotation 行には `status` バッジを表示する。
 - 文脈表示は前後 10 文字固定で生成し、`span_text` 以外（前後文脈）は灰色で表示する。
 - 一覧カード内の Label 色は、Label Selector と本文マーカー色に合わせて統一する。
+- Doc 切り替えや Annotation 移動時は、Doc アノテーション一覧で選択行が可視領域内になるよう自動スクロールする。
 
 ## 6. 保存と確定
 
 - 保存は明示操作で行う。
 - Save / Submit 操作列は中央ペインの右下に置く。
 - Submit ボタンは操作列の右端に置く。
+- `Save` では未保存編集を backend へ同期し、保存確定後は表示上の status を API 応答に合わせて更新する。  
+- 同一 Document が保存前に `verified` だった場合でも、未保存編集分は表示上 `pending` として扱い続ける。
 - Submit の意味は「Document 確定」であり、以下を実行する。
   - Document の `status` を `verified` に更新
   - 配下 Annotation の `status` を全件 `verified` に更新
@@ -198,6 +204,7 @@
 - 適用ルール
   - `input` / `textarea` / `select` フォーカス中はショートカットを無効化する。
   - Doc 検索中の `J/K/Shift+J/Shift+K` は、検索結果一覧の中だけを移動対象にする。
+  - `J/K`、`Shift+J/Shift+K`、`N/P`、`↑/↓` の移動後は、対象リスト上で選択アイテム（Doc/Annotation）が最小移動で可視域内に入ることを保証する。
   - `H/L/←/→` によるLabel切り替え時は、Annotation選択をリセットする。
   - `[ / ]` は右ペインのタブ切り替えに使い、選択中 Annotation は維持する。
   - `N/P` は現在選択中Label内のみを対象とし、未選択状態では先頭（`N`）/末尾（`P`）から開始する。
