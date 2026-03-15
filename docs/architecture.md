@@ -155,6 +155,15 @@ layered-span-studio/
 - Document 一覧のページング状態と表示ウィンドウ
 - 選択中 Document の本文・Annotation 詳細
 
+#### ProjectShell の状態分割方針
+
+- `ProjectShell` は画面遷移、ダイアログ開閉、選択状態などの画面オーケストレーションを担当する。
+- project / document 読み込みと一覧ページング、snapshot 管理は `useProjectBundle` に集約する。
+- 現在開いている Document の Undo / Redo 履歴は `useDocumentHistory` に集約する。
+- Project Settings の Import / Export 状態と実行は `useImportExport` に集約する。
+- 関連例・同一表層事例の取得と一覧状態は `useProjectExamples` に集約する。
+- この分割により、UIイベントの配線とデータ取得・履歴・入出力の責務を分離し、回帰テストを hook 単位で追加しやすくする。
+
 ### 5. バックエンドとの通信
 
 - API呼び出し

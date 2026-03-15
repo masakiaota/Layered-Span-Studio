@@ -154,6 +154,8 @@
 - Project Settings では、現在 project への追記 Import を `.json` ファイル選択で行う。
 - Project Settings の Import は backend の `POST /projects/{project_id}/import` の payload 形式（`project` / `labels` / `documents` / `meta`）と同一にする。
 - Project Settings の Import は append 専用であり、`payload.project.*` によって既存 project 本体は更新しない。
+- Project Settings の Import 前チェックは、画面上の未保存編集ではなく、backend 上に保存済みの label / document 一覧を基準に重複判定する。
+- Project Settings の Import 成功後は、選択済みファイルをクリアし、Workspace / Settings が参照する project bundle を再読込して保存済み状態に揃える。
 - Export は Project Settings から `.json` ファイルとしてダウンロードする。
 - Export JSON は backend の `POST /projects/{project_id}/export` の response 形式（`project` / `labels` / `documents` / `meta`）と同一にする。
 - Export には annotation status フィルタを持たせる（`include_pending` / `include_verified`）。

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api";
 import type { ToastState } from "../../hooks/useToast";
 import type {
@@ -36,6 +36,8 @@ export function useProjectExamples({
   const [sameSurfaceExamplesTotal, setSameSurfaceExamplesTotal] = useState(0);
   const [sameSurfaceExamplesOffset, setSameSurfaceExamplesOffset] = useState(0);
   const [sameSurfaceExamplesLoadingMore, setSameSurfaceExamplesLoadingMore] = useState(false);
+  const sameLabelExamplesRequestIdRef = useRef(0);
+  const sameSurfaceExamplesRequestIdRef = useRef(0);
 
   const sameSurfaceTarget = useMemo(() => {
     return selectionPreview && selectionPreview.text.trim()
@@ -54,10 +56,12 @@ export function useProjectExamples({
   }, [focusedLabel?.id, selectedAnnotation, selectionPreview]);
 
   async function loadSameLabelExamples(reset: boolean) {
+    const requestId = ++sameLabelExamplesRequestIdRef.current;
     if (!focusedLabel || !projectId) {
       setSameLabelExamples([]);
       setSameLabelExamplesTotal(0);
       setSameLabelExamplesOffset(0);
+      setSameLabelExamplesLoadingMore(false);
       return;
     }
     setSameLabelExamplesLoadingMore(true);
@@ -69,6 +73,9 @@ export function useProjectExamples({
         contextWindow: 16,
         excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
       });
+      if (requestId !== sameLabelExamplesRequestIdRef.current) {
+        return;
+      }
       setSameLabelExamples((current) => (reset ? response.items : [...current, ...response.items]));
       setSameLabelExamplesTotal(response.total);
       setSameLabelExamplesOffset(response.offset + response.items.length);
@@ -76,17 +83,23 @@ export function useProjectExamples({
         setSameLabelExampleDetails({});
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "関連例の取得に失敗した", "error");
+      if (requestId === sameLabelExamplesRequestIdRef.current) {
+        showToast(error instanceof Error ? error.message : "関連例の取得に失敗した", "error");
+      }
     } finally {
-      setSameLabelExamplesLoadingMore(false);
+      if (requestId === sameLabelExamplesRequestIdRef.current) {
+        setSameLabelExamplesLoadingMore(false);
+      }
     }
   }
 
   async function loadSameSurfaceExamples(reset: boolean) {
+    const requestId = ++sameSurfaceExamplesRequestIdRef.current;
     if (!sameSurfaceTarget || !projectId) {
       setSameSurfaceExamples([]);
       setSameSurfaceExamplesTotal(0);
       setSameSurfaceExamplesOffset(0);
+      setSameSurfaceExamplesLoadingMore(false);
       return;
     }
     setSameSurfaceExamplesLoadingMore(true);
@@ -100,13 +113,20 @@ export function useProjectExamples({
         limit: EXAMPLES_BATCH_SIZE,
         contextWindow: 16,
       });
+      if (requestId !== sameSurfaceExamplesRequestIdRef.current) {
+        return;
+      }
       setSameSurfaceExamples((current) => (reset ? response.items : [...current, ...response.items]));
       setSameSurfaceExamplesTotal(response.total);
       setSameSurfaceExamplesOffset(response.offset + response.items.length);
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "同一表層事例の取得に失敗した", "error");
+      if (requestId === sameSurfaceExamplesRequestIdRef.current) {
+        showToast(error instanceof Error ? error.message : "同一表層事例の取得に失敗した", "error");
+      }
     } finally {
-      setSameSurfaceExamplesLoadingMore(false);
+      if (requestId === sameSurfaceExamplesRequestIdRef.current) {
+        setSameSurfaceExamplesLoadingMore(false);
+      }
     }
   }
 
