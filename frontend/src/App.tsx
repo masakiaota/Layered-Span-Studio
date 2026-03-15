@@ -18,11 +18,9 @@ import {
 } from "./features/project-shell/projectShellConstants";
 import type { LabelDraft, PendingAction, RightTab, SelectionPreview } from "./features/project-shell/projectShellTypes";
 import {
-  collectDocumentNames,
   createEmptyLabelDraft,
   findConflictingLabelName,
   isHexColor,
-  mergeDocumentWindow,
   normalizeHexColor,
   toLabelDraft,
   toDocumentListItem,
@@ -32,15 +30,13 @@ import { ShortcutPopover } from "./features/project-shell/ShortcutPopover";
 import { useBodyScrollLock } from "./features/project-shell/useBodyScrollLock";
 import { useProjectExamples } from "./features/project-shell/useProjectExamples";
 import { useProjectShortcuts } from "./features/project-shell/useProjectShortcuts";
+import { useDocumentHistory } from "./features/project-shell/useDocumentHistory";
+import { useImportExport } from "./features/project-shell/useImportExport";
+import { useProjectBundle } from "./features/project-shell/useProjectBundle";
 import { sortAnnotationsInPanelOrder } from "./features/workspace/workspaceUtils";
 import { WorkspaceView } from "./features/project-shell/WorkspaceView";
 import { useAuthSession } from "./hooks/useAuthSession";
 import { useToast } from "./hooks/useToast";
-import {
-  buildImportValidationMessage,
-  describeImportSummary,
-  validateImportPayload,
-} from "./importValidation";
 import { LoginPage } from "./pages/LoginPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import type {
@@ -51,16 +47,13 @@ import type {
   UserRecord,
 } from "./types";
 import {
-  buildExportFilename,
   deepClone,
   documentMatchesSearch,
-  downloadJson,
   formatAnnotationMetaDraft,
   getDocumentStatus,
   isLocalId,
   makeLocalId,
   parseAnnotationMetaDraft,
-  readJsonFile,
   setProjectGuideline,
 } from "./utils";
 
@@ -78,18 +71,6 @@ export function ProjectShell({
   const { projectId = "" } = useParams();
   const view: "workspace" | "settings" = location.pathname.endsWith("/settings") ? "settings" : "workspace";
   const { toast, showToast, closeToast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [bundle, setBundle] = useState<ProjectBundle | null>(null);
-  const [settingsSnapshot, setSettingsSnapshot] = useState<Pick<ProjectBundle, "project" | "labels"> | null>(null);
-  const [documentSnapshotsById, setDocumentSnapshotsById] = useState<Record<string, DocumentRecord>>({});
-  const [historyState, setHistoryState] = useState<{ documentId: string | null; entries: DocumentRecord[]; index: number }>({
-    documentId: null,
-    entries: [],
-    index: -1,
-  });
-  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-  const [focusedLabelId, setFocusedLabelId] = useState<string | null>(null);
   const [selectedSettingsLabelId, setSelectedSettingsLabelId] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [selectedAnnotationMetaDraft, setSelectedAnnotationMetaDraft] = useState("");
@@ -98,30 +79,15 @@ export function ProjectShell({
   const [rightTab, setRightTab] = useState<RightTab>("examples");
   const [annotationEditCollapsed, setAnnotationEditCollapsed] = useState(true);
   const [accordionOpen, setAccordionOpen] = useState<Record<string, boolean>>({});
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortMode, setSortMode] = useState("created");
   const [shortcutOpen, setShortcutOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [createDocOpen, setCreateDocOpen] = useState(false);
   const [newDocName, setNewDocName] = useState("");
   const [newDocText, setNewDocText] = useState("");
   const [labelDraft, setLabelDraft] = useState<LabelDraft>(createEmptyLabelDraft);
-  const [settingsImportFile, setSettingsImportFile] = useState<File | null>(null);
-  const [settingsImportFeedback, setSettingsImportFeedback] = useState<{
-    severity: "success" | "info" | "warning" | "error";
-    message: string;
-  } | null>(null);
-  const [settingsImporting, setSettingsImporting] = useState(false);
-  const [exportPending, setExportPending] = useState(true);
-  const [exportVerified, setExportVerified] = useState(true);
-  const [documentList, setDocumentList] = useState<DocumentListItem[]>([]);
-  const [documentTotal, setDocumentTotal] = useState(0);
-  const [pendingDocumentTotal, setPendingDocumentTotal] = useState(0);
-  const [documentNextOffset, setDocumentNextOffset] = useState(0);
-  const [documentsLoadingMore, setDocumentsLoadingMore] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; documentName: string; isCurrent: boolean } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingDocument, setDeletingDocument] = useState(false);
+  const [creatingDocument, setCreatingDocument] = useState(false);
   const shortcutButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingActionConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
   const deleteDocumentConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -130,177 +96,147 @@ export function ProjectShell({
   const sameSurfaceExamplesScrollRef = useRef<HTMLDivElement | null>(null);
   const shortcutDragStateRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const labelColorInputRef = useRef<HTMLInputElement | null>(null);
-  const documentListRequestIdRef = useRef(0);
   const [shortcutPanelOffset, setShortcutPanelOffset] = useState({ x: 0, y: 0 });
   const [shortcutDragging, setShortcutDragging] = useState(false);
-  const initialDocumentListLoadedRef = useRef(false);
+  const {
+    loading,
+    bundle,
+    setBundle,
+    settingsSnapshot,
+    setSettingsSnapshot,
+    selectedDocId,
+    setSelectedDocId,
+    focusedLabelId,
+    setFocusedLabelId,
+    searchQuery,
+    setSearchQuery,
+    sortMode,
+    setSortMode,
+    documentList,
+    setDocumentList,
+    documentTotal,
+    setDocumentTotal,
+    pendingDocumentTotal,
+    setPendingDocumentTotal,
+    documentNextOffset,
+    setDocumentNextOffset,
+    documentsLoadingMore,
+    setDocumentsLoadingMore,
+    currentDocument,
+    currentDocumentLoading,
+    loadBundle,
+    fetchDocumentPage,
+  } = useProjectBundle({
+    token,
+    projectId,
+    showToast,
+    onBundleLoaded: ({ bundle }) => {
+      setSelectedSettingsLabelId(null);
+      setLabelDraft(createEmptyLabelDraft);
+      setFocusedLabelId(bundle.labels[0]?.id ?? null);
+      setAccordionOpen(Object.fromEntries(bundle.labels.map((label) => [label.id, true])));
+    },
+  });
+
+  const {
+    documentSnapshotsById,
+    setDocumentSnapshotsById,
+    historyState,
+    currentDocumentSnapshot,
+    currentDocumentDirty,
+    canUndo,
+    canRedo,
+    setHistoryForDocument,
+    setSavedDocument,
+    removeDocumentState,
+    mutateCurrentDocument,
+    mutateSettingsBundle,
+    undo,
+    redo,
+    restoreCurrentFromSnapshot,
+  } = useDocumentHistory({
+    bundle,
+    currentDocument,
+    setBundle,
+  });
+
+  const settingsDirty = useMemo(() => {
+    if (!bundle || !settingsSnapshot) {
+      return false;
+    }
+    return (
+      JSON.stringify(bundle.project) !== JSON.stringify(settingsSnapshot.project) ||
+      JSON.stringify(bundle.labels) !== JSON.stringify(settingsSnapshot.labels)
+    );
+  }, [bundle, settingsSnapshot]);
+
+  const {
+    saving,
+    pendingAction,
+    setPendingAction,
+    settingsImportFile,
+    setSettingsImportFile,
+    settingsImportFeedback,
+    settingsImporting,
+    exportPending,
+    setExportPending,
+    exportVerified,
+    setExportVerified,
+    requestAction,
+    resolvePendingAction,
+    handleSave,
+    handleSubmit,
+    handleSettingsImport,
+    handleExport,
+  } = useImportExport({
+    token,
+    projectId,
+    view,
+    bundle,
+    dirty: view === "workspace" ? currentDocumentDirty : settingsDirty,
+    isBusy: saving || deletingDocument || creatingDocument,
+    saveCurrentDocument: (successMessage = "保存した", forceVerified = false) =>
+      saveCurrentDocumentImpl(successMessage, forceVerified),
+    saveSettings: saveSettingsImpl,
+    submitCurrentDocument: submitCurrentDocumentImpl,
+    discardCurrent: () => {
+      if (currentDocument && currentDocumentSnapshot) {
+        restoreCurrentFromSnapshot();
+        clearWorkspaceSelection();
+      }
+    },
+    discardSettings: () => {
+      if (bundle && settingsSnapshot) {
+        setBundle((current) =>
+          current
+            ? {
+                ...current,
+                project: deepClone(settingsSnapshot.project),
+                labels: deepClone(settingsSnapshot.labels),
+              }
+            : current,
+        );
+      }
+    },
+    executeAction: executePendingActionFromNavigate,
+    fetchDocumentPage,
+    showToast,
+    loadBundle,
+  });
+
   const normalizedLabelColor = normalizeHexColor(labelDraft.color);
   const labelColorValid = isHexColor(labelDraft.color);
   const labelColorPreview = labelColorValid ? normalizedLabelColor : DEFAULT_LABEL_COLOR;
 
   useBodyScrollLock();
 
-  async function loadBundle() {
-    setLoading(true);
-    const requestId = ++documentListRequestIdRef.current;
-    try {
-      const [project, { labels }, documentsResponse] = await Promise.all([
-        api.getProject(token, projectId),
-        api.listLabels(token, projectId),
-        api.listDocuments(token, projectId, {
-          offset: 0,
-          limit: DOCUMENT_PAGE_SIZE,
-          search: searchQuery,
-          sort: sortMode,
-        }),
-      ]);
-      if (requestId !== documentListRequestIdRef.current) {
-        return;
-      }
-      const firstDocId = documentsResponse.documents[0]?.id ?? null;
-      const loadedDocuments = firstDocId ? [await api.getDocument(token, projectId, firstDocId)] : [];
-      if (requestId !== documentListRequestIdRef.current) {
-        return;
-      }
-      const nextBundle = {
-        project,
-        labels,
-        documents: loadedDocuments,
-      } satisfies ProjectBundle;
-      setBundle(nextBundle);
-      setSettingsSnapshot({
-        project: deepClone(project),
-        labels: deepClone(labels),
-      });
-      setDocumentSnapshotsById(
-        Object.fromEntries(loadedDocuments.map((document) => [document.id, deepClone(document)])),
-      );
-      setHistoryState({
-        documentId: loadedDocuments[0]?.id ?? null,
-        entries: loadedDocuments[0] ? [deepClone(loadedDocuments[0])] : [],
-        index: loadedDocuments[0] ? 0 : -1,
-      });
-      setDocumentList(trimDocumentWindow(documentsResponse.documents, firstDocId));
-      setDocumentTotal(documentsResponse.total);
-      setPendingDocumentTotal(documentsResponse.pending_total);
-      setDocumentNextOffset(documentsResponse.offset + documentsResponse.documents.length);
-      initialDocumentListLoadedRef.current = true;
-      activateDocument(firstDocId);
-      setFocusedLabelId(nextBundle.labels[0]?.id ?? null);
-      setSelectedSettingsLabelId(null);
-      setLabelDraft(createEmptyLabelDraft());
-      setAccordionOpen(Object.fromEntries(nextBundle.labels.map((label) => [label.id, true])));
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Workspace の読み込みに失敗した", "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    void loadBundle();
-  }, [projectId, token]);
-
-  useEffect(() => {
-    if (!bundle || !selectedDocId || bundle.documents.some((document) => document.id === selectedDocId)) {
+    if (!currentDocument || historyState.documentId === currentDocument.id) {
       return;
     }
-    let active = true;
-    void api
-      .getDocument(token, projectId, selectedDocId)
-      .then((document) => {
-        if (!active) {
-          return;
-        }
-        setBundle((current) =>
-          current
-            ? {
-                ...current,
-                documents: [...current.documents.filter((item) => item.id !== document.id), document],
-              }
-            : current,
-        );
-        setDocumentSnapshotsById((current) => ({
-          ...current,
-          [document.id]: deepClone(document),
-        }));
-      })
-      .catch((error) => {
-        if (active) {
-          showToast(error instanceof Error ? error.message : "Document の取得に失敗した", "error");
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [bundle, projectId, selectedDocId, token]);
-
-  async function fetchDocumentPage(
-    reset: boolean,
-    selectedIdOverride?: string | null,
-  ): Promise<DocumentListItem[]> {
-    const requestId = ++documentListRequestIdRef.current;
-    if (!reset) {
-      setDocumentsLoadingMore(true);
-    }
-    try {
-      const response = await api.listDocuments(token, projectId, {
-        offset: reset ? 0 : documentNextOffset,
-        limit: DOCUMENT_PAGE_SIZE,
-        search: searchQuery,
-        sort: sortMode,
-      });
-      if (requestId !== documentListRequestIdRef.current) {
-        return [];
-      }
-      setDocumentTotal(response.total);
-      setPendingDocumentTotal(response.pending_total);
-      setDocumentNextOffset(response.offset + response.documents.length);
-      setDocumentList((current) =>
-        reset
-          ? trimDocumentWindow(response.documents, selectedIdOverride ?? selectedDocId)
-          : mergeDocumentWindow(current, response.documents, selectedIdOverride ?? selectedDocId),
-      );
-      return response.documents;
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Document 一覧の取得に失敗した", "error");
-      return [];
-    } finally {
-      setDocumentsLoadingMore(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!bundle || !initialDocumentListLoadedRef.current) {
-      return;
-    }
-    void fetchDocumentPage(true);
-  }, [searchQuery, sortMode]);
-
-  useEffect(() => {
-    if (!bundle) {
-      return;
-    }
-    setDocumentList((current) =>
-      current.map((item) => {
-        const loaded = bundle.documents.find((document) => document.id === item.id);
-        return loaded ? toDocumentListItem(loaded) : item;
-      }),
-    );
-  }, [bundle]);
-
-  const currentDocument = useMemo(() => {
-    if (!bundle) {
-      return null;
-    }
-    if (selectedDocId) {
-      return bundle.documents.find((document) => document.id === selectedDocId) ?? null;
-    }
-    return bundle.documents[0] ?? null;
-  }, [bundle, selectedDocId]);
-  const currentDocumentLoading = Boolean(selectedDocId && !currentDocument);
-  const currentDocumentSnapshot = currentDocument ? documentSnapshotsById[currentDocument.id] ?? null : null;
-  const workspaceBusy = saving || deletingDocument;
+    setHistoryForDocument(currentDocumentSnapshot ?? currentDocument);
+  }, [currentDocument, currentDocumentSnapshot, historyState.documentId, setHistoryForDocument]);
+  const workspaceBusy = saving || deletingDocument || creatingDocument;
 
   const focusedLabel = useMemo(
     () => bundle?.labels.find((label) => label.id === focusedLabelId) ?? bundle?.labels[0] ?? null,
@@ -342,21 +278,6 @@ export function ProjectShell({
     selectionPreview,
     showToast,
   });
-  const settingsDirty = useMemo(() => {
-    if (!bundle || !settingsSnapshot) {
-      return false;
-    }
-    return (
-      JSON.stringify(bundle.project) !== JSON.stringify(settingsSnapshot.project) ||
-      JSON.stringify(bundle.labels) !== JSON.stringify(settingsSnapshot.labels)
-    );
-  }, [bundle, settingsSnapshot]);
-  const currentDocumentDirty = useMemo(() => {
-    if (!currentDocument || !currentDocumentSnapshot) {
-      return false;
-    }
-    return JSON.stringify(currentDocument) !== JSON.stringify(currentDocumentSnapshot);
-  }, [currentDocument, currentDocumentSnapshot]);
   const dirty = view === "workspace" ? currentDocumentDirty : settingsDirty;
   const getDisplayDocumentStatus = (document: DocumentListItem) => {
     if (currentDocument?.id === document.id && currentDocumentDirty && currentDocument?.status === "verified") {
@@ -372,16 +293,6 @@ export function ProjectShell({
       currentDocument?.status === "verified" && currentDocumentDirty && !currentHiddenBySearch ? 1 : 0;
     return pendingDocumentTotal + localOffset;
   }, [currentDocument?.status, currentDocumentDirty, currentHiddenBySearch, pendingDocumentTotal]);
-  const canUndo =
-    view === "workspace" &&
-    historyState.documentId === currentDocument?.id &&
-    historyState.index > 0;
-  const canRedo =
-    view === "workspace" &&
-    historyState.documentId === currentDocument?.id &&
-    historyState.index >= 0 &&
-    historyState.index < historyState.entries.length - 1;
-
   const pinnedCurrentDocument = useMemo(() => {
     if (!currentDocument) {
       return null;
@@ -399,17 +310,6 @@ export function ProjectShell({
     () => (pinnedCurrentDocument ? [pinnedCurrentDocument, ...documentList] : documentList),
     [documentList, pinnedCurrentDocument],
   );
-
-  useEffect(() => {
-    if (!currentDocument || historyState.documentId === currentDocument.id) {
-      return;
-    }
-    setHistoryState({
-      documentId: currentDocument.id,
-      entries: [deepClone(currentDocumentSnapshot ?? currentDocument)],
-      index: 0,
-    });
-  }, [currentDocument, currentDocumentSnapshot, historyState.documentId]);
 
   function handleShortcutPanelToggle() {
     setShortcutOpen((current) => !current);
@@ -463,8 +363,8 @@ export function ProjectShell({
     onToggleShortcutPanel: handleShortcutPanelToggle,
     onSave: () => void handleSave(),
     onSubmit: () => void handleSubmit(),
-    onUndo: undoBundle,
-    onRedo: redoBundle,
+    onUndo: undo,
+    onRedo: redo,
     onMoveDocument: moveDocumentByDirection,
     onMoveLabel: moveLabelByDirection,
     onMoveRightTab: moveRightPanelTabByDirection,
@@ -493,98 +393,6 @@ export function ProjectShell({
     return () => cancelAnimationFrame(focusTimer);
   }, [deleteDialogOpen, deleteTarget]);
 
-  function mutateCurrentDocument(mutator: (draft: DocumentRecord) => void) {
-    if (!bundle || !currentDocument) {
-      return;
-    }
-    const draft = deepClone(currentDocument);
-    mutator(draft);
-    if (JSON.stringify(draft) === JSON.stringify(currentDocument)) {
-      return;
-    }
-    setBundle((current) =>
-      current
-        ? {
-            ...current,
-            documents: current.documents.map((document) => (document.id === draft.id ? draft : document)),
-          }
-        : current,
-    );
-    setHistoryState((current) => {
-      const nextEntries =
-        current.documentId === draft.id ? current.entries.slice(0, current.index + 1) : [];
-      nextEntries.push(deepClone(draft));
-      const cappedEntries = nextEntries.length > 50 ? nextEntries.slice(nextEntries.length - 50) : nextEntries;
-      return {
-        documentId: draft.id,
-        entries: cappedEntries,
-        index: cappedEntries.length - 1,
-      };
-    });
-  }
-
-  function mutateSettingsBundle(mutator: (draft: ProjectBundle) => void) {
-    if (!bundle) {
-      return;
-    }
-    const draft = deepClone(bundle);
-    mutator(draft);
-    const currentState = JSON.stringify({ project: bundle.project, labels: bundle.labels });
-    const nextState = JSON.stringify({ project: draft.project, labels: draft.labels });
-    if (currentState === nextState) {
-      return;
-    }
-    setBundle((current) =>
-      current
-        ? {
-            ...current,
-            project: draft.project,
-            labels: draft.labels,
-          }
-        : current,
-    );
-  }
-
-  function undoBundle() {
-    if (!canUndo || !currentDocument) {
-      return;
-    }
-    const nextIndex = historyState.index - 1;
-    const nextDocument = historyState.entries[nextIndex];
-    if (!nextDocument) {
-      return;
-    }
-    setBundle((current) =>
-      current
-        ? {
-            ...current,
-            documents: current.documents.map((document) => (document.id === nextDocument.id ? deepClone(nextDocument) : document)),
-          }
-        : current,
-    );
-    setHistoryState((current) => ({ ...current, index: nextIndex }));
-  }
-
-  function redoBundle() {
-    if (!canRedo || !currentDocument) {
-      return;
-    }
-    const nextIndex = historyState.index + 1;
-    const nextDocument = historyState.entries[nextIndex];
-    if (!nextDocument) {
-      return;
-    }
-    setBundle((current) =>
-      current
-        ? {
-            ...current,
-            documents: current.documents.map((document) => (document.id === nextDocument.id ? deepClone(nextDocument) : document)),
-          }
-        : current,
-    );
-    setHistoryState((current) => ({ ...current, index: nextIndex }));
-  }
-
   function buildDocumentBundlePayload(document: DocumentRecord, forceVerified: boolean) {
     return document.annotations.map((annotation) => ({
       id: isLocalId(annotation.id) ? null : annotation.id,
@@ -598,31 +406,14 @@ export function ProjectShell({
     }));
   }
 
-  async function saveCurrentDocument(successMessage: string | null = "保存した", forceVerified = false) {
+  async function saveCurrentDocumentImpl(successMessage: string | null = "保存した", forceVerified = false) {
     if (!bundle || !currentDocument) {
       return null;
     }
-    setSaving(true);
     try {
       const payload = buildDocumentBundlePayload(currentDocument, forceVerified);
       const savedDocument = await api.saveDocumentBundle(token, bundle.project.id, currentDocument.id, payload, forceVerified);
-      setBundle((current) =>
-        current
-          ? {
-              ...current,
-              documents: current.documents.map((document) => (document.id === savedDocument.id ? savedDocument : document)),
-            }
-          : current,
-      );
-      setDocumentSnapshotsById((current) => ({
-        ...current,
-        [savedDocument.id]: deepClone(savedDocument),
-      }));
-      setHistoryState({
-        documentId: savedDocument.id,
-        entries: [deepClone(savedDocument)],
-        index: 0,
-      });
+      setSavedDocument(savedDocument);
       clearWorkspaceSelection();
       if (successMessage) {
         showToast(successMessage, "success");
@@ -631,16 +422,13 @@ export function ProjectShell({
     } catch (error) {
       showToast(error instanceof Error ? error.message : "保存に失敗した", "error");
       return null;
-    } finally {
-      setSaving(false);
     }
   }
 
-  async function saveSettings(successMessage: string | null = "保存した") {
+  async function saveSettingsImpl(successMessage: string | null = "保存した") {
     if (!bundle || !settingsSnapshot) {
       return null;
     }
-    setSaving(true);
     try {
       const projectDirty = JSON.stringify(bundle.project) !== JSON.stringify(settingsSnapshot.project);
       const labelsDirty = JSON.stringify(bundle.labels) !== JSON.stringify(settingsSnapshot.labels);
@@ -712,19 +500,11 @@ export function ProjectShell({
                 }
               : {},
           );
-          setHistoryState(
-            refreshedCurrentDocument
-              ? {
-                  documentId: refreshedCurrentDocument.id,
-                  entries: [deepClone(refreshedCurrentDocument)],
-                  index: 0,
-                }
-              : {
-                  documentId: null,
-                  entries: [],
-                  index: -1,
-                },
-          );
+          if (refreshedCurrentDocument) {
+            setSavedDocument(refreshedCurrentDocument);
+          } else {
+            setHistoryForDocument(null);
+          }
           if (selectedSettingsLabel) {
             const persistedSelectedLabel = savedLabels.find((label) => label.name === selectedSettingsLabel.name) ?? null;
             setSelectedSettingsLabelId(persistedSelectedLabel?.id ?? null);
@@ -753,8 +533,6 @@ export function ProjectShell({
     } catch (error) {
       showToast(error instanceof Error ? error.message : "保存に失敗した", "error");
       return null;
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -864,14 +642,14 @@ export function ProjectShell({
     clearWorkspaceSelection();
   }
 
-  async function handleSave() {
+  async function handleSaveImpl() {
     if (deletingDocument) {
       return null;
     }
     if (view === "settings") {
-      return saveSettings();
+      return saveSettingsImpl();
     }
-    const savedDocument = await saveCurrentDocument();
+    const savedDocument = await saveCurrentDocumentImpl();
     if (!savedDocument) {
       return null;
     }
@@ -879,11 +657,11 @@ export function ProjectShell({
     return savedDocument;
   }
 
-  async function handleSubmit() {
+  async function submitCurrentDocumentImpl() {
     if (!bundle || !currentDocument || view !== "workspace" || deletingDocument) {
       return;
     }
-    const savedDocument = await saveCurrentDocument(null, true);
+    const savedDocument = await saveCurrentDocumentImpl(null, true);
     if (!savedDocument) {
       return;
     }
@@ -901,7 +679,7 @@ export function ProjectShell({
     showToast("Document を submit した", "success");
   }
 
-  function executePendingAction(action: PendingAction) {
+  function executePendingActionFromNavigate(action: PendingAction) {
     if (action.type === "doc") {
       activateDocument(action.docId);
       return;
@@ -946,31 +724,8 @@ export function ProjectShell({
   }
 
   function removeDocumentFromLocalState(deletedId: string) {
-    setBundle((current) => {
-      if (!current) {
-        return current;
-      }
-      const remainingDocuments = current.documents.filter((document) => document.id !== deletedId);
-      return {
-        ...current,
-        documents: remainingDocuments,
-      };
-    });
+    removeDocumentState(deletedId);
     setDocumentList((current) => current.filter((document) => document.id !== deletedId));
-    setDocumentSnapshotsById((current) => {
-      const nextSnapshots = { ...current };
-      delete nextSnapshots[deletedId];
-      return nextSnapshots;
-    });
-    setHistoryState((current) =>
-      current.documentId === deletedId
-        ? {
-            documentId: null,
-            entries: [],
-            index: -1,
-          }
-        : current,
-    );
   }
 
   function applyDeletionResult({
@@ -996,15 +751,7 @@ export function ProjectShell({
               }
             : current,
         );
-        setDocumentSnapshotsById((current) => ({
-          ...current,
-          [nextDocument.id]: deepClone(nextDocument),
-        }));
-        setHistoryState({
-          documentId: nextDocument.id,
-          entries: [deepClone(nextDocument)],
-          index: 0,
-        });
+        setSavedDocument(nextDocument);
       }
       activateDocument(nextSelectedId);
     }
@@ -1055,59 +802,6 @@ export function ProjectShell({
     }
   }
 
-  function requestAction(action: PendingAction) {
-    if (dirty) {
-      setPendingAction(action);
-      return;
-    }
-    executePendingAction(action);
-  }
-
-  async function resolvePendingAction(mode: "save" | "discard") {
-    if (!pendingAction) {
-      return;
-    }
-    const action = pendingAction;
-    if (mode === "save") {
-      const saved = await handleSave();
-      if (!saved) {
-        return;
-      }
-      setPendingAction(null);
-      executePendingAction(action);
-      return;
-    }
-    setPendingAction(null);
-    if (view === "workspace" && currentDocument && currentDocumentSnapshot) {
-      const restoredDocument = deepClone(currentDocumentSnapshot);
-      setBundle((current) =>
-        current
-          ? {
-              ...current,
-              documents: current.documents.map((document) => (document.id === restoredDocument.id ? restoredDocument : document)),
-            }
-          : current,
-      );
-      setHistoryState({
-        documentId: restoredDocument.id,
-        entries: [deepClone(restoredDocument)],
-        index: 0,
-      });
-      clearWorkspaceSelection();
-    } else if (view === "settings" && bundle && settingsSnapshot) {
-      setBundle((current) =>
-        current
-          ? {
-              ...current,
-              project: deepClone(settingsSnapshot.project),
-              labels: deepClone(settingsSnapshot.labels),
-            }
-          : current,
-      );
-    }
-    executePendingAction(action);
-  }
-
   function handleCreateAnnotation(start: number, end: number, text: string) {
     if (!bundle || !currentDocument || !focusedLabel) {
       return;
@@ -1150,7 +844,7 @@ export function ProjectShell({
     if (!newDocName.trim() || !newDocText.trim()) {
       return;
     }
-    setSaving(true);
+    setCreatingDocument(true);
     try {
       const created = await api.createDocument(token, bundle.project.id, {
         document_name: newDocName.trim(),
@@ -1185,90 +879,7 @@ export function ProjectShell({
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Document の作成に失敗した", "error");
     } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSettingsImport() {
-    if (!settingsImportFile || !bundle || settingsImporting) {
-      return;
-    }
-    setSettingsImporting(true);
-    try {
-      const payload = await readJsonFile(settingsImportFile);
-      const basicValidation = validateImportPayload(payload);
-      if (basicValidation.issues.length > 0) {
-        const message = buildImportValidationMessage(basicValidation.issues);
-        setSettingsImportFeedback({ severity: "error", message });
-        showToast("Import 前チェックで問題を検出した", "error");
-        return;
-      }
-
-      const [{ labels: persistedLabels }, firstPageResponse] = await Promise.all([
-        api.listLabels(token, bundle.project.id),
-        api.listDocuments(token, bundle.project.id, {
-          offset: 0,
-          limit: DOCUMENT_PAGE_SIZE,
-          sort: "created",
-          search: "",
-        }),
-      ]);
-      const existingDocumentNames = await collectDocumentNames(
-        firstPageResponse.total,
-        DOCUMENT_PAGE_SIZE,
-        (offset, limit) => {
-          if (offset === 0) {
-            return Promise.resolve(firstPageResponse);
-          }
-          return api.listDocuments(token, bundle.project.id, {
-            offset,
-            limit,
-            sort: "created",
-            search: "",
-          });
-        },
-      );
-      const validation = validateImportPayload(payload, {
-        existingLabelNames: persistedLabels.map((label) => label.name),
-        existingDocumentNames,
-      });
-      if (validation.issues.length > 0) {
-        const message = buildImportValidationMessage(validation.issues);
-        setSettingsImportFeedback({ severity: "error", message });
-        showToast("Import 前チェックで問題を検出した", "error");
-        return;
-      }
-      await api.importProject(token, bundle.project.id, payload);
-      setSettingsImportFeedback({
-        severity: "success",
-        message: `Import 完了: ${describeImportSummary(
-          validation.summary ?? { labelCount: 0, documentCount: 0, annotationCount: 0 },
-        )}`,
-      });
-      showToast("現在の project に import した", "success");
-      setSettingsImportFile(null);
-      await loadBundle();
-    } catch (error) {
-      setSettingsImportFeedback({
-        severity: "error",
-        message: error instanceof Error ? error.message : "Import に失敗した",
-      });
-      showToast(error instanceof Error ? error.message : "Import に失敗した", "error");
-    } finally {
-      setSettingsImporting(false);
-    }
-  }
-
-  async function handleExport() {
-    if (!bundle) {
-      return;
-    }
-    try {
-      const payload = await api.exportProject(token, bundle.project.id, exportPending, exportVerified);
-      downloadJson(buildExportFilename(bundle.project), payload);
-      showToast("Export を開始した", "success");
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Export に失敗した", "error");
+      setCreatingDocument(false);
     }
   }
 
@@ -1545,7 +1156,6 @@ export function ProjectShell({
             onDeleteLabel={handleDeleteLabel}
             onImportFileChange={(file) => {
               setSettingsImportFile(file);
-              setSettingsImportFeedback(null);
             }}
             onImport={() => void handleSettingsImport()}
             onExportPendingChange={setExportPending}
