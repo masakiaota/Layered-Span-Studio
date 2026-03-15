@@ -1,0 +1,55 @@
+{
+  "project": {
+    "name": "Layered Span Studio クイックスタート",
+    "description": "導入直後にデモプロジェクトとして読み込むためのサンプル",
+    "meta": {
+      "seed": "quickstart"
+    }
+  },
+  "labels": [
+    {
+      "name": "症状",
+      "color": "#D32F2F",
+      "description": "症状や状態の表現"
+    },
+    {
+      "name": "薬剤",
+      "color": "#1E88E5",
+      "description": "薬剤名や処方名"
+    }
+  ],
+  "documents": [
+    {
+      "document_name": "sample_document_001.txt",
+      "text": "The sample shows headache and aspirin with overlapping spans.",
+      "status": "pending",
+      "created_at": "2026-03-15T00:00:00Z",
+      "updated_at": "2026-03-15T00:00:10Z",
+      "annotations": [
+        {
+          "label_name": "症状",
+          "start": 17,
+          "end": 25,
+          "span_text": "headache",
+          "comment": "",
+          "status": "pending"
+        },
+        {
+          "label_name": "薬剤",
+          "start": 30,
+          "end": 37,
+          "span_text": "aspirin",
+          "comment": "",
+          "status": "pending"
+        }
+      ],
+      "meta": {
+        "source": "quickstart"
+      }
+    }
+  ],
+  "meta": {
+    "format": "layered-span-studio/export",
+    "version": "1.0"
+  }
+}
