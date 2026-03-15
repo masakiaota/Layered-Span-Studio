@@ -6,8 +6,6 @@
 
 ## High
 
-- 新しいアノテーションを追加(→ アノテにpendingが存在) したときにdocがverifiedからpendingにならない。そのため、frontでも本来pendingのハズのdocがverifiedのままになっている。少なくともfrontでは即時反映されてない。
-- shortcut使用時、docがスクロール追従しない。(関連のスクロール追従問題がないかも調査せよ)
 - 認証方式を `localStorage + Bearer JWT` から見直す
   - Browser 向けは `HttpOnly Cookie` ベースのサーバセッション方式を第一候補として検討する
   - CLI や API クライアントからの利用を維持するため、Bearer JWT の併用可否も含めて設計する
