@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -41,6 +41,13 @@ import type {
   StatusValue,
 } from "../../types";
 import { getDocumentSnippetParts, groupAnnotationsByLabel } from "../../utils";
+
+function scrollRowIntoView(row: Element | null) {
+  if (!row || typeof row.scrollIntoView !== "function") {
+    return;
+  }
+  row.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
 
 export function WorkspaceView({
   bundle,
@@ -141,7 +148,7 @@ export function WorkspaceView({
   sameSurfaceExamplesLoadingMore: boolean;
   sameSurfaceExamplesScrollRef: React.Ref<HTMLDivElement>;
   sameSurfaceTargetLabelId: string | null;
-  getDisplayDocumentStatus: (document: Pick<DocumentListItem, "id" | "status">) => StatusValue;
+  getDisplayDocumentStatus: (document: DocumentListItem) => StatusValue;
   dirty: boolean;
   saving: boolean;
   onOpenCreateDocument: () => void;
@@ -169,11 +176,24 @@ export function WorkspaceView({
   onDeleteSelectedAnnotation: () => void;
   onToggleAnnotationGroup: (labelId: string) => void;
 }) {
-  const groupedAnnotations = currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : [];
+  const groupedAnnotations = useMemo(
+    () => (currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : []),
+    [currentDocument, bundle.labels],
+  );
   const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
   const [focusedDocumentId, setFocusedDocumentId] = useState<string | null>(null);
   const documentRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const annotationRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const annotationOrderKey = useMemo(() => {
+    return groupedAnnotations
+      .map(
+        (group) =>
+          `${group.label.id}:${group.annotations
+            .map((annotation) => `${annotation.id}:${annotation.start}:${annotation.end}`)
+            .join(",")}`,
+      )
+      .join("|");
+  }, [groupedAnnotations]);
 
   useEffect(() => {
     setFocusedDocumentId((current) => (current && current !== selectedDocumentId ? null : current));
@@ -183,23 +203,15 @@ export function WorkspaceView({
     if (!selectedDocumentId) {
       return;
     }
-    const row = documentRowRefs.current[selectedDocumentId];
-    if (!row) {
-      return;
-    }
-    row.scrollIntoView({ block: "nearest", inline: "nearest" });
+    scrollRowIntoView(documentRowRefs.current[selectedDocumentId]);
   }, [selectedDocumentId, visibleDocuments]);
 
   useEffect(() => {
     if (!selectedAnnotationId) {
       return;
     }
-    const row = annotationRowRefs.current[selectedAnnotationId];
-    if (!row) {
-      return;
-    }
-    row.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [selectedAnnotationId, groupedAnnotations]);
+    scrollRowIntoView(annotationRowRefs.current[selectedAnnotationId]);
+  }, [selectedAnnotationId, annotationOrderKey]);
 
   return (
     <>

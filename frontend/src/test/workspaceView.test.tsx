@@ -151,7 +151,7 @@ function createProps(overrides: Partial<WorkspaceViewProps> = {}): WorkspaceView
     sameSurfaceExamplesLoadingMore: false,
     sameSurfaceExamplesScrollRef: { current: null },
     sameSurfaceTargetLabelId: null,
-    getDisplayDocumentStatus: (document: Pick<DocumentListItem, "id" | "status">) => document.status,
+    getDisplayDocumentStatus: (document: DocumentListItem) => document.status,
     dirty: false,
     saving: false,
     onOpenCreateDocument: vi.fn(),

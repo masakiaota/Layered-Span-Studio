@@ -358,7 +358,7 @@ export function ProjectShell({
     return JSON.stringify(currentDocument) !== JSON.stringify(currentDocumentSnapshot);
   }, [currentDocument, currentDocumentSnapshot]);
   const dirty = view === "workspace" ? currentDocumentDirty : settingsDirty;
-  const getDisplayDocumentStatus = (document: Pick<DocumentListItem, "id" | "status">) => {
+  const getDisplayDocumentStatus = (document: DocumentListItem) => {
     if (currentDocument?.id === document.id && currentDocumentDirty && currentDocument?.status === "verified") {
       return "pending";
     }
