@@ -161,6 +161,8 @@ export function useProjectBundle({
       : null;
     if (!reset) {
       setDocumentsLoadingMore(true);
+    } else {
+      setDocumentsLoadingMore(false);
     }
     try {
       const response = await api.listDocuments(token, projectId, {

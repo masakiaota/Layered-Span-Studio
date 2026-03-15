@@ -490,4 +490,90 @@ describe("useProjectBundle", () => {
 
     expect(result.current.documentsLoadingMore).toBe(false);
   });
+
+  it("clears documentsLoadingMore when a reset request supersedes pagination", async () => {
+    const loadMoreDeferred = createDeferred<{
+      documents: DocumentListItem[];
+      total: number;
+      pending_total: number;
+      offset: number;
+      limit: number;
+      search: string;
+      sort: string;
+    }>();
+    const resetDeferred = createDeferred<{
+      documents: DocumentListItem[];
+      total: number;
+      pending_total: number;
+      offset: number;
+      limit: number;
+      search: string;
+      sort: string;
+    }>();
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [createDocumentListItem()],
+        total: 2,
+        pending_total: 2,
+        offset: 0,
+        limit: 20,
+        search: "",
+        sort: "created",
+      })
+      .mockReturnValueOnce(loadMoreDeferred.promise)
+      .mockReturnValueOnce(resetDeferred.promise);
+    vi.spyOn(api, "getDocument").mockResolvedValue(createDocument());
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast: makeShowToast(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+
+    act(() => {
+      void result.current.fetchDocumentPage(false);
+    });
+
+    expect(result.current.documentsLoadingMore).toBe(true);
+
+    act(() => {
+      void result.current.fetchDocumentPage(true);
+    });
+
+    expect(result.current.documentsLoadingMore).toBe(false);
+
+    resetDeferred.resolve({
+      documents: [createDocumentListItem()],
+      total: 2,
+      pending_total: 2,
+      offset: 0,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+    loadMoreDeferred.resolve({
+      documents: [createDocumentListItem({ id: "doc-2", document_name: "Doc 2" })],
+      total: 2,
+      pending_total: 2,
+      offset: 1,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+
+    await act(async () => {
+      await Promise.allSettled([resetDeferred.promise, loadMoreDeferred.promise]);
+    });
+  });
 });
