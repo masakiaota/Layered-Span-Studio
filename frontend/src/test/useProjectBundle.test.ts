@@ -553,6 +553,106 @@ describe("useProjectBundle", () => {
     expect(result.current.bundle?.project.name).toBe("Reloaded Project");
   });
 
+  it("ignores stale pagination responses after loadBundle reloads the list", async () => {
+    const stalePageDeferred = createDeferred<{
+      documents: DocumentListItem[];
+      total: number;
+      pending_total: number;
+      offset: number;
+      limit: number;
+      search: string;
+      sort: string;
+    }>();
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [createDocumentListItem({ id: "doc-1", document_name: "Doc 1" })],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: 20,
+        search: "",
+        sort: "created",
+      })
+      .mockReturnValueOnce(stalePageDeferred.promise)
+      .mockResolvedValueOnce({
+        documents: [
+          createDocumentListItem({ id: "doc-2", document_name: "Imported Doc" }),
+          createDocumentListItem({ id: "doc-1", document_name: "Doc 1" }),
+        ],
+        total: 2,
+        pending_total: 2,
+        offset: 0,
+        limit: 20,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument")
+      .mockResolvedValueOnce(createDocument({ id: "doc-1", document_name: "Doc 1" }))
+      .mockResolvedValueOnce(createDocument({ id: "doc-2", document_name: "Imported Doc" }));
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast: makeShowToast(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+
+    let stalePagination!: Promise<DocumentListItem[]>;
+    let reloadingPromise!: Promise<void>;
+
+    act(() => {
+      stalePagination = result.current.fetchDocumentPage(false);
+    });
+
+    expect(result.current.documentsLoadingMore).toBe(true);
+
+    act(() => {
+      reloadingPromise = result.current.loadBundle();
+    });
+
+    await act(async () => {
+      await reloadingPromise;
+    });
+
+    expect(result.current.documentsLoadingMore).toBe(false);
+    expect(result.current.documentList.map((document) => document.id)).toEqual([
+      "doc-2",
+      "doc-1",
+    ]);
+    expect(result.current.documentTotal).toBe(2);
+
+    stalePageDeferred.resolve({
+      documents: [createDocumentListItem({ id: "doc-3", document_name: "Stale Doc" })],
+      total: 3,
+      pending_total: 3,
+      offset: 1,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+
+    await act(async () => {
+      await stalePagination;
+    });
+
+    expect(result.current.documentList.map((document) => document.id)).toEqual([
+      "doc-2",
+      "doc-1",
+    ]);
+    expect(result.current.documentTotal).toBe(2);
+    expect(result.current.pendingDocumentTotal).toBe(2);
+  });
+
   it("keeps documentsLoadingMore true while a newer pagination request is still pending", async () => {
     const firstPageDeferred = createDeferred<{
       documents: DocumentListItem[];

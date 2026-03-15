@@ -50,6 +50,9 @@ export function useProjectBundle({
 
   async function loadBundle(onLoaded?: OnBundleLoaded) {
     setLoading(true);
+    documentListRequestIdRef.current += 1;
+    documentLoadMoreRequestIdRef.current += 1;
+    setDocumentsLoadingMore(false);
     const loadRequestId = ++bundleLoadRequestIdRef.current;
     try {
       const [project, { labels }, documentsResponse] = await Promise.all([
