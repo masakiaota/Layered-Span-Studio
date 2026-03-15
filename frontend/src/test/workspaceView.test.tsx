@@ -68,6 +68,18 @@ const initialDocuments: DocumentListItem[] = [
   },
 ];
 
+const hiddenDocument: DocumentListItem = {
+  id: "doc-4",
+  project_id: "project-1",
+  project_name: "Medical NER",
+  document_name: "Doc 4",
+  text: "Hidden document",
+  status: "verified",
+  created_at: "2026-03-04T00:00:00Z",
+  updated_at: "2026-03-04T00:00:00Z",
+  meta: {},
+};
+
 const annotationCurrentDocument: DocumentRecord = {
   id: "doc-1",
   project_id: "project-1",
@@ -182,7 +194,7 @@ function createProps(overrides: Partial<WorkspaceViewProps> = {}): WorkspaceView
 }
 
 describe("WorkspaceView", () => {
-  it("scrolls the selected document row into view when selected id or visible rows change", () => {
+  it("scrolls the selected document row when selection changes or the row becomes visible", () => {
     const scrollIntoView = vi.fn();
     const original = window.HTMLElement.prototype.scrollIntoView;
     window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
@@ -197,7 +209,17 @@ describe("WorkspaceView", () => {
       expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
       expect(scrollIntoView).toHaveBeenCalledTimes(1);
 
-      rerender(<WorkspaceView {...createProps({ selectedDocumentId: "doc-2", visibleDocuments: [...initialDocuments].reverse() })} />);
+      rerender(<WorkspaceView {...createProps({ selectedDocumentId: "doc-4", visibleDocuments: initialDocuments })} />);
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+
+      rerender(
+        <WorkspaceView
+          {...createProps({
+            selectedDocumentId: "doc-4",
+            visibleDocuments: [...initialDocuments, hiddenDocument],
+          })}
+        />,
+      );
       expect(scrollIntoView).toHaveBeenCalledTimes(2);
       expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest", inline: "nearest" });
     } finally {
@@ -205,7 +227,7 @@ describe("WorkspaceView", () => {
     }
   });
 
-  it("scrolls the selected annotation row when selection or list changes", () => {
+  it("scrolls the selected annotation row when selection changes or the tab becomes visible", () => {
     const scrollIntoView = vi.fn();
     const original = window.HTMLElement.prototype.scrollIntoView;
     window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
@@ -215,12 +237,6 @@ describe("WorkspaceView", () => {
         selectedDocumentId: "doc-1",
         currentDocument: annotationCurrentDocument,
         visibleDocuments: [initialDocuments[0]],
-        rightTab: "annotations",
-      };
-
-      const reorderedDocument = {
-        ...annotationCurrentDocument,
-        annotations: [...annotationCurrentDocument.annotations].reverse(),
       };
 
       const { rerender } = render(
@@ -230,19 +246,22 @@ describe("WorkspaceView", () => {
             documentTotal: 1,
             selectedAnnotationId: "ann-1",
             selectedAnnotation: annotationCurrentDocument.annotations[0],
+            rightTab: "examples",
           })}
         />,
       );
 
       scrollIntoView.mockClear();
+      expect(scrollIntoView).not.toHaveBeenCalled();
 
       rerender(
         <WorkspaceView
           {...createProps({
             ...annotationListProps,
             documentTotal: 1,
-            selectedAnnotationId: "ann-2",
-            selectedAnnotation: annotationCurrentDocument.annotations[1],
+            selectedAnnotationId: "ann-1",
+            selectedAnnotation: annotationCurrentDocument.annotations[0],
+            rightTab: "annotations",
           })}
         />,
       );
@@ -255,8 +274,8 @@ describe("WorkspaceView", () => {
             ...annotationListProps,
             documentTotal: 1,
             selectedAnnotationId: "ann-2",
-            currentDocument: reorderedDocument,
-            selectedAnnotation: reorderedDocument.annotations[0],
+            selectedAnnotation: annotationCurrentDocument.annotations[1],
+            rightTab: "annotations",
           })}
         />,
       );

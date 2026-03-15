@@ -364,10 +364,14 @@ export function ProjectShell({
     }
     return getDocumentStatus(document);
   };
+  const currentHiddenBySearch = Boolean(
+    currentDocument && searchQuery.trim() && !documentMatchesSearch(currentDocument, searchQuery),
+  );
   const displayedPendingDocumentTotal = useMemo(() => {
-    const localOffset = currentDocument?.status === "verified" && currentDocumentDirty ? 1 : 0;
+    const localOffset =
+      currentDocument?.status === "verified" && currentDocumentDirty && !currentHiddenBySearch ? 1 : 0;
     return pendingDocumentTotal + localOffset;
-  }, [currentDocument?.status, currentDocumentDirty, pendingDocumentTotal]);
+  }, [currentDocument?.status, currentDocumentDirty, currentHiddenBySearch, pendingDocumentTotal]);
   const canUndo =
     view === "workspace" &&
     historyState.documentId === currentDocument?.id &&
@@ -377,10 +381,6 @@ export function ProjectShell({
     historyState.documentId === currentDocument?.id &&
     historyState.index >= 0 &&
     historyState.index < historyState.entries.length - 1;
-
-  const currentHiddenBySearch = Boolean(
-    currentDocument && searchQuery.trim() && !documentMatchesSearch(currentDocument, searchQuery),
-  );
 
   const pinnedCurrentDocument = useMemo(() => {
     if (!currentDocument) {

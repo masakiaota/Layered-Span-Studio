@@ -296,4 +296,51 @@ describe("ProjectShell submit behavior", () => {
     expect(await screen.findByText("0 pending / 1 docs")).toBeInTheDocument();
     expect(within(getDocumentRow("Doc 1")).getByText("verified")).toBeInTheDocument();
   });
+
+  it("does not add a hidden dirty verified doc to the pending total", async () => {
+    const userEventSetup = userEvent.setup();
+    const annotation = createAnnotation({ status: "verified" });
+    const initialDocument = createDocument({ status: "verified", annotations: [annotation] });
+
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [{ ...initialDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+        total: 1,
+        pending_total: 0,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: [],
+        total: 0,
+        pending_total: 0,
+        offset: 0,
+        limit: 40,
+        search: "z",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument").mockResolvedValue(initialDocument);
+
+    renderWorkspace();
+
+    await screen.findByText("0 pending / 1 docs");
+    await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
+    await userEventSetup.click(screen.getByText("0-5"));
+    await userEventSetup.click(screen.getByText("選択中 Annotation"));
+    const commentInput = await screen.findByLabelText("Comment");
+    await userEventSetup.type(commentInput, "updated comment");
+
+    await waitFor(() => {
+      expect(screen.getByText("1 pending / 1 docs")).toBeInTheDocument();
+    });
+
+    await userEventSetup.type(screen.getByPlaceholderText("本文検索"), "z");
+
+    await waitFor(() => {
+      expect(screen.getByText("0 pending / 0 docs")).toBeInTheDocument();
+      expect(screen.getByText("現在表示中の Document は検索結果外である。")).toBeInTheDocument();
+    });
+  });
 });

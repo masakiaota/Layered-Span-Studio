@@ -194,24 +194,28 @@ export function WorkspaceView({
       )
       .join("|");
   }, [groupedAnnotations]);
+  const selectedDocumentVisible = useMemo(
+    () => Boolean(selectedDocumentId && visibleDocuments.some((document) => document.id === selectedDocumentId)),
+    [selectedDocumentId, visibleDocuments],
+  );
 
   useEffect(() => {
     setFocusedDocumentId((current) => (current && current !== selectedDocumentId ? null : current));
   }, [selectedDocumentId]);
 
   useEffect(() => {
-    if (!selectedDocumentId) {
+    if (!selectedDocumentId || !selectedDocumentVisible) {
       return;
     }
     scrollRowIntoView(documentRowRefs.current[selectedDocumentId]);
-  }, [selectedDocumentId, visibleDocuments]);
+  }, [selectedDocumentId, selectedDocumentVisible]);
 
   useEffect(() => {
-    if (!selectedAnnotationId) {
+    if (!selectedAnnotationId || rightTab !== "annotations") {
       return;
     }
     scrollRowIntoView(annotationRowRefs.current[selectedAnnotationId]);
-  }, [selectedAnnotationId, annotationOrderKey]);
+  }, [annotationOrderKey, rightTab, selectedAnnotationId]);
 
   return (
     <>
