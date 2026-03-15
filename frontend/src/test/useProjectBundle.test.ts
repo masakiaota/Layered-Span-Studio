@@ -396,6 +396,96 @@ describe("useProjectBundle", () => {
     expect(result.current.loading).toBe(false);
   });
 
+  it("applies the latest loadBundle even if pagination starts while it is in flight", async () => {
+    const reloadingListDeferred = createDeferred<{
+      documents: DocumentListItem[];
+      total: number;
+      pending_total: number;
+      offset: number;
+      limit: number;
+      search: string;
+      sort: string;
+    }>();
+    const initialProject = project;
+    const refreshedProject = {
+      ...project,
+      name: "Reloaded Project",
+    };
+    vi.spyOn(api, "getProject")
+      .mockResolvedValueOnce(initialProject)
+      .mockResolvedValueOnce(refreshedProject);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [createDocumentListItem()],
+        total: 2,
+        pending_total: 2,
+        offset: 0,
+        limit: 20,
+        search: "",
+        sort: "created",
+      })
+      .mockReturnValueOnce(reloadingListDeferred.promise)
+      .mockResolvedValueOnce({
+        documents: [createDocumentListItem({ id: "doc-2", document_name: "Doc 2" })],
+        total: 2,
+        pending_total: 2,
+        offset: 1,
+        limit: 20,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument")
+      .mockResolvedValueOnce(createDocument())
+      .mockResolvedValueOnce(createDocument({
+        project_name: "Reloaded Project",
+      }));
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast: makeShowToast(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+
+    let reloadingPromise!: Promise<void>;
+
+    act(() => {
+      reloadingPromise = result.current.loadBundle();
+    });
+
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      await result.current.fetchDocumentPage(false);
+    });
+
+    reloadingListDeferred.resolve({
+      documents: [createDocumentListItem()],
+      total: 1,
+      pending_total: 1,
+      offset: 0,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+
+    await act(async () => {
+      await reloadingPromise;
+    });
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.bundle?.project.name).toBe("Reloaded Project");
+  });
+
   it("keeps documentsLoadingMore true while a newer pagination request is still pending", async () => {
     const firstPageDeferred = createDeferred<{
       documents: DocumentListItem[];

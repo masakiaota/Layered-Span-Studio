@@ -16,6 +16,7 @@ import {
 type ShowToast = (message: string, severity: "success" | "info" | "warning" | "error") => void;
 
 export type OnBundleLoaded = (bundle: ProjectBundle, firstDocId: string | null) => void;
+type SettingsBundleDraft = Pick<ProjectBundle, "project" | "labels">;
 
 export function useProjectBundle({
   token,
@@ -50,7 +51,6 @@ export function useProjectBundle({
   async function loadBundle(onLoaded?: OnBundleLoaded) {
     setLoading(true);
     const loadRequestId = ++bundleLoadRequestIdRef.current;
-    const requestId = ++documentListRequestIdRef.current;
     try {
       const [project, { labels }, documentsResponse] = await Promise.all([
         api.getProject(token, projectId),
@@ -62,14 +62,14 @@ export function useProjectBundle({
           sort: sortMode,
         }),
       ]);
-      if (requestId !== documentListRequestIdRef.current) {
+      if (loadRequestId !== bundleLoadRequestIdRef.current) {
         return;
       }
       const firstDocId = documentsResponse.documents[0]?.id ?? null;
       const loadedDocuments = firstDocId
         ? [await api.getDocument(token, projectId, firstDocId)]
         : [];
-      if (requestId !== documentListRequestIdRef.current) {
+      if (loadRequestId !== bundleLoadRequestIdRef.current) {
         return;
       }
       const nextBundle = {
@@ -227,11 +227,14 @@ export function useProjectBundle({
     );
   }, [bundle]);
 
-  function mutateSettingsBundle(mutator: (draft: ProjectBundle) => void) {
+  function mutateSettingsBundle(mutator: (draft: SettingsBundleDraft) => void) {
     if (!bundle) {
       return;
     }
-    const draft = deepClone(bundle);
+    const draft: SettingsBundleDraft = {
+      project: deepClone(bundle.project),
+      labels: deepClone(bundle.labels),
+    };
     mutator(draft);
     const currentState = JSON.stringify({
       project: bundle.project,
