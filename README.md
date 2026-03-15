@@ -35,8 +35,8 @@ Layered Span Studio は、文字列の任意区間に対して、重なり合う
 ```bash
 cd backend
 export JWT_SECRET='dev-secret'
-uv sync
-uv run scripts/create_user.py demo_login_user demo_login_pass
+uv sync # 初回 / 依存更新時のみ
+uv run scripts/create_user.py demo_login_user demo_login_pass # 初回のみ（未作成時）
 uv run uvicorn layered_span_studio_backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
@@ -44,7 +44,7 @@ uv run uvicorn layered_span_studio_backend.main:app --host 127.0.0.1 --port 8000
 
 ```bash
 cd ../frontend
-npm install
+npm install # 初回のみ
 npm run dev
 ```
 
