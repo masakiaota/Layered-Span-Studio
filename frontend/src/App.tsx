@@ -14,15 +14,12 @@ import { ProjectShellHeader } from "./features/project-shell/ProjectShellHeader"
 import { SettingsView } from "./features/project-shell/SettingsView";
 import {
   DEFAULT_LABEL_COLOR,
-  DOCUMENT_PAGE_SIZE,
 } from "./features/project-shell/projectShellConstants";
 import type { LabelDraft, PendingAction, RightTab, SelectionPreview } from "./features/project-shell/projectShellTypes";
 import {
-  collectDocumentNames,
   createEmptyLabelDraft,
   findConflictingLabelName,
   isHexColor,
-  mergeDocumentWindow,
   normalizeHexColor,
   toLabelDraft,
   toDocumentListItem,
@@ -34,13 +31,11 @@ import { useProjectExamples } from "./features/project-shell/useProjectExamples"
 import { useProjectShortcuts } from "./features/project-shell/useProjectShortcuts";
 import { sortAnnotationsInPanelOrder } from "./features/workspace/workspaceUtils";
 import { WorkspaceView } from "./features/project-shell/WorkspaceView";
+import { useDocumentHistory } from "./hooks/useDocumentHistory";
 import { useAuthSession } from "./hooks/useAuthSession";
+import { useImportExport } from "./hooks/useImportExport";
+import { useProjectBundle } from "./hooks/useProjectBundle";
 import { useToast } from "./hooks/useToast";
-import {
-  buildImportValidationMessage,
-  describeImportSummary,
-  validateImportPayload,
-} from "./importValidation";
 import { LoginPage } from "./pages/LoginPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import type {
@@ -51,16 +46,13 @@ import type {
   UserRecord,
 } from "./types";
 import {
-  buildExportFilename,
   deepClone,
   documentMatchesSearch,
-  downloadJson,
   formatAnnotationMetaDraft,
   getDocumentStatus,
   isLocalId,
   makeLocalId,
   parseAnnotationMetaDraft,
-  readJsonFile,
   setProjectGuideline,
 } from "./utils";
 
@@ -78,17 +70,7 @@ export function ProjectShell({
   const { projectId = "" } = useParams();
   const view: "workspace" | "settings" = location.pathname.endsWith("/settings") ? "settings" : "workspace";
   const { toast, showToast, closeToast } = useToast();
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [bundle, setBundle] = useState<ProjectBundle | null>(null);
-  const [settingsSnapshot, setSettingsSnapshot] = useState<Pick<ProjectBundle, "project" | "labels"> | null>(null);
-  const [documentSnapshotsById, setDocumentSnapshotsById] = useState<Record<string, DocumentRecord>>({});
-  const [historyState, setHistoryState] = useState<{ documentId: string | null; entries: DocumentRecord[]; index: number }>({
-    documentId: null,
-    entries: [],
-    index: -1,
-  });
-  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [focusedLabelId, setFocusedLabelId] = useState<string | null>(null);
   const [selectedSettingsLabelId, setSelectedSettingsLabelId] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
@@ -106,19 +88,57 @@ export function ProjectShell({
   const [newDocName, setNewDocName] = useState("");
   const [newDocText, setNewDocText] = useState("");
   const [labelDraft, setLabelDraft] = useState<LabelDraft>(createEmptyLabelDraft);
-  const [settingsImportFile, setSettingsImportFile] = useState<File | null>(null);
-  const [settingsImportFeedback, setSettingsImportFeedback] = useState<{
-    severity: "success" | "info" | "warning" | "error";
-    message: string;
-  } | null>(null);
-  const [settingsImporting, setSettingsImporting] = useState(false);
-  const [exportPending, setExportPending] = useState(true);
-  const [exportVerified, setExportVerified] = useState(true);
-  const [documentList, setDocumentList] = useState<DocumentListItem[]>([]);
-  const [documentTotal, setDocumentTotal] = useState(0);
-  const [pendingDocumentTotal, setPendingDocumentTotal] = useState(0);
-  const [documentNextOffset, setDocumentNextOffset] = useState(0);
-  const [documentsLoadingMore, setDocumentsLoadingMore] = useState(false);
+  const {
+    loading: bundleLoading,
+    bundle,
+    setBundle,
+    settingsSnapshot,
+    setSettingsSnapshot,
+    documentSnapshotsById,
+    setDocumentSnapshotsById,
+    selectedDocId,
+    activateDocument: selectDocumentId,
+    documentList,
+    setDocumentList,
+    documentTotal,
+    setDocumentTotal,
+    pendingDocumentTotal,
+    setPendingDocumentTotal,
+    documentNextOffset,
+    setDocumentNextOffset,
+    documentsLoadingMore,
+    setDocumentsLoadingMore,
+    loadBundle,
+    fetchDocumentPage,
+  } = useProjectBundle({
+    token,
+    projectId,
+    searchQuery,
+    sortMode,
+    showToast,
+  });
+  const {
+    // useImportExport は settings のインポート/エクスポートを担当する
+    settingsImportFile,
+    setSettingsImportFile,
+    settingsImportFeedback,
+    setSettingsImportFeedback,
+    settingsImporting,
+    exportPending,
+    setExportPending,
+    exportVerified,
+    setExportVerified,
+    handleSettingsImport,
+    handleExport,
+  } = useImportExport({
+    token,
+    projectId: bundle?.project.id ?? null,
+    project: bundle?.project ?? null,
+    showToast,
+    onImported: () => {
+      void loadBundle(searchQuery, sortMode);
+    },
+  });
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; documentName: string; isCurrent: boolean } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingDocument, setDeletingDocument] = useState(false);
@@ -130,152 +150,33 @@ export function ProjectShell({
   const sameSurfaceExamplesScrollRef = useRef<HTMLDivElement | null>(null);
   const shortcutDragStateRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const labelColorInputRef = useRef<HTMLInputElement | null>(null);
-  const documentListRequestIdRef = useRef(0);
   const [shortcutPanelOffset, setShortcutPanelOffset] = useState({ x: 0, y: 0 });
   const [shortcutDragging, setShortcutDragging] = useState(false);
-  const initialDocumentListLoadedRef = useRef(false);
   const normalizedLabelColor = normalizeHexColor(labelDraft.color);
   const labelColorValid = isHexColor(labelDraft.color);
   const labelColorPreview = labelColorValid ? normalizedLabelColor : DEFAULT_LABEL_COLOR;
 
   useBodyScrollLock();
 
-  async function loadBundle() {
-    setLoading(true);
-    const requestId = ++documentListRequestIdRef.current;
-    try {
-      const [project, { labels }, documentsResponse] = await Promise.all([
-        api.getProject(token, projectId),
-        api.listLabels(token, projectId),
-        api.listDocuments(token, projectId, {
-          offset: 0,
-          limit: DOCUMENT_PAGE_SIZE,
-          search: searchQuery,
-          sort: sortMode,
-        }),
-      ]);
-      if (requestId !== documentListRequestIdRef.current) {
-        return;
-      }
-      const firstDocId = documentsResponse.documents[0]?.id ?? null;
-      const loadedDocuments = firstDocId ? [await api.getDocument(token, projectId, firstDocId)] : [];
-      if (requestId !== documentListRequestIdRef.current) {
-        return;
-      }
-      const nextBundle = {
-        project,
-        labels,
-        documents: loadedDocuments,
-      } satisfies ProjectBundle;
-      setBundle(nextBundle);
-      setSettingsSnapshot({
-        project: deepClone(project),
-        labels: deepClone(labels),
-      });
-      setDocumentSnapshotsById(
-        Object.fromEntries(loadedDocuments.map((document) => [document.id, deepClone(document)])),
-      );
-      setHistoryState({
-        documentId: loadedDocuments[0]?.id ?? null,
-        entries: loadedDocuments[0] ? [deepClone(loadedDocuments[0])] : [],
-        index: loadedDocuments[0] ? 0 : -1,
-      });
-      setDocumentList(trimDocumentWindow(documentsResponse.documents, firstDocId));
-      setDocumentTotal(documentsResponse.total);
-      setPendingDocumentTotal(documentsResponse.pending_total);
-      setDocumentNextOffset(documentsResponse.offset + documentsResponse.documents.length);
-      initialDocumentListLoadedRef.current = true;
-      activateDocument(firstDocId);
-      setFocusedLabelId(nextBundle.labels[0]?.id ?? null);
-      setSelectedSettingsLabelId(null);
-      setLabelDraft(createEmptyLabelDraft());
-      setAccordionOpen(Object.fromEntries(nextBundle.labels.map((label) => [label.id, true])));
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Workspace の読み込みに失敗した", "error");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [initializedProjectId, setInitializedProjectId] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadBundle();
-  }, [projectId, token]);
-
-  useEffect(() => {
-    if (!bundle || !selectedDocId || bundle.documents.some((document) => document.id === selectedDocId)) {
+    if (!bundle || !projectId) {
       return;
     }
-    let active = true;
-    void api
-      .getDocument(token, projectId, selectedDocId)
-      .then((document) => {
-        if (!active) {
-          return;
-        }
-        setBundle((current) =>
-          current
-            ? {
-                ...current,
-                documents: [...current.documents.filter((item) => item.id !== document.id), document],
-              }
-            : current,
-        );
-        setDocumentSnapshotsById((current) => ({
-          ...current,
-          [document.id]: deepClone(document),
-        }));
-      })
-      .catch((error) => {
-        if (active) {
-          showToast(error instanceof Error ? error.message : "Document の取得に失敗した", "error");
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [bundle, projectId, selectedDocId, token]);
-
-  async function fetchDocumentPage(
-    reset: boolean,
-    selectedIdOverride?: string | null,
-  ): Promise<DocumentListItem[]> {
-    const requestId = ++documentListRequestIdRef.current;
-    if (!reset) {
-      setDocumentsLoadingMore(true);
-    }
-    try {
-      const response = await api.listDocuments(token, projectId, {
-        offset: reset ? 0 : documentNextOffset,
-        limit: DOCUMENT_PAGE_SIZE,
-        search: searchQuery,
-        sort: sortMode,
-      });
-      if (requestId !== documentListRequestIdRef.current) {
-        return [];
-      }
-      setDocumentTotal(response.total);
-      setPendingDocumentTotal(response.pending_total);
-      setDocumentNextOffset(response.offset + response.documents.length);
-      setDocumentList((current) =>
-        reset
-          ? trimDocumentWindow(response.documents, selectedIdOverride ?? selectedDocId)
-          : mergeDocumentWindow(current, response.documents, selectedIdOverride ?? selectedDocId),
-      );
-      return response.documents;
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Document 一覧の取得に失敗した", "error");
-      return [];
-    } finally {
-      setDocumentsLoadingMore(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!bundle || !initialDocumentListLoadedRef.current) {
+    if (initializedProjectId === projectId) {
       return;
     }
-    void fetchDocumentPage(true);
-  }, [searchQuery, sortMode]);
+    setInitializedProjectId(projectId);
+    const firstDocId = bundle.documents[0]?.id ?? null;
+    if (firstDocId) {
+      selectDocumentId(firstDocId);
+    }
+    setFocusedLabelId(bundle.labels[0]?.id ?? null);
+    setSelectedSettingsLabelId(null);
+    setLabelDraft(createEmptyLabelDraft());
+    setAccordionOpen(Object.fromEntries(bundle.labels.map((label) => [label.id, true])));
+  }, [bundle, projectId, initializedProjectId, selectDocumentId]);
 
   useEffect(() => {
     if (!bundle) {
@@ -287,7 +188,7 @@ export function ProjectShell({
         return loaded ? toDocumentListItem(loaded) : item;
       }),
     );
-  }, [bundle]);
+  }, [bundle, setDocumentList]);
 
   const currentDocument = useMemo(() => {
     if (!bundle) {
@@ -301,6 +202,15 @@ export function ProjectShell({
   const currentDocumentLoading = Boolean(selectedDocId && !currentDocument);
   const currentDocumentSnapshot = currentDocument ? documentSnapshotsById[currentDocument.id] ?? null : null;
   const workspaceBusy = saving || deletingDocument;
+  const {
+    canUndo: historyCanUndo,
+    canRedo: historyCanRedo,
+    recordDocumentMutation,
+    undo,
+    redo,
+    resetHistory,
+    clearCurrentDocumentHistory,
+  } = useDocumentHistory(currentDocument);
 
   const focusedLabel = useMemo(
     () => bundle?.labels.find((label) => label.id === focusedLabelId) ?? bundle?.labels[0] ?? null,
@@ -368,15 +278,8 @@ export function ProjectShell({
     const localOffset = currentDocument?.status === "verified" && currentDocumentDirty ? 1 : 0;
     return pendingDocumentTotal + localOffset;
   }, [currentDocument?.status, currentDocumentDirty, pendingDocumentTotal]);
-  const canUndo =
-    view === "workspace" &&
-    historyState.documentId === currentDocument?.id &&
-    historyState.index > 0;
-  const canRedo =
-    view === "workspace" &&
-    historyState.documentId === currentDocument?.id &&
-    historyState.index >= 0 &&
-    historyState.index < historyState.entries.length - 1;
+  const canUndo = view === "workspace" && historyCanUndo;
+  const canRedo = view === "workspace" && historyCanRedo;
 
   const currentHiddenBySearch = Boolean(
     currentDocument && searchQuery.trim() && !documentMatchesSearch(currentDocument, searchQuery),
@@ -401,15 +304,11 @@ export function ProjectShell({
   );
 
   useEffect(() => {
-    if (!currentDocument || historyState.documentId === currentDocument.id) {
+    if (!currentDocument) {
       return;
     }
-    setHistoryState({
-      documentId: currentDocument.id,
-      entries: [deepClone(currentDocumentSnapshot ?? currentDocument)],
-      index: 0,
-    });
-  }, [currentDocument, currentDocumentSnapshot, historyState.documentId]);
+    resetHistory(currentDocumentSnapshot ?? currentDocument);
+  }, [currentDocument?.id, currentDocumentSnapshot, resetHistory]);
 
   function handleShortcutPanelToggle() {
     setShortcutOpen((current) => !current);
@@ -426,7 +325,7 @@ export function ProjectShell({
   }
 
   function activateDocument(documentId: string | null) {
-    setSelectedDocId(documentId);
+    selectDocumentId(documentId);
     clearWorkspaceSelection();
     resetWorkspacePanels();
   }
@@ -510,17 +409,7 @@ export function ProjectShell({
           }
         : current,
     );
-    setHistoryState((current) => {
-      const nextEntries =
-        current.documentId === draft.id ? current.entries.slice(0, current.index + 1) : [];
-      nextEntries.push(deepClone(draft));
-      const cappedEntries = nextEntries.length > 50 ? nextEntries.slice(nextEntries.length - 50) : nextEntries;
-      return {
-        documentId: draft.id,
-        entries: cappedEntries,
-        index: cappedEntries.length - 1,
-      };
-    });
+    recordDocumentMutation(draft);
   }
 
   function mutateSettingsBundle(mutator: (draft: ProjectBundle) => void) {
@@ -549,8 +438,7 @@ export function ProjectShell({
     if (!canUndo || !currentDocument) {
       return;
     }
-    const nextIndex = historyState.index - 1;
-    const nextDocument = historyState.entries[nextIndex];
+    const nextDocument = undo();
     if (!nextDocument) {
       return;
     }
@@ -562,15 +450,13 @@ export function ProjectShell({
           }
         : current,
     );
-    setHistoryState((current) => ({ ...current, index: nextIndex }));
   }
 
   function redoBundle() {
     if (!canRedo || !currentDocument) {
       return;
     }
-    const nextIndex = historyState.index + 1;
-    const nextDocument = historyState.entries[nextIndex];
+    const nextDocument = redo();
     if (!nextDocument) {
       return;
     }
@@ -582,7 +468,6 @@ export function ProjectShell({
           }
         : current,
     );
-    setHistoryState((current) => ({ ...current, index: nextIndex }));
   }
 
   function buildDocumentBundlePayload(document: DocumentRecord, forceVerified: boolean) {
@@ -618,11 +503,7 @@ export function ProjectShell({
         ...current,
         [savedDocument.id]: deepClone(savedDocument),
       }));
-      setHistoryState({
-        documentId: savedDocument.id,
-        entries: [deepClone(savedDocument)],
-        index: 0,
-      });
+      resetHistory(savedDocument);
       clearWorkspaceSelection();
       if (successMessage) {
         showToast(successMessage, "success");
@@ -712,19 +593,11 @@ export function ProjectShell({
                 }
               : {},
           );
-          setHistoryState(
-            refreshedCurrentDocument
-              ? {
-                  documentId: refreshedCurrentDocument.id,
-                  entries: [deepClone(refreshedCurrentDocument)],
-                  index: 0,
-                }
-              : {
-                  documentId: null,
-                  entries: [],
-                  index: -1,
-                },
-          );
+          if (refreshedCurrentDocument) {
+            resetHistory(refreshedCurrentDocument);
+          } else {
+            resetHistory(null);
+          }
           if (selectedSettingsLabel) {
             const persistedSelectedLabel = savedLabels.find((label) => label.name === selectedSettingsLabel.name) ?? null;
             setSelectedSettingsLabelId(persistedSelectedLabel?.id ?? null);
@@ -962,15 +835,7 @@ export function ProjectShell({
       delete nextSnapshots[deletedId];
       return nextSnapshots;
     });
-    setHistoryState((current) =>
-      current.documentId === deletedId
-        ? {
-            documentId: null,
-            entries: [],
-            index: -1,
-          }
-        : current,
-    );
+    clearCurrentDocumentHistory(deletedId);
   }
 
   function applyDeletionResult({
@@ -1000,11 +865,7 @@ export function ProjectShell({
           ...current,
           [nextDocument.id]: deepClone(nextDocument),
         }));
-        setHistoryState({
-          documentId: nextDocument.id,
-          entries: [deepClone(nextDocument)],
-          index: 0,
-        });
+        resetHistory(nextDocument);
       }
       activateDocument(nextSelectedId);
     }
@@ -1088,11 +949,7 @@ export function ProjectShell({
             }
           : current,
       );
-      setHistoryState({
-        documentId: restoredDocument.id,
-        entries: [deepClone(restoredDocument)],
-        index: 0,
-      });
+      resetHistory(restoredDocument);
       clearWorkspaceSelection();
     } else if (view === "settings" && bundle && settingsSnapshot) {
       setBundle((current) =>
@@ -1186,89 +1043,6 @@ export function ProjectShell({
       showToast(error instanceof Error ? error.message : "Document の作成に失敗した", "error");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleSettingsImport() {
-    if (!settingsImportFile || !bundle || settingsImporting) {
-      return;
-    }
-    setSettingsImporting(true);
-    try {
-      const payload = await readJsonFile(settingsImportFile);
-      const basicValidation = validateImportPayload(payload);
-      if (basicValidation.issues.length > 0) {
-        const message = buildImportValidationMessage(basicValidation.issues);
-        setSettingsImportFeedback({ severity: "error", message });
-        showToast("Import 前チェックで問題を検出した", "error");
-        return;
-      }
-
-      const [{ labels: persistedLabels }, firstPageResponse] = await Promise.all([
-        api.listLabels(token, bundle.project.id),
-        api.listDocuments(token, bundle.project.id, {
-          offset: 0,
-          limit: DOCUMENT_PAGE_SIZE,
-          sort: "created",
-          search: "",
-        }),
-      ]);
-      const existingDocumentNames = await collectDocumentNames(
-        firstPageResponse.total,
-        DOCUMENT_PAGE_SIZE,
-        (offset, limit) => {
-          if (offset === 0) {
-            return Promise.resolve(firstPageResponse);
-          }
-          return api.listDocuments(token, bundle.project.id, {
-            offset,
-            limit,
-            sort: "created",
-            search: "",
-          });
-        },
-      );
-      const validation = validateImportPayload(payload, {
-        existingLabelNames: persistedLabels.map((label) => label.name),
-        existingDocumentNames,
-      });
-      if (validation.issues.length > 0) {
-        const message = buildImportValidationMessage(validation.issues);
-        setSettingsImportFeedback({ severity: "error", message });
-        showToast("Import 前チェックで問題を検出した", "error");
-        return;
-      }
-      await api.importProject(token, bundle.project.id, payload);
-      setSettingsImportFeedback({
-        severity: "success",
-        message: `Import 完了: ${describeImportSummary(
-          validation.summary ?? { labelCount: 0, documentCount: 0, annotationCount: 0 },
-        )}`,
-      });
-      showToast("現在の project に import した", "success");
-      setSettingsImportFile(null);
-      await loadBundle();
-    } catch (error) {
-      setSettingsImportFeedback({
-        severity: "error",
-        message: error instanceof Error ? error.message : "Import に失敗した",
-      });
-      showToast(error instanceof Error ? error.message : "Import に失敗した", "error");
-    } finally {
-      setSettingsImporting(false);
-    }
-  }
-
-  async function handleExport() {
-    if (!bundle) {
-      return;
-    }
-    try {
-      const payload = await api.exportProject(token, bundle.project.id, exportPending, exportVerified);
-      downloadJson(buildExportFilename(bundle.project), payload);
-      showToast("Export を開始した", "success");
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Export に失敗した", "error");
     }
   }
 
@@ -1372,7 +1146,7 @@ export function ProjectShell({
     }
   }
 
-  if (loading || !bundle) {
+  if (bundleLoading || !bundle) {
     return (
       <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
         <CircularProgress />
