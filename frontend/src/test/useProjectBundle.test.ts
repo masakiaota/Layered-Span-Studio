@@ -77,7 +77,7 @@ describe("useProjectBundle", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads bundle on initial render", async () => {
+  it("loads bundle when loadBundle is called", async () => {
     const doc = createDocument();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
     vi.spyOn(api, "listLabels").mockResolvedValue({ labels });
