@@ -96,10 +96,12 @@ export function useProjectBundle({
       initialDocumentListLoadedRef.current = true;
       onLoaded?.(nextBundle, firstDocId);
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Workspace の読み込みに失敗した",
-        "error",
-      );
+      if (loadRequestId === bundleLoadRequestIdRef.current) {
+        showToast(
+          error instanceof Error ? error.message : "Workspace の読み込みに失敗した",
+          "error",
+        );
+      }
     } finally {
       if (loadRequestId === bundleLoadRequestIdRef.current) {
         setLoading(false);
@@ -191,10 +193,12 @@ export function useProjectBundle({
       );
       return response.documents;
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Document 一覧の取得に失敗した",
-        "error",
-      );
+      if (requestId === documentListRequestIdRef.current) {
+        showToast(
+          error instanceof Error ? error.message : "Document 一覧の取得に失敗した",
+          "error",
+        );
+      }
       return [];
     } finally {
       if (

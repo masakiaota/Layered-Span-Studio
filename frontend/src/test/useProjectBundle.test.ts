@@ -159,6 +159,73 @@ describe("useProjectBundle", () => {
     expect(result.current.loading).toBe(false);
   });
 
+  it("suppresses stale loadBundle errors when a newer load succeeds", async () => {
+    const staleLoadDeferred = createDeferred<{
+      documents: DocumentListItem[];
+      total: number;
+      pending_total: number;
+      offset: number;
+      limit: number;
+      search: string;
+      sort: string;
+    }>();
+    vi.spyOn(api, "getProject")
+      .mockRejectedValueOnce(new Error("stale load failed"))
+      .mockResolvedValueOnce(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listDocuments")
+      .mockReturnValueOnce(staleLoadDeferred.promise)
+      .mockResolvedValueOnce({
+        documents: [createDocumentListItem()],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: 20,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument").mockResolvedValue(createDocument());
+
+    const showToast = makeShowToast();
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast,
+      }),
+    );
+
+    let staleLoad!: Promise<void>;
+    let latestLoad!: Promise<void>;
+
+    act(() => {
+      staleLoad = result.current.loadBundle();
+    });
+    act(() => {
+      latestLoad = result.current.loadBundle();
+    });
+
+    staleLoadDeferred.resolve({
+      documents: [createDocumentListItem()],
+      total: 1,
+      pending_total: 1,
+      offset: 0,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+
+    await act(async () => {
+      await Promise.all([staleLoad, latestLoad]);
+    });
+
+    expect(showToast).not.toHaveBeenCalledWith("stale load failed", "error");
+    expect(result.current.bundle?.project.id).toBe("project-1");
+  });
+
   it("mutateSettingsBundle updates project and labels in bundle", async () => {
     const doc = createDocument();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
@@ -579,6 +646,79 @@ describe("useProjectBundle", () => {
     });
 
     expect(result.current.documentsLoadingMore).toBe(false);
+  });
+
+  it("suppresses stale pagination errors when a newer request succeeds", async () => {
+    const stalePageDeferred = createDeferred<DocumentListItem[]>();
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    const listDocumentsSpy = vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [createDocumentListItem()],
+        total: 2,
+        pending_total: 2,
+        offset: 0,
+        limit: 20,
+        search: "",
+        sort: "created",
+      })
+      .mockImplementationOnce(async () => {
+        const documents = await stalePageDeferred.promise;
+        return {
+          documents,
+          total: 2,
+          pending_total: 2,
+          offset: 1,
+          limit: 20,
+          search: "",
+          sort: "created",
+        };
+      })
+      .mockResolvedValueOnce({
+        documents: [createDocumentListItem({ id: "doc-3", document_name: "Doc 3" })],
+        total: 2,
+        pending_total: 2,
+        offset: 1,
+        limit: 20,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument").mockResolvedValue(createDocument());
+
+    const showToast = makeShowToast();
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+
+    let stalePagination!: Promise<DocumentListItem[]>;
+    let latestPagination!: Promise<DocumentListItem[]>;
+
+    act(() => {
+      stalePagination = result.current.fetchDocumentPage(false);
+    });
+    act(() => {
+      latestPagination = result.current.fetchDocumentPage(false);
+    });
+
+    stalePageDeferred.reject(new Error("stale pagination failed"));
+
+    await act(async () => {
+      await Promise.all([stalePagination, latestPagination]);
+    });
+
+    expect(listDocumentsSpy).toHaveBeenCalledTimes(3);
+    expect(showToast).not.toHaveBeenCalledWith("stale pagination failed", "error");
   });
 
   it("clears documentsLoadingMore when a reset request supersedes pagination", async () => {
