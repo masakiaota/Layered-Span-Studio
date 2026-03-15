@@ -58,6 +58,16 @@ function makeShowToast() {
   return vi.fn();
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("useProjectBundle", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -302,5 +312,182 @@ describe("useProjectBundle", () => {
     await waitFor(() => {
       expect(result.current.documentList.length).toBeGreaterThan(1);
     });
+  });
+
+  it("keeps loading true while a newer loadBundle call is still pending", async () => {
+    const firstListDeferred = createDeferred<{
+      documents: DocumentListItem[];
+      total: number;
+      pending_total: number;
+      offset: number;
+      limit: number;
+      search: string;
+      sort: string;
+    }>();
+    const secondListDeferred = createDeferred<{
+      documents: DocumentListItem[];
+      total: number;
+      pending_total: number;
+      offset: number;
+      limit: number;
+      search: string;
+      sort: string;
+    }>();
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listDocuments")
+      .mockReturnValueOnce(firstListDeferred.promise)
+      .mockReturnValueOnce(secondListDeferred.promise);
+    vi.spyOn(api, "getDocument").mockResolvedValue(createDocument());
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast: makeShowToast(),
+      }),
+    );
+
+    let firstLoad!: Promise<void>;
+    let secondLoad!: Promise<void>;
+
+    act(() => {
+      firstLoad = result.current.loadBundle();
+    });
+    act(() => {
+      secondLoad = result.current.loadBundle();
+    });
+
+    expect(result.current.loading).toBe(true);
+
+    firstListDeferred.resolve({
+      documents: [createDocumentListItem()],
+      total: 1,
+      pending_total: 1,
+      offset: 0,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+
+    await act(async () => {
+      await firstLoad;
+    });
+
+    expect(result.current.loading).toBe(true);
+
+    secondListDeferred.resolve({
+      documents: [createDocumentListItem()],
+      total: 1,
+      pending_total: 1,
+      offset: 0,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+
+    await act(async () => {
+      await secondLoad;
+    });
+
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("keeps documentsLoadingMore true while a newer pagination request is still pending", async () => {
+    const firstPageDeferred = createDeferred<{
+      documents: DocumentListItem[];
+      total: number;
+      pending_total: number;
+      offset: number;
+      limit: number;
+      search: string;
+      sort: string;
+    }>();
+    const secondPageDeferred = createDeferred<{
+      documents: DocumentListItem[];
+      total: number;
+      pending_total: number;
+      offset: number;
+      limit: number;
+      search: string;
+      sort: string;
+    }>();
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [createDocumentListItem()],
+        total: 3,
+        pending_total: 3,
+        offset: 0,
+        limit: 20,
+        search: "",
+        sort: "created",
+      })
+      .mockReturnValueOnce(firstPageDeferred.promise)
+      .mockReturnValueOnce(secondPageDeferred.promise);
+    vi.spyOn(api, "getDocument").mockResolvedValue(createDocument());
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        token: "test-token",
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast: makeShowToast(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+
+    let firstPageLoad!: Promise<DocumentListItem[]>;
+    let secondPageLoad!: Promise<DocumentListItem[]>;
+
+    act(() => {
+      firstPageLoad = result.current.fetchDocumentPage(false);
+    });
+    act(() => {
+      secondPageLoad = result.current.fetchDocumentPage(false);
+    });
+
+    expect(result.current.documentsLoadingMore).toBe(true);
+
+    firstPageDeferred.resolve({
+      documents: [createDocumentListItem({ id: "doc-2", document_name: "Doc 2" })],
+      total: 3,
+      pending_total: 3,
+      offset: 1,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+
+    await act(async () => {
+      await firstPageLoad;
+    });
+
+    expect(result.current.documentsLoadingMore).toBe(true);
+
+    secondPageDeferred.resolve({
+      documents: [createDocumentListItem({ id: "doc-3", document_name: "Doc 3" })],
+      total: 3,
+      pending_total: 3,
+      offset: 1,
+      limit: 20,
+      search: "",
+      sort: "created",
+    });
+
+    await act(async () => {
+      await secondPageLoad;
+    });
+
+    expect(result.current.documentsLoadingMore).toBe(false);
   });
 });

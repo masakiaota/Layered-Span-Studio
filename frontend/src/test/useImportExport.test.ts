@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
+import { DOCUMENT_PAGE_SIZE } from "../features/project-shell/projectShellConstants";
 import { useImportExport } from "../features/project-shell/useImportExport";
 import type { ProjectBundle } from "../types";
 import * as utils from "../utils";
@@ -19,6 +20,29 @@ const bundle: ProjectBundle = {
 function makeShowToast() {
   return vi.fn();
 }
+
+const validImportPayload = {
+  project: {
+    name: "Imported Project",
+  },
+  labels: [
+    {
+      name: "Imported Label",
+      color: "#123456",
+      description: "",
+    },
+  ],
+  documents: [
+    {
+      document_name: "Imported Doc",
+      text: "Hello import",
+      status: "pending",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      annotations: [],
+    },
+  ],
+};
 
 describe("useImportExport", () => {
   beforeEach(() => {
@@ -176,5 +200,182 @@ describe("useImportExport", () => {
     });
 
     expect(api.importProject).not.toHaveBeenCalled();
+  });
+
+  it("handleSettingsImport surfaces validation failures after checking existing resources", async () => {
+    const importFile = new File(
+      [JSON.stringify(validImportPayload)],
+      "import.json",
+      { type: "application/json" },
+    );
+    const conflictingPayload = {
+      ...validImportPayload,
+      labels: [
+        {
+          name: "Entity",
+          color: "#123456",
+          description: "",
+        },
+      ],
+    };
+    vi.spyOn(utils, "readJsonFile").mockResolvedValue(conflictingPayload);
+    vi.spyOn(api, "listLabels").mockResolvedValue({
+      labels: [
+        {
+          id: "label-1",
+          project_id: "project-1",
+          project_name: "Test Project",
+          name: "Entity",
+          color: "#e74c3c",
+          description: "",
+          shortcut: null,
+          meta: {},
+        },
+      ],
+    });
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [],
+      total: 0,
+      pending_total: 0,
+      offset: 0,
+      limit: DOCUMENT_PAGE_SIZE,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "importProject").mockResolvedValue({ imported: {}, errors: [] });
+
+    const showToast = makeShowToast();
+    const { result } = renderHook(() =>
+      useImportExport({
+        bundle,
+        token: "test-token",
+        loadBundle: vi.fn(),
+        showToast,
+      }),
+    );
+
+    act(() => {
+      result.current.setSettingsImportFile(importFile);
+    });
+
+    await act(async () => {
+      await result.current.handleSettingsImport();
+    });
+
+    expect(api.listLabels).toHaveBeenCalledWith("test-token", "project-1");
+    expect(api.listDocuments).toHaveBeenCalledWith("test-token", "project-1", {
+      offset: 0,
+      limit: DOCUMENT_PAGE_SIZE,
+      sort: "created",
+      search: "",
+    });
+    expect(api.importProject).not.toHaveBeenCalled();
+    expect(result.current.settingsImportFeedback).toEqual({
+      severity: "error",
+      message: "既存 label と重複している: Entity",
+    });
+    expect(result.current.settingsImporting).toBe(false);
+    expect(showToast).toHaveBeenCalledWith("Import 前チェックで問題を検出した", "error");
+  });
+
+  it("handleSettingsImport imports successfully, resets state, and reloads the bundle", async () => {
+    const importFile = new File(
+      [JSON.stringify(validImportPayload)],
+      "import.json",
+      { type: "application/json" },
+    );
+    vi.spyOn(utils, "readJsonFile").mockResolvedValue(validImportPayload);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [],
+      total: 0,
+      pending_total: 0,
+      offset: 0,
+      limit: DOCUMENT_PAGE_SIZE,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "importProject").mockResolvedValue({ imported: {}, errors: [] });
+
+    const loadBundle = vi.fn().mockResolvedValue(undefined);
+    const showToast = makeShowToast();
+    const { result } = renderHook(() =>
+      useImportExport({
+        bundle,
+        token: "test-token",
+        loadBundle,
+        showToast,
+      }),
+    );
+
+    act(() => {
+      result.current.setSettingsImportFile(importFile);
+    });
+
+    await act(async () => {
+      await result.current.handleSettingsImport();
+    });
+
+    expect(api.importProject).toHaveBeenCalledWith(
+      "test-token",
+      "project-1",
+      validImportPayload,
+    );
+    expect(loadBundle).toHaveBeenCalledTimes(1);
+    expect(result.current.settingsImportFile).toBeNull();
+    expect(result.current.settingsImporting).toBe(false);
+    expect(result.current.settingsImportFeedback).toEqual({
+      severity: "success",
+      message: "Import 完了: Label 1 件 / Document 1 件 / Annotation 0 件",
+    });
+    expect(showToast).toHaveBeenCalledWith("現在の project に import した", "success");
+  });
+
+  it("handleSettingsImport reports API errors and keeps the selected file", async () => {
+    const importFile = new File(
+      [JSON.stringify(validImportPayload)],
+      "import.json",
+      { type: "application/json" },
+    );
+    vi.spyOn(utils, "readJsonFile").mockResolvedValue(validImportPayload);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [],
+      total: 0,
+      pending_total: 0,
+      offset: 0,
+      limit: DOCUMENT_PAGE_SIZE,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "importProject").mockRejectedValue(new Error("Import failed"));
+
+    const loadBundle = vi.fn().mockResolvedValue(undefined);
+    const showToast = makeShowToast();
+    const { result } = renderHook(() =>
+      useImportExport({
+        bundle,
+        token: "test-token",
+        loadBundle,
+        showToast,
+      }),
+    );
+
+    act(() => {
+      result.current.setSettingsImportFile(importFile);
+    });
+
+    await act(async () => {
+      await result.current.handleSettingsImport();
+    });
+
+    expect(loadBundle).not.toHaveBeenCalled();
+    expect(result.current.settingsImportFile).toBe(importFile);
+    expect(result.current.settingsImporting).toBe(false);
+    expect(result.current.settingsImportFeedback).toEqual({
+      severity: "error",
+      message: "Import failed",
+    });
+    expect(showToast).toHaveBeenCalledWith("Import failed", "error");
   });
 });

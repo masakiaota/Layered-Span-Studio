@@ -43,10 +43,13 @@ export function useProjectBundle({
   const [documentsLoadingMore, setDocumentsLoadingMore] = useState(false);
 
   const documentListRequestIdRef = useRef(0);
+  const bundleLoadRequestIdRef = useRef(0);
+  const documentLoadMoreRequestIdRef = useRef(0);
   const initialDocumentListLoadedRef = useRef(false);
 
   async function loadBundle(onLoaded?: OnBundleLoaded) {
     setLoading(true);
+    const loadRequestId = ++bundleLoadRequestIdRef.current;
     const requestId = ++documentListRequestIdRef.current;
     try {
       const [project, { labels }, documentsResponse] = await Promise.all([
@@ -98,7 +101,9 @@ export function useProjectBundle({
         "error",
       );
     } finally {
-      setLoading(false);
+      if (loadRequestId === bundleLoadRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   }
 
@@ -151,6 +156,9 @@ export function useProjectBundle({
     selectedIdOverride?: string | null,
   ): Promise<DocumentListItem[]> {
     const requestId = ++documentListRequestIdRef.current;
+    const loadMoreRequestId = !reset
+      ? ++documentLoadMoreRequestIdRef.current
+      : null;
     if (!reset) {
       setDocumentsLoadingMore(true);
     }
@@ -187,7 +195,12 @@ export function useProjectBundle({
       );
       return [];
     } finally {
-      setDocumentsLoadingMore(false);
+      if (
+        loadMoreRequestId !== null &&
+        loadMoreRequestId === documentLoadMoreRequestIdRef.current
+      ) {
+        setDocumentsLoadingMore(false);
+      }
     }
   }
 
