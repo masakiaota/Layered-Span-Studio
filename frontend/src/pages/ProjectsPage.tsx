@@ -111,9 +111,19 @@ export function ProjectsPage({
   }, []);
 
   async function handleProjectImport(file: File | null, input?: HTMLInputElement | null) {
-    if (!file || creating) {
+    if (!file) {
+      if (input) {
+        input.value = "";
+      }
       return;
     }
+    if (creating) {
+      if (input) {
+        input.value = "";
+      }
+      return;
+    }
+    setImportFeedback(null);
     setImporting(true);
     try {
       const payload = await readJsonFile(file);
@@ -179,7 +189,6 @@ export function ProjectsPage({
           accept=".json,application/json"
           type="file"
           onChange={(event) => {
-            setImportFeedback(null);
             void handleProjectImport(event.target.files?.[0] ?? null, event.currentTarget);
           }}
         />

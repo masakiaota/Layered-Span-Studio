@@ -32,6 +32,7 @@ function renderProjectsPage() {
     <MemoryRouter initialEntries={["/projects"]}>
       <Routes>
         <Route path="/projects" element={<ProjectsPage user={user} onLogout={vi.fn()} />} />
+        <Route path="/projects/:projectId" element={<div>Project Workspace Route</div>} />
         <Route path="/projects/:projectId/settings" element={<div>Project Settings Route</div>} />
       </Routes>
     </MemoryRouter>,
@@ -124,5 +125,6 @@ describe("ProjectsPage", () => {
       imported: {},
       errors: [],
     });
+    await screen.findByText("Project Workspace Route");
   });
 });
