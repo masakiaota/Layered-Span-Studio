@@ -60,7 +60,7 @@ describe("ProjectShellHeader", () => {
       overflow: "hidden",
       flexGrow: "1",
       flexShrink: "1",
-      flexBasis: "0",
+      flexBasis: "0px",
     });
     expect(title).toHaveStyle({
       minWidth: "0px",
