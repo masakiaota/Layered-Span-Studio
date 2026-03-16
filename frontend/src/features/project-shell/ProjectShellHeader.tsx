@@ -27,28 +27,33 @@ export function ProjectShellHeader({
 }) {
   return (
     <AppBar position="sticky" color="transparent" elevation={0} sx={{ backdropFilter: "blur(10px)", borderBottom: "1px solid #d7e2f0" }}>
-      <Toolbar sx={{ gap: 2 }}>
-        <Button color="inherit" startIcon={<ArrowBackRoundedIcon />} onClick={onBackToProjects}>
+      <Toolbar sx={{ gap: 2, minWidth: 0, overflow: "hidden" }}>
+        <Button color="inherit" startIcon={<ArrowBackRoundedIcon />} onClick={onBackToProjects} sx={{ flexShrink: 0 }}>
           Projects
         </Button>
-        <Stack sx={{ minWidth: 0, flexGrow: 1 }}>
-          <Typography variant="h6" noWrap>
+        <Stack sx={{ minWidth: 0, flexGrow: 1, flexShrink: 1, flexBasis: 0, overflow: "hidden" }}>
+          <Typography variant="h6" noWrap sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {bundle.project.name}
           </Typography>
-          <Typography variant="body2" color="text.secondary" noWrap>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            noWrap
+            sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
             {bundle.project.description || "説明なし"} / {user.username}
           </Typography>
         </Stack>
-        <Tabs value={view} onChange={(_event, nextView) => onChangeView(nextView)} sx={{ minHeight: 0 }}>
+        <Tabs value={view} onChange={(_event, nextView) => onChangeView(nextView)} sx={{ minHeight: 0, flexShrink: 0 }}>
           <Tab value="workspace" label="Workspace" icon={<WorkspacesRoundedIcon />} iconPosition="start" />
           <Tab value="settings" label="Project Settings" icon={<SettingsRoundedIcon />} iconPosition="start" />
         </Tabs>
         <Tooltip title="ショートカット一覧">
-          <IconButton ref={shortcutButtonRef} onClick={onOpenShortcuts}>
+          <IconButton ref={shortcutButtonRef} onClick={onOpenShortcuts} sx={{ flexShrink: 0 }}>
             <HelpOutlineRoundedIcon />
           </IconButton>
         </Tooltip>
-        <Button onClick={onLogout} color="inherit" startIcon={<LogoutRoundedIcon />}>
+        <Button onClick={onLogout} color="inherit" startIcon={<LogoutRoundedIcon />} sx={{ flexShrink: 0 }}>
           Logout
         </Button>
       </Toolbar>
