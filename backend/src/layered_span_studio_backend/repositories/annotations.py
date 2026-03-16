@@ -29,6 +29,17 @@ def _touch_document_updated_at(conn, document_id: str) -> None:
     )
 
 
+def _bulk_document_status(conn, document_id: str) -> str:
+    statuses = list(
+        conn.execute(
+            select(annotations_table.c.status).where(annotations_table.c.document_id == document_id)
+        ).scalars()
+    )
+    if not statuses:
+        return "pending"
+    return "verified" if all(status == "verified" for status in statuses) else "pending"
+
+
 def _has_overlapping_annotation(
     conn,
     document_id: str,
@@ -166,7 +177,15 @@ def bulk_create_annotations(
                 )
             )
             created_ids.append(annotation_id)
-        _touch_document_updated_at(conn, document_id)
+
+        conn.execute(
+            documents_table.update()
+            .where(documents_table.c.id == document_id)
+            .values(
+                status=_bulk_document_status(conn, document_id),
+                updated_at=_utc_now_iso(),
+            )
+        )
     return [get_annotation(settings, project_id, document_id, annotation_id) for annotation_id in created_ids]
 
 

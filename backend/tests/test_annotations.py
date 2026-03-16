@@ -148,6 +148,67 @@ def test_bulk_annotation_create_touches_document_updated_at(client: TestClient, 
     assert after >= before
 
 
+def test_bulk_annotation_create_persists_document_status(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project, label, doc = _setup(client, auth_headers)
+
+    verified = client.put(
+        f"/projects/{project['id']}/documents/{doc['id']}/bundle",
+        json={
+            "annotations": [
+                {
+                    "id": None,
+                    "label_id": label["id"],
+                    "start": 0,
+                    "end": 5,
+                    "span_text": "Hello",
+                    "comment": "",
+                    "status": "verified",
+                    "meta": {},
+                }
+            ],
+            "submit": True,
+        },
+        headers=auth_headers,
+    )
+    assert verified.status_code == 200
+    assert verified.json()["status"] == "verified"
+
+    bulk = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations/bulk",
+        json={
+            "annotations": [
+                {
+                    "label_id": label["id"],
+                    "start": 6,
+                    "end": 11,
+                    "span_text": "world",
+                    "comment": "",
+                    "status": "pending",
+                    "meta": {},
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert bulk.status_code == 201
+
+    refreshed = client.get(
+        f"/projects/{project['id']}/documents/{doc['id']}",
+        headers=auth_headers,
+    )
+    assert refreshed.status_code == 200
+    assert refreshed.json()["status"] == "pending"
+
+    listed = client.get(
+        f"/projects/{project['id']}/documents",
+        headers=auth_headers,
+    )
+    assert listed.status_code == 200
+    payload = listed.json()
+    assert payload["pending_total"] == 1
+    assert payload["documents"][0]["status"] == "pending"
+
+
 def test_annotation_span_text_validation(client: TestClient, auth_headers: dict[str, str]) -> None:
     project, label, doc = _setup(client, auth_headers)
 

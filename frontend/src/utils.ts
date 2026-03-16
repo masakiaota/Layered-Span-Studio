@@ -250,7 +250,10 @@ export function getDocumentSnippetParts(document: DocumentListCompatible, query:
   return parts.filter((part) => part.text.length > 0);
 }
 
-function getDocumentTimestamp(document: DocumentRecord, key: "created_at" | "updated_at"): number | null {
+function getDocumentTimestamp(
+  document: Pick<DocumentListCompatible, "created_at" | "updated_at">,
+  key: "created_at" | "updated_at",
+): number | null {
   const value = document[key];
   if (typeof value !== "string") {
     return null;
@@ -259,7 +262,7 @@ function getDocumentTimestamp(document: DocumentRecord, key: "created_at" | "upd
   return Number.isNaN(timestamp) ? null : timestamp;
 }
 
-export function sortDocumentItems<T extends Pick<DocumentListCompatible, "id" | "document_name" | "status" | "created_at" | "updated_at">>(
+export function sortDocumentItems<T extends DocumentListCompatible>(
   documents: T[],
   mode: string,
 ): T[] {
