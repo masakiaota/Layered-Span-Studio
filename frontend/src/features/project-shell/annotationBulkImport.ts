@@ -10,6 +10,8 @@ type ParseBulkAnnotationPayloadOptions = {
   existingAnnotations: Array<Pick<AnnotationRecord, "label_id" | "start" | "end">>;
 };
 
+type AnnotationRange = { start: number; end: number };
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
@@ -41,8 +43,32 @@ function resolveLabelId(
   return null;
 }
 
-function hasOverlap(ranges: Array<{ start: number; end: number }>, start: number, end: number) {
-  return ranges.some((range) => range.start < end && range.end > start);
+function compareRanges(left: AnnotationRange, right: AnnotationRange) {
+  return left.start - right.start || left.end - right.end;
+}
+
+function findRangeInsertIndex(ranges: AnnotationRange[], start: number, end: number) {
+  const target = { start, end };
+  let low = 0;
+  let high = ranges.length;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (compareRanges(ranges[mid], target) < 0) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  return low;
+}
+
+function overlapsAdjacentRange(ranges: AnnotationRange[], index: number, start: number, end: number) {
+  const previous = index > 0 ? ranges[index - 1] : null;
+  if (previous && previous.end > start) {
+    return true;
+  }
+  const next = index < ranges.length ? ranges[index] : null;
+  return Boolean(next && next.start < end);
 }
 
 function normalizeMeta(value: unknown): JsonObject | null | undefined {
@@ -78,11 +104,14 @@ export function parseBulkAnnotationPayload(
 
   const labelIdSet = new Set(options.labels.map((label) => label.id));
   const labelIdByName = new Map(options.labels.map((label) => [label.name.trim(), label.id]));
-  const rangesByLabelId = new Map<string, Array<{ start: number; end: number }>>();
+  const rangesByLabelId = new Map<string, AnnotationRange[]>();
   for (const annotation of options.existingAnnotations) {
     const ranges = rangesByLabelId.get(annotation.label_id) ?? [];
     ranges.push({ start: annotation.start, end: annotation.end });
     rangesByLabelId.set(annotation.label_id, ranges);
+  }
+  for (const ranges of rangesByLabelId.values()) {
+    ranges.sort(compareRanges);
   }
 
   const issues: string[] = [];
@@ -142,11 +171,12 @@ export function parseBulkAnnotationPayload(
     }
 
     const ranges = rangesByLabelId.get(labelId) ?? [];
-    if (hasOverlap(ranges, start, end)) {
+    const insertIndex = findRangeInsertIndex(ranges, start, end);
+    if (overlapsAdjacentRange(ranges, insertIndex, start, end)) {
       issues.push(`annotations[${index}] は同一 label 内で既存または投入 payload と範囲が重複している`);
       return;
     }
-    ranges.push({ start, end });
+    ranges.splice(insertIndex, 0, { start, end });
     rangesByLabelId.set(labelId, ranges);
 
     annotations.push({

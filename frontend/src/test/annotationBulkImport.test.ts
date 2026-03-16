@@ -107,4 +107,42 @@ describe("parseBulkAnnotationPayload", () => {
     expect(result.annotations).toEqual([]);
     expect(result.issues).toContain("annotations[0] は同一 label 内で既存または投入 payload と範囲が重複している");
   });
+
+  it("rejects overlap within payload even when ranges arrive out of order", () => {
+    const result = parseBulkAnnotationPayload(
+      {
+        annotations: [
+          {
+            label_id: "label-symptom",
+            start: 4,
+            end: 6,
+            span_text: "あり",
+          },
+          {
+            label_id: "label-symptom",
+            start: 1,
+            end: 5,
+            span_text: "痛あり",
+          },
+        ],
+      },
+      {
+        labels,
+        existingAnnotations: [],
+      },
+    );
+
+    expect(result.annotations).toEqual([
+      {
+        label_id: "label-symptom",
+        start: 4,
+        end: 6,
+        span_text: "あり",
+        comment: "",
+        status: "pending",
+        meta: {},
+      },
+    ]);
+    expect(result.issues).toContain("annotations[1] は同一 label 内で既存または投入 payload と範囲が重複している");
+  });
 });

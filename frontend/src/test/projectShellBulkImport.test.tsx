@@ -276,4 +276,58 @@ describe("ProjectShell bulk annotation import", () => {
       expect(getDocumentSpy).toHaveBeenCalledTimes(3);
     });
   });
+
+  it("shows a warning when the bulk endpoint returns import errors", async () => {
+    const userEventSetup = userEvent.setup();
+    const initialDocument = createDocument();
+
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [{ ...initialDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+      total: 1,
+      pending_total: 1,
+      offset: 0,
+      limit: 40,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "getDocument")
+      .mockResolvedValueOnce(initialDocument)
+      .mockResolvedValueOnce(initialDocument);
+    vi.spyOn(api, "bulkCreateDocumentAnnotations").mockResolvedValue({
+      created: [],
+      errors: [{ detail: "annotations[0] failed" }],
+    });
+
+    renderWorkspace();
+
+    await screen.findByText("1 pending / 1 docs");
+    const bulkButton = screen.getByRole("button", { name: "Bulk JSON" });
+    const fileInput = bulkButton.querySelector("input[type='file']");
+    if (!(fileInput instanceof HTMLInputElement)) {
+      throw new Error("Bulk import file input not found");
+    }
+
+    await userEventSetup.upload(
+      fileInput,
+      new File(
+        [
+          JSON.stringify({
+            annotations: [
+              {
+                label_name: "症状",
+                start: 0,
+                end: 2,
+                span_text: "頭痛",
+              },
+            ],
+          }),
+        ],
+        "bulk.json",
+        { type: "application/json" },
+      ),
+    );
+
+    expect(await screen.findByText("Bulk import は一部失敗した: 0 件追加 / 1 件失敗 / annotations[0] failed")).toBeInTheDocument();
+    expect(screen.queryByText("0-2")).not.toBeInTheDocument();
+  });
 });

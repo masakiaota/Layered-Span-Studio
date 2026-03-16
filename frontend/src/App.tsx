@@ -56,6 +56,7 @@ import {
   parseAnnotationMetaDraft,
   readJsonFile,
   setProjectGuideline,
+  sortDocumentItems,
 } from "./utils";
 
 function buildIssueMessage(issues: string[]) {
@@ -70,57 +71,18 @@ function inferDocumentStatus(document: DocumentRecord): "pending" | "verified" {
   return document.annotations.every((annotation) => annotation.status === "verified") ? "verified" : "pending";
 }
 
-function sortDocumentListItems(items: DocumentListItem[], mode: string): DocumentListItem[] {
-  const compareName = (left: DocumentListItem, right: DocumentListItem) =>
-    left.document_name.localeCompare(right.document_name, "ja") || left.id.localeCompare(right.id);
-  const toTimestamp = (value: string) => {
-    const time = Date.parse(value);
-    return Number.isFinite(time) ? time : null;
-  };
-  const sorted = [...items];
-  if (mode === "name") {
-    return sorted.sort(compareName);
-  }
-  if (mode === "pending") {
-    return sorted.sort((left, right) => {
-      const leftPending = left.status === "verified" ? 1 : 0;
-      const rightPending = right.status === "verified" ? 1 : 0;
-      if (leftPending !== rightPending) {
-        return leftPending - rightPending;
-      }
-      return compareName(left, right);
-    });
-  }
-  if (mode === "updated") {
-    return sorted.sort((left, right) => {
-      const leftUpdated = toTimestamp(left.updated_at);
-      const rightUpdated = toTimestamp(right.updated_at);
-      if (leftUpdated === null && rightUpdated !== null) {
-        return 1;
-      }
-      if (leftUpdated !== null && rightUpdated === null) {
-        return -1;
-      }
-      if (leftUpdated !== null && rightUpdated !== null && leftUpdated !== rightUpdated) {
-        return rightUpdated - leftUpdated;
-      }
-      return compareName(left, right);
-    });
-  }
-  return sorted.sort((left, right) => {
-    const leftCreated = toTimestamp(left.created_at);
-    const rightCreated = toTimestamp(right.created_at);
-    if (leftCreated === null && rightCreated !== null) {
-      return 1;
+function formatBulkImportError(error: Record<string, unknown>) {
+  for (const key of ["detail", "message", "error", "reason"]) {
+    const value = error[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
     }
-    if (leftCreated !== null && rightCreated === null) {
-      return -1;
-    }
-    if (leftCreated !== null && rightCreated !== null && leftCreated !== rightCreated) {
-      return leftCreated - rightCreated;
-    }
-    return compareName(left, right);
-  });
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "詳細不明のエラー";
+  }
 }
 
 export function ProjectShell({
@@ -1072,6 +1034,7 @@ export function ProjectShell({
         ...refreshedDocument,
         status: inferDocumentStatus(refreshedDocument),
       };
+      const errorMessages = response.errors.map((error) => formatBulkImportError(error as Record<string, unknown>));
       setBundle((current) =>
         current
           ? {
@@ -1093,7 +1056,7 @@ export function ProjectShell({
         index: 0,
       });
       setDocumentList((current) =>
-        sortDocumentListItems(
+        sortDocumentItems(
           current.map((document) =>
             document.id === statusCorrectedDocument.id ? toDocumentListItem(statusCorrectedDocument) : document,
           ),
@@ -1109,6 +1072,13 @@ export function ProjectShell({
         setSelectedAnnotationId(response.created[0].id);
         setRightTab("annotations");
         setAnnotationEditCollapsed(false);
+      }
+      if (errorMessages.length > 0) {
+        showToast(
+          `Bulk import は一部失敗した: ${response.created.length} 件追加 / ${errorMessages.length} 件失敗 / ${buildIssueMessage(errorMessages)}`,
+          response.created.length > 0 ? "warning" : "error",
+        );
+        return;
       }
       showToast(`Bulk import 完了: ${response.created.length} 件の annotation を追加した`, "success");
     } catch (error) {
