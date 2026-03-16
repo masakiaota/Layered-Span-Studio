@@ -9,6 +9,7 @@ from layered_span_studio_backend.models.documents import (
     DocumentDetailOut,
     DocumentListResponse,
     DocumentListSort,
+    DocumentNavigationResponse,
     DocumentOut,
     DocumentUpdate,
 )
@@ -64,6 +65,36 @@ def create_document(project_id: str, payload: DocumentCreate, settings=Depends(g
         if "Project not found" in message:
             status_code = status.HTTP_404_NOT_FOUND
         raise HTTPException(status_code=status_code, detail=message)
+
+
+@router.get("/{document_id}/navigation", response_model=DocumentNavigationResponse)
+def get_document_navigation(
+    project_id: str,
+    document_id: str,
+    search: str = Query(""),
+    sort: DocumentListSort = Query(DocumentListSort.created),
+    settings=Depends(get_settings),
+):
+    try:
+        navigation = documents_service.get_document_navigation(
+            settings,
+            project_id,
+            document_id,
+            search,
+            sort.value,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    if not navigation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found in current filtered documents",
+        )
+    return {
+        **navigation,
+        "search": search,
+        "sort": sort,
+    }
 
 
 @router.get("/{document_id}", response_model=DocumentDetailOut)

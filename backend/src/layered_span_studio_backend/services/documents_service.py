@@ -25,6 +25,25 @@ def list_documents(
     return documents_repo.list_documents_page(settings, project_id, offset, limit, search, sort)
 
 
+def get_document_navigation(
+    settings: Settings,
+    project_id: str,
+    document_id: str,
+    search: str,
+    sort: str,
+) -> Optional[Dict[str, Optional[str]]]:
+    _ensure_project(settings, project_id)
+    if not documents_repo.document_exists(settings, project_id, document_id):
+        raise ValueError("Document not found")
+    return documents_repo.resolve_document_navigation(
+        settings,
+        project_id,
+        document_id,
+        search,
+        sort,
+    )
+
+
 def get_document(settings: Settings, project_id: str, document_id: str) -> Optional[Dict[str, Any]]:
     _ensure_project(settings, project_id)
     document = documents_repo.get_document(settings, project_id, document_id)
