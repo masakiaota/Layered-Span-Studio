@@ -221,6 +221,18 @@ def document_exists(settings: Settings, project_id: str, document_id: str) -> bo
         return conn.execute(query).first() is not None
 
 
+def list_document_names(settings: Settings, project_id: str) -> List[str]:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(documents_table.c.document_name)
+            .where(documents_table.c.project_id == project_id)
+            .order_by(documents_table.c.document_name.asc(), documents_table.c.id.asc())
+        ).all()
+    return [row[0] for row in rows]
+
+
 def document_name_exists(
     settings: Settings,
     project_id: str,
