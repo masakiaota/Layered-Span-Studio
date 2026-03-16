@@ -192,6 +192,96 @@ def test_project_settings_atomic_put_rolls_back_project_on_label_error(
     assert labels_response.json()["labels"] == [label]
 
 
+def test_project_settings_atomic_put_uses_same_label_order_as_labels_api(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Project A", "description": "desc", "meta": {"guideline": "old"}},
+        headers=auth_headers,
+    ).json()
+    first_label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Zulu", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    second_label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Alpha", "color": "#33AA44", "description": "desc", "shortcut": "b", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project['id']}/settings/atomic",
+        json={
+            "name": "Project A",
+            "description": "desc",
+            "meta": {"guideline": "old"},
+            "labels": [
+                {
+                    "id": first_label["id"],
+                    "name": first_label["name"],
+                    "color": first_label["color"],
+                    "description": first_label["description"],
+                    "shortcut": first_label["shortcut"],
+                    "meta": first_label["meta"],
+                },
+                {
+                    "id": second_label["id"],
+                    "name": second_label["name"],
+                    "color": second_label["color"],
+                    "description": second_label["description"],
+                    "shortcut": second_label["shortcut"],
+                    "meta": second_label["meta"],
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+    labels_response = client.get(f"/projects/{project['id']}/labels", headers=auth_headers)
+    assert labels_response.status_code == 200
+    assert [label["id"] for label in response.json()["labels"]] == [
+        label["id"] for label in labels_response.json()["labels"]
+    ]
+
+
+def test_project_settings_atomic_put_missing_project_returns_404_before_label_validation(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    response = client.put(
+        "/projects/does-not-exist/settings/atomic",
+        json={
+            "name": "Project A",
+            "description": "desc",
+            "meta": {"guideline": "old"},
+            "labels": [
+                {
+                    "id": None,
+                    "name": "Duplicate",
+                    "color": "#FF5733",
+                    "description": "desc",
+                    "shortcut": None,
+                    "meta": {},
+                },
+                {
+                    "id": None,
+                    "name": "Duplicate",
+                    "color": "#33AA44",
+                    "description": "desc2",
+                    "shortcut": None,
+                    "meta": {},
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
+
+
 def test_projects_list_returns_summary_counts_and_updated_at(client: TestClient, auth_headers: dict[str, str]) -> None:
     project = client.post(
         "/projects",

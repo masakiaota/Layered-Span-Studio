@@ -51,6 +51,9 @@ def replace_project_settings_atomic(
     meta: Dict[str, Any],
     labels: List[Dict[str, Any]],
 ) -> Optional[Dict[str, Any]]:
+    if not projects_repo.get_project(settings, project_id):
+        return None
+
     seen_ids: set[str] = set()
     seen_names: set[str] = set()
     for item in labels:

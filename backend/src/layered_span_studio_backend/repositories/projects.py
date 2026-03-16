@@ -217,7 +217,6 @@ def replace_project_and_labels(
             conn.execute(
                 select(labels_table)
                 .where(labels_table.c.project_id == project_id)
-                .order_by(labels_table.c.name.asc(), labels_table.c.id.asc())
             )
             .mappings()
             .all()
