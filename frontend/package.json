@@ -30,12 +30,12 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.6",
-    "@vitejs/plugin-react": "^4.7.0",
-    "agentation": "^2.3.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "agentation": "^2.3.3",
     "agentation-mcp": "^1.2.0",
     "jsdom": "^28.1.0",
     "typescript": "^5.9.2",
-    "vite": "^5.4.21",
-    "vitest": "^2.1.9"
+    "vite": "^8.0.0",
+    "vitest": "^4.1.0"
   }
 }

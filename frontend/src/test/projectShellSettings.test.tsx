@@ -79,8 +79,10 @@ const user: UserRecord = {
 };
 
 function getLabelRow(name: string) {
-  const labelText = screen.getByText(name);
-  const row = labelText.closest('[role="button"]');
+  const row = screen
+    .getAllByText(name)
+    .map((labelText) => labelText.closest('[role="button"]'))
+    .find((candidate): candidate is HTMLElement => candidate instanceof HTMLElement);
   if (!(row instanceof HTMLElement)) {
     throw new Error(`Unable to find row for label: ${name}`);
   }

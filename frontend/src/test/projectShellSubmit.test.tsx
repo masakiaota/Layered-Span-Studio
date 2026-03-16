@@ -92,8 +92,10 @@ function createAnnotation(overrides: Partial<AnnotationRecord> = {}): Annotation
 }
 
 function getDocumentRow(documentName: string) {
-  const label = screen.getByText(documentName);
-  const row = label.closest('[role="button"]');
+  const row = screen
+    .getAllByText(documentName)
+    .map((label) => label.closest('[role="button"]'))
+    .find((candidate): candidate is HTMLElement => candidate instanceof HTMLElement);
   if (!(row instanceof HTMLElement)) {
     throw new Error(`Unable to find row for document: ${documentName}`);
   }
