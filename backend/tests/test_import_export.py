@@ -792,3 +792,134 @@ def test_import_allows_different_label_overlap(client: TestClient, auth_headers:
     )
     assert response.status_code == 200
     assert response.json()["imported"] == {"labels": 2, "documents": 1, "annotations": 2}
+
+
+def test_new_import_preflight_resolves_name_and_does_not_create_project(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    source_project = _setup_project_with_data(client, auth_headers, "Project Preflight New")
+    payload = _export_project_payload(client, auth_headers, source_project["id"])
+
+    before_projects = client.get("/projects", headers=auth_headers)
+    assert before_projects.status_code == 200
+
+    response = client.post("/projects/import/preflight", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": True,
+        "resolved_project_name": "Project Preflight New (imported)",
+        "imported": {"labels": 1, "documents": 1, "annotations": 1},
+        "errors": [],
+    }
+
+    after_projects = client.get("/projects", headers=auth_headers)
+    assert after_projects.status_code == 200
+    assert len(after_projects.json()["projects"]) == len(before_projects.json()["projects"])
+
+
+def test_new_import_preflight_returns_error_without_creating_project(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    source_project = _setup_project_with_data(client, auth_headers, "Project Preflight Invalid")
+    payload = _export_project_payload(client, auth_headers, source_project["id"])
+    del payload["labels"][0]["description"]
+
+    before_projects = client.get("/projects", headers=auth_headers)
+    assert before_projects.status_code == 200
+
+    response = client.post("/projects/import/preflight", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": False,
+        "resolved_project_name": None,
+        "imported": {"labels": 1, "documents": 1, "annotations": 1},
+        "errors": [{"message": "Label description is required"}],
+    }
+
+    after_projects = client.get("/projects", headers=auth_headers)
+    assert after_projects.status_code == 200
+    assert len(after_projects.json()["projects"]) == len(before_projects.json()["projects"])
+
+
+def test_existing_import_preflight_detects_conflict_without_mutating_project(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    source_project = _setup_project_with_data(client, auth_headers, "Project Preflight Source")
+    payload = _export_project_payload(client, auth_headers, source_project["id"])
+    target_project = client.post(
+        "/projects", json={"name": "Project Preflight Target", "description": "desc"}, headers=auth_headers
+    ).json()
+    client.post(
+        f"/projects/{target_project['id']}/labels",
+        json={"name": "Label1", "color": "#1122AA", "description": "desc"},
+        headers=auth_headers,
+    )
+
+    response = client.post(
+        f"/projects/{target_project['id']}/import/preflight", json=payload, headers=auth_headers
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": False,
+        "imported": {"labels": 1, "documents": 1, "annotations": 1},
+        "errors": [{"message": "Label name already exists in this project"}],
+    }
+
+    labels_response = client.get(f"/projects/{target_project['id']}/labels", headers=auth_headers)
+    assert labels_response.status_code == 200
+    assert [label["name"] for label in labels_response.json()["labels"]] == ["Label1"]
+
+    docs_response = client.get(
+        f"/projects/{target_project['id']}/documents", headers=auth_headers
+    )
+    assert docs_response.status_code == 200
+    assert docs_response.json()["documents"] == []
+
+
+def test_existing_import_preflight_success_returns_counts_without_mutation(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    source_project = _setup_project_with_data(client, auth_headers, "Project Preflight Append Source")
+    payload = _export_project_payload(client, auth_headers, source_project["id"])
+    target_project = client.post(
+        "/projects", json={"name": "Project Preflight Append Target", "description": "desc"}, headers=auth_headers
+    ).json()
+
+    response = client.post(
+        f"/projects/{target_project['id']}/import/preflight", json=payload, headers=auth_headers
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": True,
+        "imported": {"labels": 1, "documents": 1, "annotations": 1},
+        "errors": [],
+    }
+
+    docs_response = client.get(
+        f"/projects/{target_project['id']}/documents", headers=auth_headers
+    )
+    assert docs_response.status_code == 200
+    assert docs_response.json()["documents"] == []
+
+    labels_response = client.get(f"/projects/{target_project['id']}/labels", headers=auth_headers)
+    assert labels_response.status_code == 200
+    assert labels_response.json()["labels"] == []
+
+
+def test_existing_import_preflight_returns_not_found_for_unknown_project(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    payload = {
+        "project": {"name": "Project Not Found", "description": "desc", "meta": {}},
+        "labels": [],
+        "documents": [],
+        "meta": {"format": "layered-span-studio/export", "version": "1.0"},
+    }
+
+    response = client.post(
+        "/projects/does-not-exist/import/preflight",
+        json=payload,
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"

@@ -6,8 +6,10 @@ from layered_span_studio_backend.core.dependencies import get_current_user, get_
 from layered_span_studio_backend.models.import_export import (
     ExportRequest,
     ExportResponse,
+    ImportPreflightResponse,
     ImportRequest,
     ImportResponse,
+    ProjectImportPreflightResponse,
     ProjectImportResponse,
 )
 from layered_span_studio_backend.services import import_export_service
@@ -44,10 +46,27 @@ def import_project_as_new(payload: ImportRequest, settings=Depends(get_settings)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
+@router.post("/import/preflight", response_model=ProjectImportPreflightResponse)
+def preflight_import_project_as_new(payload: ImportRequest, settings=Depends(get_settings)):
+    return import_export_service.preflight_import_project_as_new(settings, payload.model_dump())
+
+
 @router.post("/{project_id}/import", response_model=ImportResponse)
 def import_project(project_id: str, payload: ImportRequest, settings=Depends(get_settings)):
     try:
         return import_export_service.import_project(settings, project_id, payload.model_dump())
+    except ValueError as exc:
+        message = str(exc)
+        status_code = status.HTTP_400_BAD_REQUEST
+        if "Project not found" in message:
+            status_code = status.HTTP_404_NOT_FOUND
+        raise HTTPException(status_code=status_code, detail=message)
+
+
+@router.post("/{project_id}/import/preflight", response_model=ImportPreflightResponse)
+def preflight_import_project(project_id: str, payload: ImportRequest, settings=Depends(get_settings)):
+    try:
+        return import_export_service.preflight_import_project(settings, project_id, payload.model_dump())
     except ValueError as exc:
         message = str(exc)
         status_code = status.HTTP_400_BAD_REQUEST

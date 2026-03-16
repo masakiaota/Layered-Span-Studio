@@ -33,3 +33,17 @@ class ProjectImportResponse(APIModel):
     project: Dict[str, Any]
     imported: Dict[str, int]
     errors: List[Dict[str, Any]]
+
+
+class ImportPreflightIssue(APIModel):
+    message: str
+
+
+class ImportPreflightResponse(APIModel):
+    ok: bool
+    imported: Dict[str, int]
+    errors: List[ImportPreflightIssue]
+
+
+class ProjectImportPreflightResponse(ImportPreflightResponse):
+    resolved_project_name: str | None = None
