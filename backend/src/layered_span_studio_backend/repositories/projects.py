@@ -184,6 +184,108 @@ def replace_project(
     return {"id": project_id, "name": name, "description": description, "meta": meta}
 
 
+def replace_project_and_labels(
+    settings: Settings,
+    project_id: str,
+    name: str,
+    description: str,
+    meta: Dict[str, Any],
+    labels: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    project = get_project(settings, project_id)
+    if not project:
+        return None
+    if name != project["name"]:
+        existing_names = {p["name"] for p in list_projects(settings) if p["id"] != project_id}
+        if name in existing_names:
+            raise ValueError("Project name already exists")
+
+    db_path = _project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    with engine.begin() as conn:
+        conn.execute(
+            project_table.update().where(project_table.c.id == project_id).values(
+                name=name,
+                description=description,
+                meta=encode_meta(meta),
+            )
+        )
+
+        rows = conn.execute(select(labels_table).where(labels_table.c.project_id == project_id)).mappings().all()
+        existing_ids = {row["id"] for row in rows}
+        requested_ids = {item["id"] for item in labels if item.get("id")}
+        unknown_ids = requested_ids - existing_ids
+        if unknown_ids:
+            raise ValueError("Label not found")
+
+        omitted_ids = existing_ids - requested_ids
+        if omitted_ids:
+            conn.execute(
+                labels_table.delete().where(
+                    labels_table.c.project_id == project_id,
+                    labels_table.c.id.in_(sorted(omitted_ids)),
+                )
+            )
+
+        for item in labels:
+            label_id = item.get("id")
+            if label_id:
+                conn.execute(
+                    labels_table.update()
+                    .where(
+                        labels_table.c.project_id == project_id,
+                        labels_table.c.id == label_id,
+                    )
+                    .values(
+                        name=item["name"],
+                        color=item["color"],
+                        description=item["description"],
+                        shortcut=item.get("shortcut"),
+                        meta=encode_meta(item.get("meta")),
+                    )
+                )
+                continue
+
+            conn.execute(
+                labels_table.insert().values(
+                    id=str(uuid.uuid4()),
+                    project_id=project_id,
+                    name=item["name"],
+                    color=item["color"],
+                    description=item["description"],
+                    shortcut=item.get("shortcut"),
+                    meta=encode_meta(item.get("meta")),
+                )
+            )
+
+        updated_rows = (
+            conn.execute(
+                select(labels_table)
+                .where(labels_table.c.project_id == project_id)
+                .order_by(labels_table.c.name.asc(), labels_table.c.id.asc())
+            )
+            .mappings()
+            .all()
+        )
+
+    return {
+        "project": {"id": project_id, "name": name, "description": description, "meta": meta},
+        "labels": [
+            {
+                "id": row["id"],
+                "project_id": row["project_id"],
+                "project_name": name,
+                "name": row["name"],
+                "color": row["color"],
+                "description": row["description"],
+                "shortcut": row["shortcut"],
+                "meta": decode_meta(row["meta"]),
+            }
+            for row in updated_rows
+        ],
+    }
+
+
 def delete_project(settings: Settings, project_id: str) -> bool:
     project_dir = _project_dir(settings, project_id)
     if not project_dir.exists():

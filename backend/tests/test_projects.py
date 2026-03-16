@@ -89,6 +89,109 @@ def test_project_settings_put_requires_full_form(client: TestClient, auth_header
     assert response.status_code == 422
 
 
+def test_project_settings_atomic_put_saves_project_and_labels(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Project A", "description": "desc", "meta": {"guideline": "old"}},
+        headers=auth_headers,
+    ).json()
+    first_label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    second_label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Label2", "color": "#33AA44", "description": "desc", "shortcut": "b", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project['id']}/settings/atomic",
+        json={
+            "name": "Project Renamed",
+            "description": "updated",
+            "meta": {"guideline": "new"},
+            "labels": [
+                {
+                    "id": first_label["id"],
+                    "name": "Label1Updated",
+                    "color": "#FF6644",
+                    "description": "updated",
+                    "shortcut": "x",
+                    "meta": {"note": "changed"},
+                },
+                {
+                    "id": None,
+                    "name": "Label3",
+                    "color": "#1133AA",
+                    "description": "new",
+                    "shortcut": None,
+                    "meta": {},
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["project"] == {
+        "id": project["id"],
+        "name": "Project Renamed",
+        "description": "updated",
+        "meta": {"guideline": "new"},
+    }
+    assert {label["name"] for label in payload["labels"]} == {"Label1Updated", "Label3"}
+    assert all(label["project_name"] == "Project Renamed" for label in payload["labels"])
+    assert all(label["id"] != second_label["id"] for label in payload["labels"])
+
+
+def test_project_settings_atomic_put_rolls_back_project_on_label_error(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Project A", "description": "desc", "meta": {"guideline": "old"}},
+        headers=auth_headers,
+    ).json()
+    label = client.post(
+        f"/projects/{project['id']}/labels",
+        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
+        headers=auth_headers,
+    ).json()
+
+    response = client.put(
+        f"/projects/{project['id']}/settings/atomic",
+        json={
+            "name": "Project Renamed",
+            "description": "updated",
+            "meta": {"guideline": "new"},
+            "labels": [
+                {
+                    "id": "00000000-0000-0000-0000-000000000000",
+                    "name": "Ghost",
+                    "color": "#1133AA",
+                    "description": "new",
+                    "shortcut": None,
+                    "meta": {},
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+
+    project_response = client.get(f"/projects/{project['id']}", headers=auth_headers)
+    assert project_response.status_code == 200
+    assert project_response.json()["name"] == "Project A"
+    assert project_response.json()["description"] == "desc"
+    assert project_response.json()["meta"] == {"guideline": "old"}
+
+    labels_response = client.get(f"/projects/{project['id']}/labels", headers=auth_headers)
+    assert labels_response.status_code == 200
+    assert labels_response.json()["labels"] == [label]
+
+
 def test_projects_list_returns_summary_counts_and_updated_at(client: TestClient, auth_headers: dict[str, str]) -> None:
     project = client.post(
         "/projects",

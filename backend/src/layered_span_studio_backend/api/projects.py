@@ -7,6 +7,8 @@ from layered_span_studio_backend.models.projects import (
     ProjectCreate,
     ProjectListResponse,
     ProjectOut,
+    ProjectSettingsAtomicOut,
+    ProjectSettingsAtomicPut,
     ProjectSettingsPut,
     ProjectUpdate,
 )
@@ -63,6 +65,28 @@ def put_project_settings(project_id: str, payload: ProjectSettingsPut, settings=
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
+
+
+@router.put("/{project_id}/settings/atomic", response_model=ProjectSettingsAtomicOut)
+def put_project_settings_atomic(project_id: str, payload: ProjectSettingsAtomicPut, settings=Depends(get_settings)):
+    try:
+        result = projects_service.replace_project_settings_atomic(
+            settings,
+            project_id,
+            payload.name,
+            payload.description,
+            payload.meta,
+            [label.model_dump(mode="json") for label in payload.labels],
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = status.HTTP_400_BAD_REQUEST
+        if "Project not found" in message or "Label not found" in message:
+            status_code = status.HTTP_404_NOT_FOUND
+        raise HTTPException(status_code=status_code, detail=message)
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    return result
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
