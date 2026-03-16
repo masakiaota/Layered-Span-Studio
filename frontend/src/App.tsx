@@ -57,11 +57,9 @@ import {
 } from "./utils";
 
 export function ProjectShell({
-  token,
   user,
   onLogout,
 }: {
-  token: string;
   user: UserRecord;
   onLogout: () => void;
 }) {
@@ -129,7 +127,6 @@ export function ProjectShell({
     mutateSettingsBundle,
     removeDocumentFromLocalState,
   } = useProjectBundle({
-    token,
     projectId,
     searchQuery,
     sortMode,
@@ -194,14 +191,13 @@ export function ProjectShell({
     handleExport,
   } = useImportExport({
     bundle,
-    token,
     loadBundle: () => loadBundle(handleBundleLoaded),
     showToast,
   });
 
   useEffect(() => {
     void loadBundle(handleBundleLoaded);
-  }, [projectId, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const focusedLabel = useMemo(
     () => bundle?.labels.find((label) => label.id === focusedLabelId) ?? bundle?.labels[0] ?? null,
@@ -236,7 +232,6 @@ export function ProjectShell({
     loadSameSurfaceExamples,
     ensureSameLabelDetails,
   } = useProjectExamples({
-    token,
     projectId: bundle?.project.id ?? null,
     focusedLabel,
     selectedAnnotation,
@@ -394,7 +389,7 @@ export function ProjectShell({
     setSaving(true);
     try {
       const payload = buildDocumentBundlePayload(currentDocument, forceVerified);
-      const savedDocument = await api.saveDocumentBundle(token, bundle.project.id, currentDocument.id, payload, forceVerified);
+      const savedDocument = await api.saveDocumentBundle(bundle.project.id, currentDocument.id, payload, forceVerified);
       setBundle((current) =>
         current
           ? {
@@ -439,7 +434,7 @@ export function ProjectShell({
       let savedLabels = bundle.labels;
 
       if (projectDirty) {
-        savedProject = await api.saveProjectSettings(token, bundle.project);
+        savedProject = await api.saveProjectSettings(bundle.project);
         setBundle((current) =>
           current
             ? {
@@ -461,7 +456,6 @@ export function ProjectShell({
       if (labelsDirty) {
         try {
           const labelsResponse = await api.saveProjectLabels(
-            token,
             bundle.project.id,
             bundle.labels.map((label) => ({
               id: isLocalId(label.id) ? null : label.id,
@@ -474,7 +468,7 @@ export function ProjectShell({
           );
           savedLabels = labelsResponse.labels;
           const refreshedCurrentDocument = selectedDocId
-            ? await api.getDocument(token, bundle.project.id, selectedDocId).catch(() => null)
+            ? await api.getDocument(bundle.project.id, selectedDocId).catch(() => null)
             : null;
           setBundle((current) =>
             current
@@ -789,11 +783,11 @@ export function ProjectShell({
 
     setDeletingDocument(true);
     try {
-      await api.deleteDocument(token, bundle.project.id, deletedId);
+      await api.deleteDocument(bundle.project.id, deletedId);
 
       let nextDocument = existingNextDocument;
       if (deletingCurrent && nextSelectedId && !nextDocument) {
-        nextDocument = await api.getDocument(token, bundle.project.id, nextSelectedId);
+        nextDocument = await api.getDocument(bundle.project.id, nextSelectedId);
       }
 
       applyDeletionResult({ deletedId, nextSelectedId, deletingCurrent, nextDocument });
@@ -804,7 +798,7 @@ export function ProjectShell({
       if (error instanceof ApiError && error.status === 404) {
         let nextDocument = existingNextDocument;
         if (deletingCurrent && nextSelectedId && !nextDocument) {
-          nextDocument = await api.getDocument(token, bundle.project.id, nextSelectedId).catch(() => null);
+          nextDocument = await api.getDocument(bundle.project.id, nextSelectedId).catch(() => null);
         }
         applyDeletionResult({ deletedId, nextSelectedId, deletingCurrent, nextDocument });
         await fetchDocumentPage(true, nextSelectedId);
@@ -914,12 +908,12 @@ export function ProjectShell({
     }
     setSaving(true);
     try {
-      const created = await api.createDocument(token, bundle.project.id, {
+      const created = await api.createDocument(bundle.project.id, {
         document_name: newDocName.trim(),
         text: newDocText,
         meta: {},
       });
-      const createdDocument = await api.getDocument(token, bundle.project.id, created.id);
+      const createdDocument = await api.getDocument(bundle.project.id, created.id);
       setBundle((current) =>
         current
           ? {
@@ -1292,7 +1286,7 @@ export function ProjectShell({
 export function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { token, user, loading, error, login, logout } = useAuthSession();
+  const { user, loading, error, login, logout } = useAuthSession();
 
   async function handleLogin(username: string, password: string) {
     const loggedIn = await login(username, password);
@@ -1301,14 +1295,14 @@ export function App() {
     }
   }
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     if (location.pathname !== "/login") {
       navigate("/login");
     }
   }
 
-  if (loading && token && !user) {
+  if (loading && !user) {
     return (
       <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
         <CircularProgress />
@@ -1318,7 +1312,7 @@ export function App() {
 
   return (
     <Routes>
-      {!token || !user ? (
+      {!user ? (
         <>
           <Route path="/login" element={<LoginPage loading={loading} error={error} onLogin={handleLogin} />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
@@ -1326,9 +1320,9 @@ export function App() {
       ) : (
         <>
           <Route path="/login" element={<Navigate to="/projects" replace />} />
-          <Route path="/projects" element={<ProjectsPage token={token} user={user} onLogout={handleLogout} />} />
-          <Route path="/projects/:projectId" element={<ProjectShell token={token} user={user} onLogout={handleLogout} />} />
-          <Route path="/projects/:projectId/settings" element={<ProjectShell token={token} user={user} onLogout={handleLogout} />} />
+          <Route path="/projects" element={<ProjectsPage user={user} onLogout={() => void handleLogout()} />} />
+          <Route path="/projects/:projectId" element={<ProjectShell user={user} onLogout={() => void handleLogout()} />} />
+          <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={() => void handleLogout()} />} />
           <Route path="*" element={<Navigate to="/projects" replace />} />
         </>
       )}

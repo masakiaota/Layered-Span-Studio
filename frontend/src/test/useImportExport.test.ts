@@ -57,7 +57,6 @@ describe("useImportExport", () => {
     const { result } = renderHook(() =>
       useImportExport({
         bundle,
-        token: "test-token",
         loadBundle: vi.fn(),
         showToast: makeShowToast(),
       }),
@@ -74,7 +73,6 @@ describe("useImportExport", () => {
     const { result } = renderHook(() =>
       useImportExport({
         bundle,
-        token: "test-token",
         loadBundle: vi.fn(),
         showToast: makeShowToast(),
       }),
@@ -103,7 +101,6 @@ describe("useImportExport", () => {
     const { result } = renderHook(() =>
       useImportExport({
         bundle,
-        token: "test-token",
         loadBundle: vi.fn(),
         showToast,
       }),
@@ -113,7 +110,7 @@ describe("useImportExport", () => {
       await result.current.handleExport();
     });
 
-    expect(api.exportProject).toHaveBeenCalledWith("test-token", "project-1", true, true);
+    expect(api.exportProject).toHaveBeenCalledWith("project-1", true, true);
     expect(utils.downloadJson).toHaveBeenCalled();
     expect(showToast).toHaveBeenCalledWith("Export を開始した", "success");
   });
@@ -125,7 +122,6 @@ describe("useImportExport", () => {
     const { result } = renderHook(() =>
       useImportExport({
         bundle,
-        token: "test-token",
         loadBundle: vi.fn(),
         showToast,
       }),
@@ -150,7 +146,6 @@ describe("useImportExport", () => {
     const { result } = renderHook(() =>
       useImportExport({
         bundle: null,
-        token: "test-token",
         loadBundle: vi.fn(),
         showToast,
       }),
@@ -167,7 +162,6 @@ describe("useImportExport", () => {
     const { result } = renderHook(() =>
       useImportExport({
         bundle,
-        token: "test-token",
         loadBundle: vi.fn(),
         showToast: makeShowToast(),
       }),
@@ -189,7 +183,6 @@ describe("useImportExport", () => {
     const { result } = renderHook(() =>
       useImportExport({
         bundle,
-        token: "test-token",
         loadBundle: vi.fn(),
         showToast,
       }),
@@ -248,7 +241,6 @@ describe("useImportExport", () => {
     const { result } = renderHook(() =>
       useImportExport({
         bundle,
-        token: "test-token",
         loadBundle: vi.fn(),
         showToast,
       }),
@@ -262,8 +254,8 @@ describe("useImportExport", () => {
       await result.current.handleSettingsImport();
     });
 
-    expect(api.listLabels).toHaveBeenCalledWith("test-token", "project-1");
-    expect(api.listDocuments).toHaveBeenCalledWith("test-token", "project-1", {
+    expect(api.listLabels).toHaveBeenCalledWith("project-1");
+    expect(api.listDocuments).toHaveBeenCalledWith("project-1", {
       offset: 0,
       limit: DOCUMENT_PAGE_SIZE,
       sort: "created",
@@ -302,7 +294,6 @@ describe("useImportExport", () => {
     const { result } = renderHook(() =>
       useImportExport({
         bundle,
-        token: "test-token",
         loadBundle,
         showToast,
       }),
@@ -316,11 +307,7 @@ describe("useImportExport", () => {
       await result.current.handleSettingsImport();
     });
 
-    expect(api.importProject).toHaveBeenCalledWith(
-      "test-token",
-      "project-1",
-      validImportPayload,
-    );
+    expect(api.importProject).toHaveBeenCalledWith("project-1", validImportPayload);
     expect(loadBundle).toHaveBeenCalledTimes(1);
     expect(result.current.settingsImportFile).toBeNull();
     expect(result.current.settingsImporting).toBe(false);
@@ -355,7 +342,6 @@ describe("useImportExport", () => {
     const { result } = renderHook(() =>
       useImportExport({
         bundle,
-        token: "test-token",
         loadBundle,
         showToast,
       }),

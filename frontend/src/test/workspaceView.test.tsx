@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceView } from "../features/project-shell/WorkspaceView";
+import type { SelectionPreview } from "../features/project-shell/projectShellTypes";
 import type {
   AnnotationSearchItemRecord,
   DocumentRecord,
@@ -9,7 +10,6 @@ import type {
   LabelRecord,
   LabelSurfaceGroupRecord,
   ProjectRecord,
-  SelectionPreview,
 } from "../types";
 
 type WorkspaceViewProps = ComponentProps<typeof WorkspaceView>;

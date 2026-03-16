@@ -19,14 +19,12 @@ export type OnBundleLoaded = (bundle: ProjectBundle, firstDocId: string | null) 
 type SettingsBundleDraft = Pick<ProjectBundle, "project" | "labels">;
 
 export function useProjectBundle({
-  token,
   projectId,
   searchQuery,
   sortMode,
   selectedDocId,
   showToast,
 }: {
-  token: string;
   projectId: string;
   searchQuery: string;
   sortMode: string;
@@ -56,9 +54,9 @@ export function useProjectBundle({
     const loadRequestId = ++bundleLoadRequestIdRef.current;
     try {
       const [project, { labels }, documentsResponse] = await Promise.all([
-        api.getProject(token, projectId),
-        api.listLabels(token, projectId),
-        api.listDocuments(token, projectId, {
+        api.getProject(projectId),
+        api.listLabels(projectId),
+        api.listDocuments(projectId, {
           offset: 0,
           limit: DOCUMENT_PAGE_SIZE,
           search: searchQuery,
@@ -70,7 +68,7 @@ export function useProjectBundle({
       }
       const firstDocId = documentsResponse.documents[0]?.id ?? null;
       const loadedDocuments = firstDocId
-        ? [await api.getDocument(token, projectId, firstDocId)]
+        ? [await api.getDocument(projectId, firstDocId)]
         : [];
       if (loadRequestId !== bundleLoadRequestIdRef.current) {
         return;
@@ -122,7 +120,7 @@ export function useProjectBundle({
     }
     let active = true;
     void api
-      .getDocument(token, projectId, selectedDocId)
+      .getDocument(projectId, selectedDocId)
       .then((document) => {
         if (!active) {
           return;
@@ -154,7 +152,7 @@ export function useProjectBundle({
     return () => {
       active = false;
     };
-  }, [bundle, projectId, selectedDocId, token]);
+  }, [bundle, projectId, selectedDocId]);
 
   async function fetchDocumentPage(
     reset: boolean,
@@ -170,7 +168,7 @@ export function useProjectBundle({
       setDocumentsLoadingMore(false);
     }
     try {
-      const response = await api.listDocuments(token, projectId, {
+      const response = await api.listDocuments(projectId, {
         offset: reset ? 0 : documentNextOffset,
         limit: DOCUMENT_PAGE_SIZE,
         search: searchQuery,

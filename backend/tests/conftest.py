@@ -27,7 +27,9 @@ def settings(tmp_path: Path) -> Settings:
         data_dir=data_dir,
         jwt_secret="test-secret",
         jwt_expires_in=3600,
-        cors_allow_origins=["*"],
+        session_expires_in=3600,
+        cookie_secure=False,
+        cors_allow_origins=["http://127.0.0.1:3000"],
     )
 
 
@@ -41,7 +43,18 @@ def client(settings: Settings) -> TestClient:
 def auth_headers(settings: Settings, client: TestClient) -> dict[str, str]:
     users_repo.ensure_users_db(settings)
     users_repo.create_user(settings, "user1", hash_password("password"), meta={})
-    response = client.post("/auth/login", json={"username": "user1", "password": "password"})
+    response = client.post("/auth/token", json={"username": "user1", "password": "password"})
     payload: dict[str, Any] = response.json()
     token = payload["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def session_auth(client: TestClient, settings: Settings) -> dict[str, str]:
+    users_repo.ensure_users_db(settings)
+    users_repo.create_user(settings, "user1", hash_password("password"), meta={})
+    response = client.post("/auth/session", json={"username": "user1", "password": "password"})
+    assert response.status_code == 200
+    csrf_token = client.cookies.get("lss_csrf")
+    assert csrf_token is not None
+    return {"X-CSRF-Token": csrf_token}

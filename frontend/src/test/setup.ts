@@ -4,4 +4,5 @@ import { afterEach } from "vitest";
 
 afterEach(() => {
   cleanup();
+  document.cookie = "lss_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
 });

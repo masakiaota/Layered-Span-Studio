@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     data_dir: Path = Path(__file__).resolve().parents[3] / "data"
     jwt_secret: str
     jwt_expires_in: int = 28800
-    cors_allow_origins: List[str] = ["*"]
+    session_expires_in: int = 28800
+    cookie_secure: bool = False
+    cors_allow_origins: List[str] = ["http://127.0.0.1:3000", "http://localhost:3000"]
 
     @property
     def app_db_path(self) -> Path:

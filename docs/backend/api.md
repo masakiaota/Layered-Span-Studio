@@ -4,21 +4,32 @@
 
 このドキュメントでは、Layered Span Studio の Backend API の全エンドポイントを定義する。
 
-- **認証方式**: Bearer Token (JWT) - 詳細は `auth.md` を参照
+- **認証方式**:
+  - Browser: `HttpOnly Cookie + server session`
+  - CLI / API client: Bearer Token (JWT)
+  - 詳細は `auth.md` を参照
 - **データ形式**: JSON - 詳細は `json-schema.md` を参照
-- **ベースURL**: `http://localhost:8000` (開発時)
+- **ベースURL**:
+  - Browser: same-origin の `/api`
+  - CLI / API client: `http://localhost:8000` (開発時)
 
 ---
 
 ## API一覧
 
 **注記**
-- 原則として全APIは `Authorization: Bearer <token>` が必要（例外: `/auth/login`）
+- 原則として全 API は認証が必要
+- 未認証で呼べる例外は `POST /auth/session` と `POST /auth/token` のみ
+- 以降の `Authorization: Bearer <token>` 記述は CLI / API client 例である
+- Browser は session cookie で認証する
+- Browser が session cookie で `POST / PUT / PATCH / DELETE` を呼ぶ場合は `X-CSRF-Token` も必要になる
 
 ### Auth
 
-- `POST /auth/login` - ログインしてアクセストークン（JWT）を取得
-- `GET /auth/me` - 現在ログイン中ユーザー情報を取得
+- `POST /auth/session` - browser session を作成
+- `GET /auth/session` - 現在の browser session を取得
+- `DELETE /auth/session` - browser session を破棄
+- `POST /auth/token` - CLI / API client 用 Bearer JWT を取得
 
 ### Projects
 
@@ -70,9 +81,93 @@
 
 詳細は `auth.md` を参照。
 
-### POST /auth/login
+### POST /auth/session
 
-ユーザー名とパスワードでログインし、JWTトークンを取得する。
+username / password で browser session を作成する。
+
+**Request:**
+```json
+{
+  "username": "user1",
+  "password": "password123"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "username": "user1",
+  "meta": {}
+}
+```
+
+**Cookies:**
+- `lss_session`
+- `lss_csrf`
+
+**Error (401 Unauthorized):**
+```json
+{
+  "detail": "Invalid username or password"
+}
+```
+
+---
+
+### GET /auth/session
+
+現在の browser session に紐づく user 情報を取得する。
+
+**Request:**
+- `Cookie: lss_session=...`
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid",
+  "username": "user1",
+  "meta": {}
+}
+```
+
+**Cookie refresh:**
+- `lss_csrf` を再発行して揃える
+
+**Error (401 Unauthorized):**
+```json
+{
+  "detail": "Not authenticated"
+}
+```
+
+---
+
+### DELETE /auth/session
+
+現在の browser session を破棄する。
+
+**Headers:**
+```
+X-CSRF-Token: <lss_csrf>
+```
+
+**Request:**
+- `Cookie: lss_session=...`
+
+**Response (204 No Content):**
+- body なし
+- `lss_session` / `lss_csrf` を失効
+
+**Error:**
+- `401 Unauthorized`
+- `403 Forbidden`
+
+---
+
+### POST /auth/token
+
+CLI / API client 用 Bearer JWT を発行する。
 
 **Request:**
 ```json
@@ -95,33 +190,6 @@
 ```json
 {
   "detail": "Invalid username or password"
-}
-```
-
----
-
-### GET /auth/me
-
-現在ログイン中のユーザー情報を取得する。
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "id": "uuid",
-  "username": "user1",
-  "meta": {}
-}
-```
-
-**Error (401 Unauthorized):**
-```json
-{
-  "detail": "Not authenticated"
 }
 ```
 

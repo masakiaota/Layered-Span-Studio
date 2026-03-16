@@ -79,8 +79,10 @@ const user: UserRecord = {
 };
 
 function getLabelRow(name: string) {
-  const labelText = screen.getByText(name);
-  const row = labelText.closest('[role="button"]');
+  const row = screen
+    .getAllByText(name)
+    .map((labelText) => labelText.closest('[role="button"]'))
+    .find((candidate): candidate is HTMLElement => candidate instanceof HTMLElement);
   if (!(row instanceof HTMLElement)) {
     throw new Error(`Unable to find row for label: ${name}`);
   }
@@ -103,7 +105,7 @@ function renderProjectSettings() {
   return render(
     <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
       <Routes>
-        <Route path="/projects/:projectId/settings" element={<ProjectShell token="token" user={user} onLogout={vi.fn()} />} />
+        <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -282,7 +284,7 @@ describe("ProjectShell settings import validation", () => {
     render(
       <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
         <Routes>
-          <Route path="/projects/:projectId/settings" element={<ProjectShell token="token" user={user} onLogout={vi.fn()} />} />
+          <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -326,7 +328,7 @@ describe("ProjectShell settings import validation", () => {
     render(
       <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
         <Routes>
-          <Route path="/projects/:projectId/settings" element={<ProjectShell token="token" user={user} onLogout={vi.fn()} />} />
+          <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
         </Routes>
       </MemoryRouter>,
     );

@@ -5,6 +5,8 @@
 ## 1. 遷移方針
 
 - Project 一覧の導線は Label Studio の構成を踏襲する。
+- browser から見た API は same-origin の `/api` 配下とする。
+- browser 認証は `HttpOnly Cookie + server session` とし、frontend は auth token を `localStorage` に保持しない。
 - Project 選択後は Project スコープ画面（Workspace / Project Settings）へ遷移する。
 - URL は以下を持つ。
   - `"/projects/:projectId"`（Workspace）
@@ -20,17 +22,19 @@
 
 ## 3. 遷移フロー
 
-1. `"/login"` で username / password を入力してサインインする。
-2. サインイン後は Project List を開く。
-3. Project List で既存 Project を選択する、または Import Project を実行して新規 Project を作成する。
-4. 既存 Project を選んだ場合は `"/projects/:projectId"` の Workspace を開く。
-5. 新規 Project Import 完了時も、作成された `"/projects/:projectId"` の Workspace を開く。
-6. Project List からは各 Project の `Settings` 導線で `"/projects/:projectId/settings"` を直接開ける。
-7. 上部ナビゲーションで以下を切り替える。
+1. アプリ起動時に `GET /auth/session` を呼び、既存 session が有効ならそのまま Project List を開く。
+2. session が無効なら `"/login"` を開く。
+3. `"/login"` で username / password を入力し、`POST /auth/session` でサインインする。
+4. サインイン後は Project List を開く。
+5. Project List で既存 Project を選択する、または Import Project を実行して新規 Project を作成する。
+6. 既存 Project を選んだ場合は `"/projects/:projectId"` の Workspace を開く。
+7. 新規 Project Import 完了時も、作成された `"/projects/:projectId"` の Workspace を開く。
+8. Project List からは各 Project の `Settings` 導線で `"/projects/:projectId/settings"` を直接開ける。
+9. 上部ナビゲーションで以下を切り替える。
   - Workspace
   - Project Settings
-8. Workspace では左ペインで Document を選び、中央で Annotation 編集、右ペインで詳細編集を行う。
-9. Project Settings では Project 名 / 説明 / Label 定義 / ガイドライン / Import・Export を管理する。
+10. Workspace では左ペインで Document を選び、中央で Annotation 編集、右ペインで詳細編集を行う。
+11. Project Settings では Project 名 / 説明 / Label 定義 / ガイドライン / Import・Export を管理する。
 
 ## 4. Document 切り替え時の扱い
 
