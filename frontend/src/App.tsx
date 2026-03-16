@@ -9,6 +9,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "re
 import { ApiError, api } from "./api";
 import { CreateDocumentDialog } from "./features/project-shell/CreateDocumentDialog";
 import { DeleteDocumentDialog } from "./features/project-shell/DeleteDocumentDialog";
+import { DeleteProjectDialog } from "./features/project-shell/DeleteProjectDialog";
 import { PendingChangesDialog } from "./features/project-shell/PendingChangesDialog";
 import { ProjectShellHeader } from "./features/project-shell/ProjectShellHeader";
 import { SettingsView } from "./features/project-shell/SettingsView";
@@ -119,6 +120,8 @@ export function ProjectShell({
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; documentName: string; isCurrent: boolean } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingDocument, setDeletingDocument] = useState(false);
+  const [deleteProjectDialogOpen, setDeleteProjectDialogOpen] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
   const [bulkImporting, setBulkImporting] = useState(false);
   const shortcutButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingActionConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -224,6 +227,7 @@ export function ProjectShell({
     loadBundle: () => loadBundle(handleBundleLoaded),
     showToast,
   });
+  const settingsBusy = saving || settingsImporting || deletingProject;
 
   useEffect(() => {
     void loadBundle(handleBundleLoaded);
@@ -845,6 +849,26 @@ export function ProjectShell({
     }
   }
 
+  async function confirmDeleteProject() {
+    if (!bundle || settingsBusy) {
+      return;
+    }
+    setDeletingProject(true);
+    try {
+      await api.deleteProject(bundle.project.id);
+      navigate("/projects", { replace: true });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        navigate("/projects", { replace: true });
+        return;
+      }
+      showToast(error instanceof Error ? error.message : "Project の削除に失敗した", "error");
+    } finally {
+      setDeletingProject(false);
+      setDeleteProjectDialogOpen(false);
+    }
+  }
+
   function requestAction(action: PendingAction) {
     if (dirty) {
       setPendingAction(action);
@@ -1375,6 +1399,8 @@ export function ProjectShell({
             onExportVerifiedChange={setExportVerified}
             onExport={() => void handleExport()}
             onSave={() => void handleSave()}
+            onRequestDeleteProject={() => setDeleteProjectDialogOpen(true)}
+            deletingProject={deletingProject}
           />
         )}
       </Box>
@@ -1411,6 +1437,20 @@ export function ProjectShell({
         confirmButtonRef={deleteDocumentConfirmButtonRef}
         onClose={closeDeleteDialog}
         onDelete={() => void confirmDeleteDocument()}
+      />
+
+      <DeleteProjectDialog
+        open={deleteProjectDialogOpen}
+        busy={deletingProject}
+        projectName={bundle.project.name}
+        dirty={dirty}
+        onClose={() => {
+          if (deletingProject) {
+            return;
+          }
+          setDeleteProjectDialogOpen(false);
+        }}
+        onDelete={() => void confirmDeleteProject()}
       />
 
       <ShortcutPopover

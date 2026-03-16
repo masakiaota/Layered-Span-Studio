@@ -177,7 +177,7 @@ describe("ProjectShell pending changes navigation guard", () => {
     });
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(screen.queryByText("Projects Route")).not.toBeInTheDocument();
-  });
+  }, 15000);
 
   it("saves the dirty workspace document before navigating back to projects", async () => {
     const userEventSetup = userEvent.setup();

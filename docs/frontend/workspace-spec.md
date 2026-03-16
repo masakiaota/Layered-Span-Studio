@@ -1,6 +1,6 @@
 # Workspace UI/UX 仕様（初版）
 
-最終更新: 2026-03-15
+最終更新: 2026-03-17
 
 ## 1. 目的
 
@@ -147,6 +147,9 @@
 
 ## 6.2 Import / Export（Project List / Project Settings）
 
+- Project List では `New Project` と `Import Project` を並列導線として提供する。
+- `New Project` は Project List 上部から dialog で起動し、`Project name` と `Description` を入力して空の project を作成する。
+- `New Project` 完了後は、作成された project の Project Settings へ遷移する。
 - Project List では `.json` ファイルから新規 project import を行う。
 - Project List の Import は backend の `POST /projects/import` の request body と同一形式（`project` / `labels` / `documents` / `meta`）を使う。
 - Project List の Import 完了後は、作成された project の Workspace へ遷移する。
@@ -171,6 +174,9 @@
 - プロジェクトガイドライン文言を編集可能にする。
 - Import / Export カードを同画面内に配置する。
 - Import カード内では「現在 project への追記 import」であることを明示する。
+- 画面最下部に赤系の `Danger Zone` を置き、Project 全体の削除導線を配置する。
+- Project 削除は確認ダイアログ必須とし、対象 `project.name`、配下 document / annotation / label も削除されること、元に戻せないことを明示する。
+- Project 削除成功後は Project List へ遷移する。
 - `label.shortcut` は backend / API のデータ項目としては保持するが、現行 frontend では編集 UI と直接割り当て操作を提供しない。将来の操作設計と合わせて検討する。
 
 ## 7. キーボードショートカット

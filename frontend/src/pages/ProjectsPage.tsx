@@ -31,6 +31,7 @@ import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
+import { CreateProjectDialog } from "../features/projects/CreateProjectDialog";
 import { useToast } from "../hooks/useToast";
 import {
   buildImportValidationMessage,
@@ -82,7 +83,12 @@ export function ProjectsPage({
   const [loading, setLoading] = useState(true);
   const [projects, setProjects] = useState<ProjectListItemRecord[]>([]);
   const [importing, setImporting] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const mutationBusy = importing || creating;
   const [importFeedback, setImportFeedback] = useState<{
     severity: "success" | "info" | "warning" | "error";
     message: string;
@@ -106,8 +112,18 @@ export function ProjectsPage({
 
   async function handleProjectImport(file: File | null, input?: HTMLInputElement | null) {
     if (!file) {
+      if (input) {
+        input.value = "";
+      }
       return;
     }
+    if (creating) {
+      if (input) {
+        input.value = "";
+      }
+      return;
+    }
+    setImportFeedback(null);
     setImporting(true);
     try {
       const payload = await readJsonFile(file);
@@ -141,16 +157,38 @@ export function ProjectsPage({
     }
   }
 
+  async function handleCreateProject() {
+    if (!newProjectName.trim() || importing) {
+      return;
+    }
+    setCreating(true);
+    try {
+      const created = await api.createProject({
+        name: newProjectName.trim(),
+        description: newProjectDescription,
+        meta: {},
+      });
+      showToast("Project を作成した", "success");
+      setCreateDialogOpen(false);
+      setNewProjectName("");
+      setNewProjectDescription("");
+      navigate(`/projects/${created.id}/settings`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Project の作成に失敗した", "error");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   function renderImportButton(label: string, variant: "contained" | "outlined", sx?: ButtonProps["sx"]) {
     return (
-      <Button component="label" variant={variant} startIcon={<UploadFileRoundedIcon />} disabled={importing} sx={sx}>
+      <Button component="label" variant={variant} startIcon={<UploadFileRoundedIcon />} disabled={mutationBusy} sx={sx}>
         {label}
         <input
           hidden
           accept=".json,application/json"
           type="file"
           onChange={(event) => {
-            setImportFeedback(null);
             void handleProjectImport(event.target.files?.[0] ?? null, event.currentTarget);
           }}
         />
@@ -188,7 +226,17 @@ export function ProjectsPage({
               </Typography>
             </Box>
           </Stack>
-          {renderImportButton("Import Project", "contained")}
+          <Stack direction="row" spacing={1.25}>
+            <Button
+              variant="outlined"
+              startIcon={<WorkspacesRoundedIcon />}
+              onClick={() => setCreateDialogOpen(true)}
+              disabled={mutationBusy}
+            >
+              New Project
+            </Button>
+            {renderImportButton("Import Project", "contained")}
+          </Stack>
           <Button color="inherit" startIcon={<LogoutRoundedIcon />} onClick={onLogout}>
             Logout
           </Button>
@@ -251,12 +299,22 @@ export function ProjectsPage({
               </Avatar>
               <Typography variant="h5">Project がまだない</Typography>
               <Typography color="text.secondary" sx={{ mt: 1.5, maxWidth: 520, mx: "auto" }}>
-                まずは export JSON を import して、注釈対象の project を作成する。
+                空の project を作成するか、export JSON を import して注釈対象の project を追加する。
               </Typography>
               <Alert severity="info" sx={{ mt: 3, textAlign: "left" }}>
                 top-level に `project` / `labels` / `documents` を持つ export JSON を受け付ける。
               </Alert>
-              {renderImportButton("Import Project", "contained", { mt: 3 })}
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="center" sx={{ mt: 3 }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<WorkspacesRoundedIcon />}
+                  onClick={() => setCreateDialogOpen(true)}
+                  disabled={mutationBusy}
+                >
+                  New Project
+                </Button>
+                {renderImportButton("Import Project", "contained")}
+              </Stack>
             </Paper>
           ) : filteredProjects.length === 0 ? (
             <Paper sx={{ p: 6, borderRadius: 4, textAlign: "center" }}>
@@ -378,6 +436,24 @@ export function ProjectsPage({
           {toast.message}
         </Alert>
       </Snackbar>
+
+      <CreateProjectDialog
+        open={createDialogOpen}
+        saving={creating}
+        projectName={newProjectName}
+        projectDescription={newProjectDescription}
+        onNameChange={setNewProjectName}
+        onDescriptionChange={setNewProjectDescription}
+        onClose={() => {
+          if (creating) {
+            return;
+          }
+          setNewProjectName("");
+          setNewProjectDescription("");
+          setCreateDialogOpen(false);
+        }}
+        onCreate={() => void handleCreateProject()}
+      />
     </Box>
   );
 }

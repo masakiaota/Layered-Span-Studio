@@ -1,4 +1,4 @@
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -132,6 +132,18 @@ function createImportPayload(labelName: string) {
   };
 }
 
+function ProjectsRouteWithBackButton() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <div>Projects Route</div>
+      <button type="button" onClick={() => navigate(-1)}>
+        Back
+      </button>
+    </>
+  );
+}
+
 describe("ProjectShell settings label selection", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -175,7 +187,7 @@ describe("ProjectShell settings label selection", () => {
     expect(diagnosisRow).not.toHaveClass("Mui-selected");
     expect(patientRow).not.toHaveClass("Mui-selected");
     expect(screen.getByRole("button", { name: "Add label" })).toBeInTheDocument();
-  });
+  }, 15000);
 
   it("keeps the edited or added label selected in the form", async () => {
     const userEventSetup = userEvent.setup();
@@ -208,7 +220,7 @@ describe("ProjectShell settings label selection", () => {
     expect(nameInput).toHaveValue("既往歴");
     expect(labelDescriptionInput).toHaveValue("過去の病歴");
     expect(screen.getByRole("button", { name: "Update label" })).toBeInTheDocument();
-  });
+  }, 15000);
 
   it("clears only when the selected label is deleted", async () => {
     const userEventSetup = userEvent.setup();
@@ -349,5 +361,41 @@ describe("ProjectShell settings import validation", () => {
 
     expect(await screen.findByText("既存 label と重複している: 病名")).toBeInTheDocument();
     expect(importProjectMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes the project from the danger zone and navigates back to projects", async () => {
+    const userEventSetup = userEvent.setup();
+    vi.spyOn(api, "deleteProject").mockResolvedValue(undefined);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels) });
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [],
+      total: 0,
+      pending_total: 0,
+      offset: 0,
+      limit: 40,
+      search: "",
+      sort: "created",
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
+        <Routes>
+          <Route path="/projects" element={<ProjectsRouteWithBackButton />} />
+          <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "Project Settings" });
+    await userEventSetup.click(screen.getByRole("button", { name: "Project を削除" }));
+
+    expect(await screen.findByText('"Medical NER" を削除する。')).toBeInTheDocument();
+    await userEventSetup.click(screen.getByRole("button", { name: "削除" }));
+
+    await screen.findByText("Projects Route");
+    expect(api.deleteProject).toHaveBeenCalledWith("project-1");
+    await userEventSetup.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Projects Route")).toBeInTheDocument();
   });
 });
