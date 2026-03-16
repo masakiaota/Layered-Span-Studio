@@ -689,6 +689,10 @@ export function ProjectShell({
       activateDocument(action.docId);
       return;
     }
+    if (action.type === "logout") {
+      onLogout();
+      return;
+    }
     if (action.type === "settings") {
       navigate(`/projects/${projectId}/settings`);
       return;
@@ -1071,7 +1075,7 @@ export function ProjectShell({
         onBackToProjects={() => requestAction({ type: "projects" })}
         onChangeView={(nextView) => requestAction({ type: nextView })}
         onOpenShortcuts={handleShortcutPanelToggle}
-        onLogout={onLogout}
+        onLogout={() => requestAction({ type: "logout" })}
       />
 
       <Box
