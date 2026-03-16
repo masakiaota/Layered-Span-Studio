@@ -213,6 +213,60 @@
 - settings 画面の project フォーム全体を表す
 - response は通常の `Project`
 
+#### Project Settings Atomic API の派生ルール
+
+```json
+{
+  "name": "医療文書NER v2",
+  "description": "医療文書からエンティティ抽出（改訂版）",
+  "meta": {
+    "guideline": "共通ガイドライン"
+  },
+  "labels": [
+    {
+      "id": "uuid or null",
+      "name": "疾患名",
+      "color": "#ff6b6b",
+      "description": "ガイドラインもここに書く",
+      "shortcut": "1",
+      "meta": {}
+    }
+  ]
+}
+```
+
+- settings 画面の project フォームと label 一覧の完全現在値を表す
+- response は次の形を返す
+
+```json
+{
+  "project": {
+    "id": "uuid",
+    "name": "医療文書NER v2",
+    "description": "医療文書からエンティティ抽出（改訂版）",
+    "meta": {
+      "guideline": "共通ガイドライン"
+    }
+  },
+  "labels": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER v2",
+      "name": "疾患名",
+      "color": "#ff6b6b",
+      "description": "ガイドラインもここに書く",
+      "shortcut": "1",
+      "meta": {}
+    }
+  ]
+}
+```
+
+- `project` は通常の `Project`
+- `labels` は `Label[]`
+- project 更新と labels 同期を同一トランザクションで扱う
+
 ---
 
 ### Annotation
@@ -296,8 +350,27 @@
 #### Document List API の派生ルール
 
 - 一覧 API も基本の `Document` 形を使うが、`annotations` は含めない
-- 一覧 API は `offset/limit/search/sort` を持つ
+- 一覧 API は `offset/limit/search/sort/pending_total` を持つ
 - `search` は `text` にのみ適用し、`document_name` は検索対象に含めない
+- `pending_total` は検索条件に一致した document 集合のうち `status != "verified"` の件数
+
+#### Document Navigation API の派生ルール
+
+```json
+{
+  "current_document_id": "uuid-current",
+  "prev_document_id": "uuid-prev",
+  "next_document_id": "uuid-next",
+  "next_pending_document_id": "uuid-next-pending",
+  "search": "target",
+  "sort": "name"
+}
+```
+
+- `prev_document_id` / `next_document_id` は現在の `search` / `sort` 適用後の隣接 document
+- `next_pending_document_id` は現在位置より後方にある最初の `status != "verified"` document
+- 候補がない場合は `null`
+- `search` / `sort` は解決に使った条件をそのまま返す
 
 #### Document Bundle Save API の派生ルール
 
@@ -404,6 +477,58 @@
   - 既存と同名の label / document が含まれる場合は全体失敗する
   - `documents[].created_at` / `documents[].updated_at` は timezone 付き ISO 8601 必須で、保存時は UTC `Z` に正規化する
   - `documents[].updated_at >= documents[].created_at` が必須
+
+### Import Preflight の扱い
+
+- `POST /projects/import/preflight`
+  - `POST /projects/import` と同じ payload を受け取り、新規 project import の dry-run を返す
+  - response は `ok` / `resolved_project_name` / `imported` / `errors` を返す
+  - `resolved_project_name` は name 重複解決後に実際に採用される予定名
+  - top-level payload が壊れていても 422 ではなく同じ response 契約で返す
+  - 実行後も project 一覧や DB 状態は変化しない
+
+- `POST /projects/{project_id}/import/preflight`
+  - `POST /projects/{project_id}/import` と同じ payload を受け取り、append import の dry-run を返す
+  - response は `ok` / `imported` / `errors` を返す
+  - top-level payload が壊れていても 422 ではなく同じ response 契約で返す
+  - conflict 判定は backend に保存済みの label / document 一覧を基準に行う
+  - 実行後も target project の labels / documents は変化しない
+
+#### Import Preflight Response
+
+```json
+{
+  "ok": true,
+  "imported": {
+    "labels": 1,
+    "documents": 1,
+    "annotations": 1
+  },
+  "errors": []
+}
+```
+
+- `ok`: preflight を通過したか
+- `imported`: payload から算出した見込み件数
+- `errors`: `{ "message": string }[]`
+
+#### Project Import Preflight Response
+
+```json
+{
+  "ok": true,
+  "resolved_project_name": "医療文書NER (imported)",
+  "imported": {
+    "labels": 1,
+    "documents": 1,
+    "annotations": 1
+  },
+  "errors": []
+}
+```
+
+- `Import Preflight Response` に `resolved_project_name` を追加した形
+- validation 失敗時は `resolved_project_name: null`
 
 ### 新規 Project Import のレスポンス
 
