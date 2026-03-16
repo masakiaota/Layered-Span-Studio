@@ -12,10 +12,7 @@
   - `login / me / logout / CSRF / CORS / Cookie 属性` まで含めて backend / frontend / docs の仕様を先に固める
   - frontend の `localStorage` 依存を外す方針を決める
   - backend / frontend / docs をまたぐ改修になるため、着手時は別ブランチで進める
-- frontend の状態管理を分割する
-  - `App.tsx` に集中している bundle 読み込み、undo/redo、保存、Import / Export、遷移ガードをさらに分離する
-  - `useProjectBundle` / `useDocumentHistory` / `useImportExport` のような責務単位へ整理する
-  - 先にテスト基盤を入れてから分割し、回帰を抑えながら進める
+
 
 ## Mid
 

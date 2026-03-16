@@ -2,7 +2,7 @@
 
 ## 概要
 
-このドキュメントでは、 Layered Span Studio の Backend API の全エンドポイントを定義する。
+このドキュメントでは、Layered Span Studio の Backend API の全エンドポイントを定義する。
 
 - **認証方式**:
   - Browser: `HttpOnly Cookie + server session`
@@ -18,10 +18,11 @@
 ## API一覧
 
 **注記**
-- 原則として全 API は認証が必要（例外: `/auth/session`, `/auth/token`）
+- 原則として全 API は認証が必要
+- 未認証で呼べる例外は `POST /auth/session` と `POST /auth/token` のみ
 - 以降の `Authorization: Bearer <token>` 記述は CLI / API client 例である
 - Browser は session cookie で認証する
-- Browser が `POST / PUT / PATCH / DELETE` を呼ぶ場合は `X-CSRF-Token` も必要になる
+- Browser が session cookie で `POST / PUT / PATCH / DELETE` を呼ぶ場合は `X-CSRF-Token` も必要になる
 
 ### Auth
 

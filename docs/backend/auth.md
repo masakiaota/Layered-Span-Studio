@@ -139,12 +139,10 @@ CLI / API client 向け Bearer JWT を発行する。
 
 ## 保護 API の認証ルール
 
-- `POST /auth/session`
-- `GET /auth/session`
-- `DELETE /auth/session`
-- `POST /auth/token`
-
-以外の API は原則認証必須とする。
+- 未認証で呼べるのは `POST /auth/session` と `POST /auth/token` のみ
+- `GET /auth/session` は session cookie が必要
+- `DELETE /auth/session` は session cookie に加えて `X-CSRF-Token` も必要
+- それ以外の API も原則認証必須とする
 
 認証判定の優先順位:
 1. `Authorization: Bearer <token>` があれば Bearer JWT として検証する
