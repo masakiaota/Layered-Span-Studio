@@ -141,13 +141,6 @@ def list_documents_page(
     return documents, total, pending_total
 
 
-def _next_pending_document_id(rows: List[Dict[str, Any]], current_index: int) -> Optional[str]:
-    for row in rows[current_index + 1 :]:
-        if row["status"] != "verified":
-            return row["id"]
-    return None
-
-
 def resolve_document_navigation(
     settings: Settings,
     project_id: str,
@@ -157,28 +150,45 @@ def resolve_document_navigation(
 ) -> Optional[Dict[str, Optional[str]]]:
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
-    query = (
-        select(documents_table.c.id, documents_table.c.status)
+    order_by = _document_sort_order(sort)
+    ordered_documents = (
+        select(
+            documents_table.c.id.label("id"),
+            documents_table.c.status.label("status"),
+            func.row_number().over(order_by=order_by).label("row_num"),
+            func.lag(documents_table.c.id).over(order_by=order_by).label("prev_document_id"),
+            func.lead(documents_table.c.id).over(order_by=order_by).label("next_document_id"),
+        )
         .where(*_document_filter_conditions(project_id, search))
-        .order_by(*_document_sort_order(sort))
+        .cte("ordered_documents")
     )
     with engine.connect() as conn:
-        rows = conn.execute(query).mappings().all()
-
-    current_index = next(
-        (index for index, row in enumerate(rows) if row["id"] == current_document_id),
-        -1,
-    )
-    if current_index < 0:
-        return None
-
-    prev_document_id = rows[current_index - 1]["id"] if current_index > 0 else None
-    next_document_id = rows[current_index + 1]["id"] if current_index + 1 < len(rows) else None
-    next_pending_document_id = _next_pending_document_id(rows, current_index)
+        current_row = (
+            conn.execute(
+                select(
+                    ordered_documents.c.row_num,
+                    ordered_documents.c.prev_document_id,
+                    ordered_documents.c.next_document_id,
+                ).where(ordered_documents.c.id == current_document_id)
+            )
+            .mappings()
+            .first()
+        )
+        if not current_row:
+            return None
+        next_pending_document_id = conn.execute(
+            select(ordered_documents.c.id)
+            .where(
+                ordered_documents.c.row_num > current_row["row_num"],
+                ordered_documents.c.status != "verified",
+            )
+            .order_by(ordered_documents.c.row_num.asc())
+            .limit(1)
+        ).scalar_one_or_none()
     return {
         "current_document_id": current_document_id,
-        "prev_document_id": prev_document_id,
-        "next_document_id": next_document_id,
+        "prev_document_id": current_row["prev_document_id"],
+        "next_document_id": current_row["next_document_id"],
         "next_pending_document_id": next_pending_document_id,
     }
 
@@ -194,6 +204,21 @@ def list_all_documents(
     with engine.connect() as conn:
         rows = conn.execute(_documents_select(project_id, sort=sort)).mappings().all()
     return [_document_from_row(project_name, row) for row in rows]
+
+
+def document_exists(settings: Settings, project_id: str, document_id: str) -> bool:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    query = (
+        select(documents_table.c.id)
+        .where(
+            documents_table.c.project_id == project_id,
+            documents_table.c.id == document_id,
+        )
+        .limit(1)
+    )
+    with engine.connect() as conn:
+        return conn.execute(query).first() is not None
 
 
 def document_name_exists(

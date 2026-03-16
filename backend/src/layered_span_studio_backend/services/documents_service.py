@@ -33,6 +33,8 @@ def get_document_navigation(
     sort: str,
 ) -> Optional[Dict[str, Optional[str]]]:
     _ensure_project(settings, project_id)
+    if not documents_repo.document_exists(settings, project_id, document_id):
+        raise ValueError("Document not found")
     return documents_repo.resolve_document_navigation(
         settings,
         project_id,

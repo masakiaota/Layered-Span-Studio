@@ -387,6 +387,24 @@ def test_document_navigation_returns_404_when_current_document_is_not_in_filtere
     assert response.json()["detail"] == "Document not found in current filtered documents"
 
 
+def test_document_navigation_returns_404_when_document_does_not_exist(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project_id = _create_project(client, auth_headers)
+    client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Doc1", "text": "contains target"},
+        headers=auth_headers,
+    ).json()
+
+    response = client.get(
+        f"/projects/{project_id}/documents/not-found/navigation?search=target&sort=created",
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Document not found"
+
+
 def test_document_create_and_update_reject_duplicate_name(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
