@@ -141,6 +141,48 @@ def list_documents_page(
     return documents, total, pending_total
 
 
+def _next_pending_document_id(rows: List[Dict[str, Any]], current_index: int) -> Optional[str]:
+    for row in rows[current_index + 1 :]:
+        if row["status"] != "verified":
+            return row["id"]
+    return None
+
+
+def resolve_document_navigation(
+    settings: Settings,
+    project_id: str,
+    current_document_id: str,
+    search: str = "",
+    sort: str = "created",
+) -> Optional[Dict[str, Optional[str]]]:
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    query = (
+        select(documents_table.c.id, documents_table.c.status)
+        .where(*_document_filter_conditions(project_id, search))
+        .order_by(*_document_sort_order(sort))
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+
+    current_index = next(
+        (index for index, row in enumerate(rows) if row["id"] == current_document_id),
+        -1,
+    )
+    if current_index < 0:
+        return None
+
+    prev_document_id = rows[current_index - 1]["id"] if current_index > 0 else None
+    next_document_id = rows[current_index + 1]["id"] if current_index + 1 < len(rows) else None
+    next_pending_document_id = _next_pending_document_id(rows, current_index)
+    return {
+        "current_document_id": current_document_id,
+        "prev_document_id": prev_document_id,
+        "next_document_id": next_document_id,
+        "next_pending_document_id": next_pending_document_id,
+    }
+
+
 def list_all_documents(
     settings: Settings,
     project_id: str,

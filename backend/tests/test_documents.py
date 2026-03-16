@@ -262,6 +262,131 @@ def test_document_list_search_treats_percent_and_underscore_as_literals(
     assert [item["document_name"] for item in underscore_response.json()["documents"]] == ["UnderscoreMatch"]
 
 
+def test_document_navigation_resolves_prev_next_and_next_pending(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project_id = _create_project(client, auth_headers)
+    alpha = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Alpha", "text": "contains target one"},
+        headers=auth_headers,
+    ).json()
+    mu = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Mu", "text": "contains target two"},
+        headers=auth_headers,
+    ).json()
+    zeta = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Zeta", "text": "contains target three"},
+        headers=auth_headers,
+    ).json()
+    client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Outside", "text": "no hit"},
+        headers=auth_headers,
+    ).json()
+
+    _set_document_fields(
+        settings,
+        project_id,
+        alpha["id"],
+        status="pending",
+        created_at="2026-03-01T00:00:00Z",
+    )
+    _set_document_fields(
+        settings,
+        project_id,
+        mu["id"],
+        status="pending",
+        created_at="2026-03-02T00:00:00Z",
+    )
+    _set_document_fields(
+        settings,
+        project_id,
+        zeta["id"],
+        status="pending",
+        created_at="2026-03-03T00:00:00Z",
+    )
+
+    response = client.get(
+        f"/projects/{project_id}/documents/{mu['id']}/navigation?search=target&sort=name",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["current_document_id"] == mu["id"]
+    assert payload["prev_document_id"] == alpha["id"]
+    assert payload["next_document_id"] == zeta["id"]
+    assert payload["next_pending_document_id"] == zeta["id"]
+    assert payload["search"] == "target"
+    assert payload["sort"] == "name"
+
+
+def test_document_navigation_does_not_wrap_next_pending_to_previous_documents(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project_id = _create_project(client, auth_headers)
+    alpha = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Alpha", "text": "target alpha"},
+        headers=auth_headers,
+    ).json()
+    beta = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Beta", "text": "target beta"},
+        headers=auth_headers,
+    ).json()
+
+    _set_document_fields(
+        settings,
+        project_id,
+        alpha["id"],
+        status="pending",
+        created_at="2026-03-01T00:00:00Z",
+    )
+    _set_document_fields(
+        settings,
+        project_id,
+        beta["id"],
+        status="verified",
+        created_at="2026-03-02T00:00:00Z",
+    )
+
+    response = client.get(
+        f"/projects/{project_id}/documents/{beta['id']}/navigation?search=target&sort=created",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["prev_document_id"] == alpha["id"]
+    assert payload["next_document_id"] is None
+    assert payload["next_pending_document_id"] is None
+
+
+def test_document_navigation_returns_404_when_current_document_is_not_in_filtered_list(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project_id = _create_project(client, auth_headers)
+    current = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Current", "text": "no keyword here"},
+        headers=auth_headers,
+    ).json()
+    client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Matched", "text": "contains target"},
+        headers=auth_headers,
+    ).json()
+
+    response = client.get(
+        f"/projects/{project_id}/documents/{current['id']}/navigation?search=target&sort=created",
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Document not found in current filtered documents"
+
+
 def test_document_create_and_update_reject_duplicate_name(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
