@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import func, select
 
 from layered_span_studio_backend.core.config import Settings
+from layered_span_studio_backend.repositories.label_sync import sync_labels
 from layered_span_studio_backend.storage.project_db import documents_table, get_project_engine, init_project_db, labels_table, project_table
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
 
@@ -203,6 +204,7 @@ def replace_project_and_labels(
     db_path = _project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     with engine.begin() as conn:
+        sync_labels(conn, project_id, labels)
         conn.execute(
             project_table.update().where(project_table.c.id == project_id).values(
                 name=name,
@@ -210,53 +212,6 @@ def replace_project_and_labels(
                 meta=encode_meta(meta),
             )
         )
-
-        rows = conn.execute(select(labels_table).where(labels_table.c.project_id == project_id)).mappings().all()
-        existing_ids = {row["id"] for row in rows}
-        requested_ids = {item["id"] for item in labels if item.get("id")}
-        unknown_ids = requested_ids - existing_ids
-        if unknown_ids:
-            raise ValueError("Label not found")
-
-        omitted_ids = existing_ids - requested_ids
-        if omitted_ids:
-            conn.execute(
-                labels_table.delete().where(
-                    labels_table.c.project_id == project_id,
-                    labels_table.c.id.in_(sorted(omitted_ids)),
-                )
-            )
-
-        for item in labels:
-            label_id = item.get("id")
-            if label_id:
-                conn.execute(
-                    labels_table.update()
-                    .where(
-                        labels_table.c.project_id == project_id,
-                        labels_table.c.id == label_id,
-                    )
-                    .values(
-                        name=item["name"],
-                        color=item["color"],
-                        description=item["description"],
-                        shortcut=item.get("shortcut"),
-                        meta=encode_meta(item.get("meta")),
-                    )
-                )
-                continue
-
-            conn.execute(
-                labels_table.insert().values(
-                    id=str(uuid.uuid4()),
-                    project_id=project_id,
-                    name=item["name"],
-                    color=item["color"],
-                    description=item["description"],
-                    shortcut=item.get("shortcut"),
-                    meta=encode_meta(item.get("meta")),
-                )
-            )
 
         updated_rows = (
             conn.execute(
