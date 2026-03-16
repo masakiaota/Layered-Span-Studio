@@ -317,12 +317,6 @@ Authorization: Bearer <token>
 }
 ```
 
-```json
-{
-  "detail": "Label not found"
-}
-```
-
 ---
 
 ### PATCH /projects/{project_id}
@@ -473,6 +467,7 @@ Authorization: Bearer <token>
 - project 更新と labels 同期を同一トランザクションで扱う
 - `labels` は最終状態全件を表す。request に含まれない既存 label は削除される
 - `id: null` は新規 label として作成される
+- `labels[].shortcut` は `string | null` を取りうる。未設定値を明示する場合は `null`
 - response の `labels` は `GET /projects/{project_id}/labels` と同じ形で返す
 - browser settings 画面は partial success を避けたいときにこの API を使う想定
 

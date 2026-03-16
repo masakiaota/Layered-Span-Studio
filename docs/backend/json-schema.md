@@ -39,6 +39,7 @@
 
 - **必須**: `id`, `project_id`, `project_name`, `name`, `color`, `description`
 - **任意**: `shortcut`, `meta`
+- `shortcut` は省略または `null` を許容する
 
 - アノテーションガイドラインは `Label.description` に記述します。
 
@@ -350,7 +351,7 @@
 #### Document List API の派生ルール
 
 - 一覧 API も基本の `Document` 形を使うが、`annotations` は含めない
-- 一覧 API は `offset/limit/search/sort/pending_total` を持つ
+- 一覧 API の response は `total/pending_total/offset/limit/search/sort` を含む
 - `search` は `text` にのみ適用し、`document_name` は検索対象に含めない
 - `pending_total` は検索条件に一致した document 集合のうち `status != "verified"` の件数
 
