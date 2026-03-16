@@ -30,14 +30,15 @@ def _touch_document_updated_at(conn, document_id: str) -> None:
 
 
 def _bulk_document_status(conn, document_id: str) -> str:
-    statuses = list(
-        conn.execute(
-            select(annotations_table.c.status).where(annotations_table.c.document_id == document_id)
-        ).scalars()
-    )
-    if not statuses:
+    summary = conn.execute(
+        select(
+            func.count().label("annotation_count"),
+            func.count(case((annotations_table.c.status != "verified", 1))).label("non_verified_count"),
+        ).where(annotations_table.c.document_id == document_id)
+    ).mappings().one()
+    if summary["annotation_count"] == 0:
         return "pending"
-    return "verified" if all(status == "verified" for status in statuses) else "pending"
+    return "pending" if summary["non_verified_count"] > 0 else "verified"
 
 
 def _has_overlapping_annotation(
@@ -149,6 +150,9 @@ def bulk_create_annotations(
     document_id: str,
     items: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
+    if not items:
+        return []
+
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     created_ids: List[str] = []

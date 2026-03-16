@@ -209,6 +209,52 @@ def test_bulk_annotation_create_persists_document_status(client: TestClient, aut
     assert payload["documents"][0]["status"] == "pending"
 
 
+def test_bulk_annotation_create_with_empty_items_is_noop(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project, label, doc = _setup(client, auth_headers)
+
+    verified = client.put(
+        f"/projects/{project['id']}/documents/{doc['id']}/bundle",
+        json={
+            "annotations": [
+                {
+                    "id": None,
+                    "label_id": label["id"],
+                    "start": 0,
+                    "end": 5,
+                    "span_text": "Hello",
+                    "comment": "",
+                    "status": "verified",
+                    "meta": {},
+                }
+            ],
+            "submit": True,
+        },
+        headers=auth_headers,
+    )
+    assert verified.status_code == 200
+    before = client.get(
+        f"/projects/{project['id']}/documents/{doc['id']}",
+        headers=auth_headers,
+    )
+    assert before.status_code == 200
+
+    response = client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations/bulk",
+        json={"annotations": []},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    assert response.json() == {"created": [], "errors": []}
+
+    after = client.get(
+        f"/projects/{project['id']}/documents/{doc['id']}",
+        headers=auth_headers,
+    )
+    assert after.status_code == 200
+    assert after.json()["status"] == "verified"
+    assert after.json()["updated_at"] == before.json()["updated_at"]
+
+
 def test_annotation_span_text_validation(client: TestClient, auth_headers: dict[str, str]) -> None:
     project, label, doc = _setup(client, auth_headers)
 
