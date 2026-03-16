@@ -41,7 +41,8 @@ describe("ProjectShellHeader", () => {
       />,
     );
 
-    const toolbar = screen.getByRole("button", { name: "Projects" }).closest(".MuiToolbar-root");
+    const projectsButton = screen.getByRole("button", { name: "Projects" });
+    const toolbar = projectsButton.parentElement;
     const title = screen.getByText(longProjectName);
     const description = screen.getByText(`${longProjectDescription} / ${user.username}`);
     const metadataStack = title.parentElement;
@@ -53,22 +54,22 @@ describe("ProjectShellHeader", () => {
       throw new Error("Metadata stack element not found");
     }
 
-    expect(toolbar).toHaveStyle({ minWidth: "0", overflow: "hidden" });
+    expect(toolbar).toHaveStyle({ minWidth: "0px", overflow: "hidden" });
     expect(metadataStack).toHaveStyle({
-      minWidth: "0",
+      minWidth: "0px",
       overflow: "hidden",
       flexGrow: "1",
       flexShrink: "1",
       flexBasis: "0",
     });
     expect(title).toHaveStyle({
-      minWidth: "0",
+      minWidth: "0px",
       overflow: "hidden",
       textOverflow: "ellipsis",
       whiteSpace: "nowrap",
     });
     expect(description).toHaveStyle({
-      minWidth: "0",
+      minWidth: "0px",
       overflow: "hidden",
       textOverflow: "ellipsis",
       whiteSpace: "nowrap",
