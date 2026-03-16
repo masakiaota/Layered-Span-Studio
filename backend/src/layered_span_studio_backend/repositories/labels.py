@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import case, func, select
 
 from layered_span_studio_backend.core.config import Settings
-from layered_span_studio_backend.repositories.label_sync import sync_labels
+from layered_span_studio_backend.repositories.label_sync import load_label_rows, sync_labels
 from layered_span_studio_backend.repositories.projects import project_db_path
 from layered_span_studio_backend.storage.project_db import (
     annotations_table,
@@ -34,7 +34,7 @@ def list_labels(settings: Settings, project_id: str) -> List[Dict[str, Any]]:
     engine = get_project_engine(str(db_path))
     project_name = _project_name(settings, project_id)
     with engine.connect() as conn:
-        rows = conn.execute(select(labels_table).where(labels_table.c.project_id == project_id)).mappings().all()
+        rows = load_label_rows(conn, project_id)
     return [
         {
             "id": row["id"],

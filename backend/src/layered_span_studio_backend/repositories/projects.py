@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import func, select
 
 from layered_span_studio_backend.core.config import Settings
-from layered_span_studio_backend.repositories.label_sync import sync_labels
+from layered_span_studio_backend.repositories.label_sync import load_label_rows, sync_labels
 from layered_span_studio_backend.storage.project_db import documents_table, get_project_engine, init_project_db, labels_table, project_table
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
 
@@ -192,8 +192,9 @@ def replace_project_and_labels(
     description: str,
     meta: Dict[str, Any],
     labels: List[Dict[str, Any]],
+    project: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
-    project = get_project(settings, project_id)
+    project = project or get_project(settings, project_id)
     if not project:
         return None
     if name != project["name"]:
@@ -213,14 +214,7 @@ def replace_project_and_labels(
             )
         )
 
-        updated_rows = (
-            conn.execute(
-                select(labels_table)
-                .where(labels_table.c.project_id == project_id)
-            )
-            .mappings()
-            .all()
-        )
+        updated_rows = load_label_rows(conn, project_id)
 
     return {
         "project": {"id": project_id, "name": name, "description": description, "meta": meta},

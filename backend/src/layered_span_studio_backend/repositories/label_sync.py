@@ -12,7 +12,9 @@ from layered_span_studio_backend.utils.json_utils import encode_meta
 
 def load_label_rows(conn: Connection, project_id: str) -> Sequence[RowMapping]:
     return conn.execute(
-        select(labels_table).where(labels_table.c.project_id == project_id)
+        select(labels_table)
+        .where(labels_table.c.project_id == project_id)
+        .order_by(labels_table.c.name.asc(), labels_table.c.id.asc())
     ).mappings().all()
 
 

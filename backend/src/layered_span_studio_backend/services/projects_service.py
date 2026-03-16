@@ -51,7 +51,8 @@ def replace_project_settings_atomic(
     meta: Dict[str, Any],
     labels: List[Dict[str, Any]],
 ) -> Optional[Dict[str, Any]]:
-    if not projects_repo.get_project(settings, project_id):
+    project = projects_repo.get_project(settings, project_id)
+    if not project:
         return None
 
     seen_ids: set[str] = set()
@@ -74,6 +75,7 @@ def replace_project_settings_atomic(
         description,
         meta,
         labels,
+        project=project,
     )
 
 

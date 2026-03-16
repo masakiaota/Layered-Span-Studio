@@ -242,6 +242,7 @@ def test_project_settings_atomic_put_uses_same_label_order_as_labels_api(
 
     labels_response = client.get(f"/projects/{project['id']}/labels", headers=auth_headers)
     assert labels_response.status_code == 200
+    assert [label["name"] for label in labels_response.json()["labels"]] == ["Alpha", "Zulu"]
     assert [label["id"] for label in response.json()["labels"]] == [
         label["id"] for label in labels_response.json()["labels"]
     ]
