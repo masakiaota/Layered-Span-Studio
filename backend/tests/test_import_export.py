@@ -906,6 +906,41 @@ def test_existing_import_preflight_success_returns_counts_without_mutation(
     assert labels_response.json()["labels"] == []
 
 
+def test_new_import_preflight_reports_invalid_top_level_payload_in_contract(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    response = client.post("/projects/import/preflight", json=[], headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": False,
+        "resolved_project_name": None,
+        "imported": {"labels": 0, "documents": 0, "annotations": 0},
+        "errors": [{"message": "Import payload must be an object"}],
+    }
+
+
+def test_existing_import_preflight_reports_invalid_top_level_payload_in_contract(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    target_project = client.post(
+        "/projects", json={"name": "Project Invalid Top Level", "description": "desc"}, headers=auth_headers
+    ).json()
+
+    response = client.post(
+        f"/projects/{target_project['id']}/import/preflight",
+        json={"project": [], "labels": [], "documents": []},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": False,
+        "imported": {"labels": 0, "documents": 0, "annotations": 0},
+        "errors": [{"message": "Project payload must be an object"}],
+    }
+
+
 def test_existing_import_preflight_returns_not_found_for_unknown_project(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:

@@ -17,12 +17,23 @@ def _has_overlap(existing_ranges: List[tuple[int, int]], start: int, end: int) -
 
 
 def _extract_import_payload(
-    payload: Dict[str, Any],
+    payload: Any,
 ) -> tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-    incoming_project = payload.get("project") or {}
-    incoming_labels: List[Dict[str, Any]] = payload.get("labels") or []
-    incoming_documents: List[Dict[str, Any]] = payload.get("documents") or []
-    incoming_meta: Dict[str, Any] = payload.get("meta") or {}
+    payload_dict = _require_import_dict(payload, "Import payload must be an object")
+    incoming_project = _require_import_dict(payload_dict.get("project"), "Project payload must be an object")
+    incoming_labels = _require_import_list(
+        payload_dict.get("labels"),
+        "Labels payload must be an array",
+    )
+    incoming_documents = _require_import_list(
+        payload_dict.get("documents"),
+        "Documents payload must be an array",
+    )
+    raw_meta = payload_dict.get("meta")
+    incoming_meta = {} if raw_meta is None else _require_import_dict(
+        raw_meta,
+        "Import metadata must be an object",
+    )
     return incoming_project, incoming_labels, incoming_documents, incoming_meta
 
 
@@ -216,9 +227,14 @@ def _build_import_counts(
 
 
 def _build_payload_counts(
-    incoming_labels: List[Any],
-    incoming_documents: List[Any],
+    incoming_labels: Any,
+    incoming_documents: Any,
 ) -> Dict[str, int]:
+    if not isinstance(incoming_labels, list):
+        incoming_labels = []
+    if not isinstance(incoming_documents, list):
+        incoming_documents = []
+
     annotation_count = 0
     for doc in incoming_documents:
         if not isinstance(doc, dict):
@@ -353,16 +369,23 @@ def export_project(
     return {"project": project, "labels": labels, "documents": documents, "meta": EXPORT_META}
 
 
-def preflight_import_project(settings: Settings, project_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+def preflight_import_project(settings: Settings, project_id: str, payload: Any) -> Dict[str, Any]:
     project = projects_repo.get_project(settings, project_id)
     if not project:
         raise ValueError("Project not found")
 
-    _, incoming_labels, incoming_documents, incoming_meta = _extract_import_payload(payload)
+    raw_labels = payload.get("labels") if isinstance(payload, dict) else None
+    raw_documents = payload.get("documents") if isinstance(payload, dict) else None
+    fallback_counts = _build_payload_counts(raw_labels, raw_documents)
+
+    try:
+        _, incoming_labels, incoming_documents, incoming_meta = _extract_import_payload(payload)
+    except ValueError as exc:
+        return _preflight_error_response(fallback_counts, str(exc))
+
     existing_labels = labels_repo.list_labels(settings, project_id)
     existing_label_by_name = {label["name"]: label for label in existing_labels}
     existing_document_names = set(documents_repo.list_document_names(settings, project_id))
-    fallback_counts = _build_payload_counts(incoming_labels, incoming_documents)
 
     try:
         normalized_documents = _validate_import_payload(
@@ -382,9 +405,15 @@ def preflight_import_project(settings: Settings, project_id: str, payload: Dict[
     }
 
 
-def preflight_import_project_as_new(settings: Settings, payload: Dict[str, Any]) -> Dict[str, Any]:
-    incoming_project, incoming_labels, incoming_documents, incoming_meta = _extract_import_payload(payload)
-    fallback_counts = _build_payload_counts(incoming_labels, incoming_documents)
+def preflight_import_project_as_new(settings: Settings, payload: Any) -> Dict[str, Any]:
+    raw_labels = payload.get("labels") if isinstance(payload, dict) else None
+    raw_documents = payload.get("documents") if isinstance(payload, dict) else None
+    fallback_counts = _build_payload_counts(raw_labels, raw_documents)
+
+    try:
+        incoming_project, incoming_labels, incoming_documents, incoming_meta = _extract_import_payload(payload)
+    except ValueError as exc:
+        return _preflight_error_response(fallback_counts, str(exc))
 
     try:
         normalized_documents = _validate_import_payload(

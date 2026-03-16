@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 
 from layered_span_studio_backend.core.dependencies import get_current_user, get_settings
@@ -47,8 +49,8 @@ def import_project_as_new(payload: ImportRequest, settings=Depends(get_settings)
 
 
 @router.post("/import/preflight", response_model=ProjectImportPreflightResponse)
-def preflight_import_project_as_new(payload: ImportRequest, settings=Depends(get_settings)):
-    return import_export_service.preflight_import_project_as_new(settings, payload.model_dump())
+def preflight_import_project_as_new(payload: Any = Body(...), settings=Depends(get_settings)):
+    return import_export_service.preflight_import_project_as_new(settings, payload)
 
 
 @router.post("/{project_id}/import", response_model=ImportResponse)
@@ -64,9 +66,9 @@ def import_project(project_id: str, payload: ImportRequest, settings=Depends(get
 
 
 @router.post("/{project_id}/import/preflight", response_model=ImportPreflightResponse)
-def preflight_import_project(project_id: str, payload: ImportRequest, settings=Depends(get_settings)):
+def preflight_import_project(project_id: str, payload: Any = Body(...), settings=Depends(get_settings)):
     try:
-        return import_export_service.preflight_import_project(settings, project_id, payload.model_dump())
+        return import_export_service.preflight_import_project(settings, project_id, payload)
     except ValueError as exc:
         message = str(exc)
         status_code = status.HTTP_400_BAD_REQUEST
