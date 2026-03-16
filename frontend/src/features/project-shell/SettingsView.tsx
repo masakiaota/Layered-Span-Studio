@@ -57,6 +57,8 @@ export function SettingsView({
   onExportVerifiedChange,
   onExport,
   onSave,
+  onRequestDeleteProject,
+  deletingProject,
 }: {
   bundle: ProjectBundle;
   selectedLabelId: string | null;
@@ -89,6 +91,8 @@ export function SettingsView({
   onExportVerifiedChange: (checked: boolean) => void;
   onExport: () => void;
   onSave: () => void;
+  onRequestDeleteProject: () => void;
+  deletingProject: boolean;
 }) {
   return (
     <Box sx={{ display: "grid", gap: 2, height: "100%", minHeight: 0, gridTemplateRows: "minmax(0,1fr) auto" }}>
@@ -280,6 +284,31 @@ export function SettingsView({
                 </Button>
               </Stack>
             </Stack>
+          </Paper>
+
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 2.5,
+              borderColor: alpha("#d32f2f", 0.32),
+              bgcolor: alpha("#d32f2f", 0.03),
+            }}
+          >
+            <Typography variant="subtitle1" color="error.main">
+              Danger Zone
+            </Typography>
+            <Typography color="text.secondary" sx={{ mt: 1 }}>
+              Project 全体を削除する。配下の document、annotation、label もすべて失われる。
+            </Typography>
+            <Button
+              color="error"
+              variant="contained"
+              sx={{ mt: 2 }}
+              onClick={onRequestDeleteProject}
+              disabled={saving || importing || deletingProject}
+            >
+              Project を削除
+            </Button>
           </Paper>
         </Box>
       </Paper>

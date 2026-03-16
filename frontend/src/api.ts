@@ -172,9 +172,33 @@ export class ApiClient {
     return parseResponse<{ projects: ProjectListItemRecord[] }>(response);
   }
 
+  async createProject(project: Pick<ProjectRecord, "name" | "description" | "meta">) {
+    const response = await this.request("/projects", {
+      method: "POST",
+      contentType: "application/json",
+      includeCsrf: true,
+      body: JSON.stringify({
+        name: project.name,
+        description: project.description ?? "",
+        meta: toJsonObject(project.meta),
+      }),
+    });
+    return parseResponse<ProjectRecord>(response);
+  }
+
   async getProject(projectId: string) {
     const response = await this.request(`/projects/${projectId}`);
     return parseResponse<ProjectRecord>(response);
+  }
+
+  async deleteProject(projectId: string) {
+    const response = await this.request(`/projects/${projectId}`, {
+      method: "DELETE",
+      includeCsrf: true,
+    });
+    if (!response.ok) {
+      throw await toApiError(response);
+    }
   }
 
   async saveProjectSettings(project: ProjectRecord) {

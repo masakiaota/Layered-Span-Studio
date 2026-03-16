@@ -1,6 +1,6 @@
 # Frontend 画面遷移仕様（初版）
 
-最終更新: 2026-02-14
+最終更新: 2026-03-17
 
 ## 1. 遷移方針
 
@@ -26,15 +26,16 @@
 2. session が無効なら `"/login"` を開く。
 3. `"/login"` で username / password を入力し、`POST /auth/session` でサインインする。
 4. サインイン後は Project List を開く。
-5. Project List で既存 Project を選択する、または Import Project を実行して新規 Project を作成する。
+5. Project List で既存 Project を選択する、`New Project` を実行して空の Project を作成する、または Import Project を実行して新規 Project を作成する。
 6. 既存 Project を選んだ場合は `"/projects/:projectId"` の Workspace を開く。
-7. 新規 Project Import 完了時も、作成された `"/projects/:projectId"` の Workspace を開く。
-8. Project List からは各 Project の `Settings` 導線で `"/projects/:projectId/settings"` を直接開ける。
-9. 上部ナビゲーションで以下を切り替える。
+7. `New Project` では作成ダイアログで `name` / `description` を入力し、作成完了後は `"/projects/:projectId/settings"` を開く。
+8. 新規 Project Import 完了時も、作成された `"/projects/:projectId"` の Workspace を開く。
+9. Project List からは各 Project の `Settings` 導線で `"/projects/:projectId/settings"` を直接開ける。
+10. 上部ナビゲーションで以下を切り替える。
   - Workspace
   - Project Settings
-10. Workspace では左ペインで Document を選び、中央で Annotation 編集、右ペインで詳細編集を行う。
-11. Project Settings では Project 名 / 説明 / Label 定義 / ガイドライン / Import・Export を管理する。
+11. Workspace では左ペインで Document を選び、中央で Annotation 編集、右ペインで詳細編集を行う。
+12. Project Settings では Project 名 / 説明 / Label 定義 / ガイドライン / Import・Export・Project 削除を管理する。
 
 ## 4. Document 切り替え時の扱い
 
@@ -61,6 +62,9 @@
 ## 5.1 Import / Export の扱い
 
 - Project List では、新規 project 作成のための Import Project 導線を提供する。
+- Project List では、空の project を作る `New Project` 導線も提供する。
+- `New Project` は dialog で `Project name` と `Description` を入力して確定する。
+- `New Project` 完了後は、作成された project の `Project Settings` を開く。
 - Project List の Import は backend の `POST /projects/import` と同じ意味を持ち、export JSON から新規 project を作る。
 - Project List の Import で `project.name` が既存と重複した場合は、backend 仕様に合わせて `"(imported)"`, `"(imported 2)"` ... を付けて自動改名する。
 - Project Settings では、現在 project に対する追記 Import と Export を提供する。
@@ -69,6 +73,9 @@
 - 単位は project 単位とする（Document 単位では提供しない）。
 - Project Settings の Import は backend の `POST /projects/{project_id}/import` と同じく append 専用とし、`payload.project.*` で既存 project 本体は更新しない。
 - Project Settings の Import で既存データと同名の label / document がある場合は、backend 仕様に合わせて全体失敗とする。
+- Project Settings では、画面最下部に `Danger Zone` を置き、`DELETE /projects/{project_id}` に対応する Project 削除導線を提供する。
+- Project 削除は確認ダイアログ必須とし、対象 project 名と「元に戻せない」ことを明示する。
+- Project 削除成功後は Project List へ戻る。
 
 ## 6. Submit の定義
 

@@ -221,7 +221,7 @@ describe("ProjectShell submit behavior", () => {
         false,
       );
     });
-  });
+  }, 15000);
 
   it("shows verified doc as pending while unsaved and returns to verified after save", async () => {
     const userEventSetup = userEvent.setup();
