@@ -46,10 +46,21 @@ describe("ProjectShellHeader", () => {
     const description = screen.getByText(`${longProjectDescription} / ${user.username}`);
     const metadataStack = title.parentElement;
 
-    expect(toolbar).toBeInTheDocument();
+    if (!(toolbar instanceof HTMLElement)) {
+      throw new Error("Toolbar element not found");
+    }
+    if (!(metadataStack instanceof HTMLElement)) {
+      throw new Error("Metadata stack element not found");
+    }
+
     expect(toolbar).toHaveStyle({ minWidth: "0", overflow: "hidden" });
-    expect(metadataStack).toBeInTheDocument();
-    expect(metadataStack).toHaveStyle({ minWidth: "0", overflow: "hidden", flex: "1 1 0" });
+    expect(metadataStack).toHaveStyle({
+      minWidth: "0",
+      overflow: "hidden",
+      flexGrow: "1",
+      flexShrink: "1",
+      flexBasis: "0",
+    });
     expect(title).toHaveStyle({
       minWidth: "0",
       overflow: "hidden",

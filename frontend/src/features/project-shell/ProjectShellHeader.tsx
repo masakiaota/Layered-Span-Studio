@@ -31,7 +31,7 @@ export function ProjectShellHeader({
         <Button color="inherit" startIcon={<ArrowBackRoundedIcon />} onClick={onBackToProjects} sx={{ flexShrink: 0 }}>
           Projects
         </Button>
-        <Stack sx={{ minWidth: 0, flex: "1 1 0", overflow: "hidden" }}>
+        <Stack sx={{ minWidth: 0, flexGrow: 1, flexShrink: 1, flexBasis: 0, overflow: "hidden" }}>
           <Typography variant="h6" noWrap sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {bundle.project.name}
           </Typography>
