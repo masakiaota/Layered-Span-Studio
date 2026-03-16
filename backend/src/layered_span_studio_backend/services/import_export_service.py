@@ -361,8 +361,7 @@ def preflight_import_project(settings: Settings, project_id: str, payload: Dict[
     _, incoming_labels, incoming_documents, incoming_meta = _extract_import_payload(payload)
     existing_labels = labels_repo.list_labels(settings, project_id)
     existing_label_by_name = {label["name"]: label for label in existing_labels}
-    existing_documents = documents_repo.list_all_documents(settings, project_id)
-    existing_document_names = {doc["document_name"] for doc in existing_documents}
+    existing_document_names = set(documents_repo.list_document_names(settings, project_id))
     fallback_counts = _build_payload_counts(incoming_labels, incoming_documents)
 
     try:
@@ -415,8 +414,7 @@ def import_project(settings: Settings, project_id: str, payload: Dict[str, Any])
     _, incoming_labels, incoming_documents, incoming_meta = _extract_import_payload(payload)
     existing_labels = labels_repo.list_labels(settings, project_id)
     existing_label_by_name = {label["name"]: label for label in existing_labels}
-    existing_documents = documents_repo.list_all_documents(settings, project_id)
-    existing_document_names = {doc["document_name"] for doc in existing_documents}
+    existing_document_names = set(documents_repo.list_document_names(settings, project_id))
     normalized_documents = _validate_import_payload(
         existing_label_by_name,
         existing_document_names,
