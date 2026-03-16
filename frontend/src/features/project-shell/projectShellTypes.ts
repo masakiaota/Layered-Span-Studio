@@ -2,7 +2,8 @@ export type PendingAction =
   | { type: "doc"; docId: string }
   | { type: "settings" }
   | { type: "workspace" }
-  | { type: "projects" };
+  | { type: "projects" }
+  | { type: "logout" };
 
 export type SelectionPreview = {
   start: number;
