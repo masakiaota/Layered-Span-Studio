@@ -4,6 +4,22 @@ import { ApiError, api } from "../api";
 import { useAuthSession } from "../hooks/useAuthSession";
 import type { UserRecord } from "../types";
 
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+  reject: (reason?: unknown) => void;
+};
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: Deferred<T>["resolve"];
+  let reject!: Deferred<T>["reject"];
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
+
 const demoUser: UserRecord = {
   id: "user-1",
   username: "demo_login_user",
@@ -62,6 +78,33 @@ describe("useAuthSession", () => {
 
     expect(api.createSession).toHaveBeenCalledWith("demo_login_user", "demo_login_pass");
     expect(result.current.user).toEqual(demoUser);
+    expect(result.current.error).toBe("");
+  });
+
+  it("does not let a stale bootstrap session check clear a newer login", async () => {
+    const staleBootstrap = createDeferred<UserRecord>();
+
+    vi.spyOn(api, "getSession").mockImplementation(() => staleBootstrap.promise);
+    vi.spyOn(api, "createSession").mockResolvedValue(demoUser);
+
+    const { result } = renderHook(() => useAuthSession());
+
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      const loginSucceeded = await result.current.login("demo_login_user", "demo_login_pass");
+      expect(loginSucceeded).toBe(true);
+    });
+
+    expect(result.current.user).toEqual(demoUser);
+
+    await act(async () => {
+      staleBootstrap.reject(new ApiError("Not authenticated", 401));
+      await staleBootstrap.promise.catch(() => undefined);
+    });
+
+    expect(result.current.user).toEqual(demoUser);
+    expect(result.current.loading).toBe(false);
     expect(result.current.error).toBe("");
   });
 
