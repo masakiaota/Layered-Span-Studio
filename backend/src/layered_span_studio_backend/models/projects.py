@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import Field
 
+from layered_span_studio_backend.models.labels import LabelOut, LabelSyncItemIn
 from layered_span_studio_backend.models.common import APIModel, Meta
 
 
@@ -23,6 +24,13 @@ class ProjectSettingsPut(APIModel):
     name: str = Field(..., min_length=1)
     description: str
     meta: Dict[str, Any]
+
+
+class ProjectSettingsAtomicPut(APIModel):
+    name: str = Field(..., min_length=1)
+    description: str
+    meta: Dict[str, Any]
+    labels: list[LabelSyncItemIn]
 
 
 class ProjectOut(APIModel):
@@ -45,3 +53,8 @@ class ProjectListItemOut(ProjectOut):
 
 class ProjectListResponse(APIModel):
     projects: list[ProjectListItemOut]
+
+
+class ProjectSettingsAtomicOut(APIModel):
+    project: ProjectOut
+    labels: list[LabelOut]

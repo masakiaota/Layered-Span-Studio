@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import func, select
 
 from layered_span_studio_backend.core.config import Settings
+from layered_span_studio_backend.repositories.label_sync import load_label_rows, sync_labels
 from layered_span_studio_backend.storage.project_db import documents_table, get_project_engine, init_project_db, labels_table, project_table
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
 
@@ -182,6 +183,55 @@ def replace_project(
             )
         )
     return {"id": project_id, "name": name, "description": description, "meta": meta}
+
+
+def replace_project_and_labels(
+    settings: Settings,
+    project_id: str,
+    name: str,
+    description: str,
+    meta: Dict[str, Any],
+    labels: List[Dict[str, Any]],
+    project: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    project = project or get_project(settings, project_id)
+    if not project:
+        return None
+    if name != project["name"]:
+        existing_names = {p["name"] for p in list_projects(settings) if p["id"] != project_id}
+        if name in existing_names:
+            raise ValueError("Project name already exists")
+
+    db_path = _project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    with engine.begin() as conn:
+        sync_labels(conn, project_id, labels)
+        conn.execute(
+            project_table.update().where(project_table.c.id == project_id).values(
+                name=name,
+                description=description,
+                meta=encode_meta(meta),
+            )
+        )
+
+        updated_rows = load_label_rows(conn, project_id)
+
+    return {
+        "project": {"id": project_id, "name": name, "description": description, "meta": meta},
+        "labels": [
+            {
+                "id": row["id"],
+                "project_id": row["project_id"],
+                "project_name": name,
+                "name": row["name"],
+                "color": row["color"],
+                "description": row["description"],
+                "shortcut": row["shortcut"],
+                "meta": decode_meta(row["meta"]),
+            }
+            for row in updated_rows
+        ],
+    }
 
 
 def delete_project(settings: Settings, project_id: str) -> bool:

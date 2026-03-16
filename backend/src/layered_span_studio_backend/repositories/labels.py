@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import case, func, select
 
 from layered_span_studio_backend.core.config import Settings
+from layered_span_studio_backend.repositories.label_sync import load_label_rows, sync_labels
 from layered_span_studio_backend.repositories.projects import project_db_path
 from layered_span_studio_backend.storage.project_db import (
     annotations_table,
@@ -33,7 +34,7 @@ def list_labels(settings: Settings, project_id: str) -> List[Dict[str, Any]]:
     engine = get_project_engine(str(db_path))
     project_name = _project_name(settings, project_id)
     with engine.connect() as conn:
-        rows = conn.execute(select(labels_table).where(labels_table.c.project_id == project_id)).mappings().all()
+        rows = load_label_rows(conn, project_id)
     return [
         {
             "id": row["id"],
@@ -205,65 +206,7 @@ def save_labels(settings: Settings, project_id: str, items: List[Dict[str, Any]]
     engine = get_project_engine(str(db_path))
 
     with engine.begin() as conn:
-        rows = conn.execute(
-            select(labels_table).where(labels_table.c.project_id == project_id)
-        ).mappings().all()
-        existing_by_id = {
-            row["id"]: {
-                "id": row["id"],
-                "name": row["name"],
-                "color": row["color"],
-                "description": row["description"],
-                "shortcut": row["shortcut"],
-                "meta": decode_meta(row["meta"]),
-            }
-            for row in rows
-        }
-
-        requested_ids = {item["id"] for item in items if item.get("id")}
-        unknown_ids = requested_ids - set(existing_by_id)
-        if unknown_ids:
-            raise ValueError("Label not found")
-
-        omitted_ids = set(existing_by_id) - requested_ids
-        if omitted_ids:
-            conn.execute(
-                labels_table.delete().where(
-                    labels_table.c.project_id == project_id,
-                    labels_table.c.id.in_(sorted(omitted_ids)),
-                )
-            )
-
-        for item in items:
-            label_id = item.get("id")
-            if label_id:
-                conn.execute(
-                    labels_table.update()
-                    .where(
-                        labels_table.c.project_id == project_id,
-                        labels_table.c.id == label_id,
-                    )
-                    .values(
-                        name=item["name"],
-                        color=item["color"],
-                        description=item["description"],
-                        shortcut=item.get("shortcut"),
-                        meta=encode_meta(item.get("meta")),
-                    )
-                )
-                continue
-
-            conn.execute(
-                labels_table.insert().values(
-                    id=str(uuid.uuid4()),
-                    project_id=project_id,
-                    name=item["name"],
-                    color=item["color"],
-                    description=item["description"],
-                    shortcut=item.get("shortcut"),
-                    meta=encode_meta(item.get("meta")),
-                )
-            )
+        sync_labels(conn, project_id, items)
 
     return list_labels(settings, project_id)
 
