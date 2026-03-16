@@ -25,6 +25,7 @@ import {
   toDocumentListItem,
   trimDocumentWindow,
 } from "./features/project-shell/projectShellUtils";
+import { parseBulkAnnotationPayload } from "./features/project-shell/annotationBulkImport";
 import { ShortcutPopover } from "./features/project-shell/ShortcutPopover";
 import { useBodyScrollLock } from "./features/project-shell/useBodyScrollLock";
 import { useDocumentHistory } from "./features/project-shell/useDocumentHistory";
@@ -53,8 +54,74 @@ import {
   isLocalId,
   makeLocalId,
   parseAnnotationMetaDraft,
+  readJsonFile,
   setProjectGuideline,
 } from "./utils";
+
+function buildIssueMessage(issues: string[]) {
+  const preview = issues.slice(0, 3).join(" / ");
+  return issues.length > 3 ? `${preview} / 他 ${issues.length - 3} 件` : preview;
+}
+
+function inferDocumentStatus(document: DocumentRecord): "pending" | "verified" {
+  if (document.annotations.length === 0) {
+    return document.status;
+  }
+  return document.annotations.every((annotation) => annotation.status === "verified") ? "verified" : "pending";
+}
+
+function sortDocumentListItems(items: DocumentListItem[], mode: string): DocumentListItem[] {
+  const compareName = (left: DocumentListItem, right: DocumentListItem) =>
+    left.document_name.localeCompare(right.document_name, "ja") || left.id.localeCompare(right.id);
+  const toTimestamp = (value: string) => {
+    const time = Date.parse(value);
+    return Number.isFinite(time) ? time : null;
+  };
+  const sorted = [...items];
+  if (mode === "name") {
+    return sorted.sort(compareName);
+  }
+  if (mode === "pending") {
+    return sorted.sort((left, right) => {
+      const leftPending = left.status === "verified" ? 1 : 0;
+      const rightPending = right.status === "verified" ? 1 : 0;
+      if (leftPending !== rightPending) {
+        return leftPending - rightPending;
+      }
+      return compareName(left, right);
+    });
+  }
+  if (mode === "updated") {
+    return sorted.sort((left, right) => {
+      const leftUpdated = toTimestamp(left.updated_at);
+      const rightUpdated = toTimestamp(right.updated_at);
+      if (leftUpdated === null && rightUpdated !== null) {
+        return 1;
+      }
+      if (leftUpdated !== null && rightUpdated === null) {
+        return -1;
+      }
+      if (leftUpdated !== null && rightUpdated !== null && leftUpdated !== rightUpdated) {
+        return rightUpdated - leftUpdated;
+      }
+      return compareName(left, right);
+    });
+  }
+  return sorted.sort((left, right) => {
+    const leftCreated = toTimestamp(left.created_at);
+    const rightCreated = toTimestamp(right.created_at);
+    if (leftCreated === null && rightCreated !== null) {
+      return 1;
+    }
+    if (leftCreated !== null && rightCreated === null) {
+      return -1;
+    }
+    if (leftCreated !== null && rightCreated !== null && leftCreated !== rightCreated) {
+      return leftCreated - rightCreated;
+    }
+    return compareName(left, right);
+  });
+}
 
 export function ProjectShell({
   user,
@@ -90,6 +157,7 @@ export function ProjectShell({
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; documentName: string; isCurrent: boolean } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingDocument, setDeletingDocument] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
   const shortcutButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingActionConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
   const deleteDocumentConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -145,7 +213,7 @@ export function ProjectShell({
   }, [bundle, selectedDocId]);
   const currentDocumentLoading = Boolean(selectedDocId && !currentDocument);
   const currentDocumentSnapshot = currentDocument ? documentSnapshotsById[currentDocument.id] ?? null : null;
-  const workspaceBusy = saving || deletingDocument;
+  const workspaceBusy = saving || deletingDocument || bulkImporting;
 
   const {
     historyState,
@@ -334,7 +402,7 @@ export function ProjectShell({
   }
 
   useProjectShortcuts({
-    enabled: Boolean(bundle && currentDocument),
+    enabled: Boolean(bundle && currentDocument && !workspaceBusy),
     selectedAnnotationId,
     onToggleShortcutPanel: handleShortcutPanelToggle,
     onSave: () => void handleSave(),
@@ -542,7 +610,7 @@ export function ProjectShell({
   }
 
   async function moveDocumentByDirection(direction: number, pendingOnly: boolean) {
-    if (!bundle || visibleDocuments.length === 0 || !currentDocument) {
+    if (!bundle || visibleDocuments.length === 0 || !currentDocument || workspaceBusy) {
       return;
     }
     const currentIndex = visibleDocuments.findIndex((document) => document.id === currentDocument.id);
@@ -648,7 +716,7 @@ export function ProjectShell({
   }
 
   async function handleSave() {
-    if (deletingDocument) {
+    if (workspaceBusy) {
       return null;
     }
     if (view === "settings") {
@@ -663,7 +731,7 @@ export function ProjectShell({
   }
 
   async function handleSubmit() {
-    if (!bundle || !currentDocument || view !== "workspace" || deletingDocument) {
+    if (!bundle || !currentDocument || view !== "workspace" || workspaceBusy) {
       return;
     }
     const savedDocument = await saveCurrentDocument(null, true);
@@ -949,6 +1017,107 @@ export function ProjectShell({
     }
   }
 
+  async function handleBulkImportFile(file: File | null) {
+    if (!file || !bundle || !currentDocument || workspaceBusy) {
+      return;
+    }
+    if (dirty) {
+      showToast("未保存の変更があるため、先に Save してから bulk import する", "warning");
+      return;
+    }
+    setBulkImporting(true);
+    try {
+      const payload = await readJsonFile(file);
+      const { annotations, issues } = parseBulkAnnotationPayload(payload, {
+        labels: bundle.labels,
+        existingAnnotations: currentDocument.annotations,
+      });
+      if (issues.length > 0) {
+        showToast(buildIssueMessage(issues), "error");
+        return;
+      }
+
+      const response = await api.bulkCreateDocumentAnnotations(bundle.project.id, currentDocument.id, annotations);
+      let refreshedDocument: DocumentRecord | null = null;
+      try {
+        refreshedDocument = await api.getDocument(bundle.project.id, currentDocument.id);
+      } catch (error) {
+        setBundle((current) =>
+          current
+            ? {
+                ...current,
+                documents: current.documents.filter((document) => document.id !== currentDocument.id),
+              }
+            : current,
+        );
+        setDocumentSnapshotsById((current) => {
+          const nextSnapshots = { ...current };
+          delete nextSnapshots[currentDocument.id];
+          return nextSnapshots;
+        });
+        setHistoryState((current) =>
+          current.documentId === currentDocument.id
+            ? { documentId: null, entries: [], index: -1 }
+            : current,
+        );
+        clearWorkspaceSelection();
+        await fetchDocumentPage(true, currentDocument.id);
+        showToast(
+          `Bulk import は完了したが、最新状態の再取得に失敗した: ${error instanceof Error ? error.message : "Document の再取得に失敗した"}`,
+          "warning",
+        );
+        return;
+      }
+      const statusCorrectedDocument = {
+        ...refreshedDocument,
+        status: inferDocumentStatus(refreshedDocument),
+      };
+      setBundle((current) =>
+        current
+          ? {
+              ...current,
+              documents: [
+                ...current.documents.filter((document) => document.id !== statusCorrectedDocument.id),
+                statusCorrectedDocument,
+              ],
+            }
+          : current,
+      );
+      setDocumentSnapshotsById((current) => ({
+        ...current,
+        [statusCorrectedDocument.id]: deepClone(statusCorrectedDocument),
+      }));
+      setHistoryState({
+        documentId: statusCorrectedDocument.id,
+        entries: [deepClone(statusCorrectedDocument)],
+        index: 0,
+      });
+      setDocumentList((current) =>
+        sortDocumentListItems(
+          current.map((document) =>
+            document.id === statusCorrectedDocument.id ? toDocumentListItem(statusCorrectedDocument) : document,
+          ),
+          sortMode,
+        ),
+      );
+      if (documentMatchesSearch(statusCorrectedDocument, searchQuery) && currentDocument.status !== statusCorrectedDocument.status) {
+        const offset = statusCorrectedDocument.status === "pending" ? 1 : -1;
+        setPendingDocumentTotal((current) => Math.max(current + offset, 0));
+      }
+      clearWorkspaceSelection();
+      if (response.created[0]?.id) {
+        setSelectedAnnotationId(response.created[0].id);
+        setRightTab("annotations");
+        setAnnotationEditCollapsed(false);
+      }
+      showToast(`Bulk import 完了: ${response.created.length} 件の annotation を追加した`, "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Bulk import に失敗した", "error");
+    } finally {
+      setBulkImporting(false);
+    }
+  }
+
   function handleSelectedAnnotationStatusChange(status: "pending" | "verified") {
     if (!selectedAnnotation) {
       return;
@@ -1129,11 +1298,17 @@ export function ProjectShell({
             getDisplayDocumentStatus={getDisplayDocumentStatus}
             dirty={dirty}
             saving={workspaceBusy}
+            bulkImporting={bulkImporting}
             onOpenCreateDocument={() => setCreateDocOpen(true)}
             onSearchQueryChange={setSearchQuery}
             onSortModeChange={setSortMode}
             onLoadMoreDocuments={() => void fetchDocumentPage(false)}
-            onSelectDocument={(docId) => requestAction({ type: "doc", docId })}
+            onSelectDocument={(docId) => {
+              if (workspaceBusy) {
+                return;
+              }
+              requestAction({ type: "doc", docId });
+            }}
             onRequestDeleteDocument={(documentId) => {
               const target =
                 visibleDocuments.find((document) => document.id === documentId) ??
@@ -1151,6 +1326,7 @@ export function ProjectShell({
               clearWorkspaceSelection();
             }}
             onSelectionDraftChange={setSelectionPreview}
+            onBulkImportFileSelected={(file) => void handleBulkImportFile(file)}
             onSave={() => void handleSave()}
             onSubmit={() => void handleSubmit()}
             onRightTabChange={setRightTab}
