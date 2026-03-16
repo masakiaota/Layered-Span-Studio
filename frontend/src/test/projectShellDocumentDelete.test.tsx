@@ -136,7 +136,7 @@ function setupDocumentApis(initialDocuments: DocumentRecord[]) {
 
   vi.spyOn(api, "getProject").mockResolvedValue(project);
   vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(labels) });
-  vi.spyOn(api, "listDocuments").mockImplementation(async (_token, _projectId, options) => {
+  vi.spyOn(api, "listDocuments").mockImplementation(async (_projectId, options) => {
     const search = normalizeSearchText(options?.search ?? "");
     const filtered = search
       ? documents.filter((document) => normalizeSearchText(document.text).includes(search))
@@ -154,14 +154,14 @@ function setupDocumentApis(initialDocuments: DocumentRecord[]) {
       sort: options?.sort ?? "created",
     };
   });
-  const getDocumentMock = vi.spyOn(api, "getDocument").mockImplementation(async (_token, _projectId, documentId) => {
+  const getDocumentMock = vi.spyOn(api, "getDocument").mockImplementation(async (_projectId, documentId) => {
     const document = documents.find((item) => item.id === documentId);
     if (!document) {
       throw new Error("Document not found");
     }
     return structuredClone(document);
   });
-  vi.spyOn(api, "deleteDocument").mockImplementation(async (_token, _projectId, documentId) => {
+  vi.spyOn(api, "deleteDocument").mockImplementation(async (_projectId, documentId) => {
     if (deleteTargetId === documentId && deleteMode === "error") {
       throw new Error(deleteMessage);
     }
@@ -174,7 +174,7 @@ function setupDocumentApis(initialDocuments: DocumentRecord[]) {
 
   return {
     setGetDocumentImplementation(
-      implementation: (token: string, projectId: string, documentId: string) => Promise<DocumentRecord>,
+      implementation: (projectId: string, documentId: string) => Promise<DocumentRecord>,
     ) {
       getDocumentMock.mockImplementation(implementation);
     },
@@ -200,7 +200,7 @@ function renderWorkspace() {
   return render(
     <MemoryRouter initialEntries={["/projects/project-1"]}>
       <Routes>
-        <Route path="/projects/:projectId" element={<ProjectShell token="token" user={user} onLogout={vi.fn()} />} />
+        <Route path="/projects/:projectId" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -281,7 +281,7 @@ describe("ProjectShell document deletion", () => {
     ]);
     const deferredDoc2 = createDeferred<DocumentRecord>();
 
-    apiState.setGetDocumentImplementation(async (_token, _projectId, documentId) => {
+    apiState.setGetDocumentImplementation(async (_projectId, documentId) => {
       if (documentId === "doc-2") {
         return deferredDoc2.promise;
       }

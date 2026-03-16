@@ -135,7 +135,6 @@ describe("useProjectExamples", () => {
     const showToast = vi.fn();
     const { result } = renderHook(() =>
       useProjectExamples({
-        token: "test-token",
         projectId: "project-1",
         focusedLabel,
         selectedAnnotation: null,
@@ -226,7 +225,6 @@ describe("useProjectExamples", () => {
     const showToast = vi.fn();
     const { result } = renderHook(() =>
       useProjectExamples({
-        token: "test-token",
         projectId: "project-1",
         focusedLabel: null,
         selectedAnnotation: null,

@@ -71,11 +71,9 @@ function buildProjectSearchText(project: ProjectListItemRecord) {
 }
 
 export function ProjectsPage({
-  token,
   user,
   onLogout,
 }: {
-  token: string;
   user: UserRecord;
   onLogout: () => void;
 }) {
@@ -93,7 +91,7 @@ export function ProjectsPage({
   async function refreshProjects() {
     setLoading(true);
     try {
-      const response = await api.listProjects(token);
+      const response = await api.listProjects();
       setProjects(response.projects);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Project 一覧の取得に失敗した", "error");
@@ -104,7 +102,7 @@ export function ProjectsPage({
 
   useEffect(() => {
     void refreshProjects();
-  }, [token]);
+  }, []);
 
   async function handleProjectImport(file: File | null, input?: HTMLInputElement | null) {
     if (!file) {
@@ -120,7 +118,7 @@ export function ProjectsPage({
         showToast("Import 前チェックで問題を検出した", "error");
         return;
       }
-      const response = await api.importProjectAsNew(token, payload);
+      const response = await api.importProjectAsNew(payload);
       setImportFeedback({
         severity: "success",
         message: `Import 完了: ${describeImportSummary(

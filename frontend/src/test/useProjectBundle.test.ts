@@ -97,7 +97,6 @@ describe("useProjectBundle", () => {
 
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",
@@ -142,7 +141,6 @@ describe("useProjectBundle", () => {
 
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",
@@ -189,7 +187,6 @@ describe("useProjectBundle", () => {
     const showToast = makeShowToast();
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",
@@ -245,7 +242,6 @@ describe("useProjectBundle", () => {
 
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",
@@ -290,7 +286,6 @@ describe("useProjectBundle", () => {
 
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",
@@ -357,7 +352,6 @@ describe("useProjectBundle", () => {
 
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",
@@ -409,7 +403,6 @@ describe("useProjectBundle", () => {
 
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",
@@ -510,7 +503,6 @@ describe("useProjectBundle", () => {
 
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",
@@ -594,7 +586,6 @@ describe("useProjectBundle", () => {
 
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",
@@ -690,7 +681,6 @@ describe("useProjectBundle", () => {
 
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",
@@ -788,7 +778,6 @@ describe("useProjectBundle", () => {
     const showToast = makeShowToast();
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",
@@ -858,7 +847,6 @@ describe("useProjectBundle", () => {
 
     const { result } = renderHook(() =>
       useProjectBundle({
-        token: "test-token",
         projectId: "project-1",
         searchQuery: "",
         sortMode: "created",

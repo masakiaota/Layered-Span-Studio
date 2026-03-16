@@ -11,7 +11,6 @@ import { EXAMPLES_BATCH_SIZE } from "./projectShellConstants";
 import type { SelectionPreview } from "./projectShellTypes";
 
 type UseProjectExamplesOptions = {
-  token: string;
   projectId: string | null;
   focusedLabel: LabelRecord | null;
   selectedAnnotation: AnnotationRecord | null;
@@ -20,7 +19,6 @@ type UseProjectExamplesOptions = {
 };
 
 export function useProjectExamples({
-  token,
   projectId,
   focusedLabel,
   selectedAnnotation,
@@ -66,7 +64,7 @@ export function useProjectExamples({
     }
     setSameLabelExamplesLoadingMore(true);
     try {
-      const response = await api.listLabelSurfaceGroups(token, projectId, focusedLabel.id, {
+      const response = await api.listLabelSurfaceGroups(projectId, focusedLabel.id, {
         offset: reset ? 0 : sameLabelExamplesOffset,
         limit: EXAMPLES_BATCH_SIZE,
         status: "all",
@@ -104,7 +102,7 @@ export function useProjectExamples({
     }
     setSameSurfaceExamplesLoadingMore(true);
     try {
-      const response = await api.searchAnnotations(token, projectId, {
+      const response = await api.searchAnnotations(projectId, {
         text: sameSurfaceTarget.text,
         status: "all",
         labelId: sameSurfaceTarget.labelId ?? null,
@@ -135,7 +133,7 @@ export function useProjectExamples({
       return;
     }
     try {
-      const response = await api.searchAnnotations(token, projectId, {
+      const response = await api.searchAnnotations(projectId, {
         text: surfaceText,
         status: "all",
         labelId: focusedLabel.id,

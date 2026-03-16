@@ -349,6 +349,9 @@ export JWT_SECRET='dev-secret'
 uv run uvicorn layered_span_studio_backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
+開発時の browser から見た入口は frontend dev server の `http://127.0.0.1:3000` に統一する。
+frontend は `/api` を backend `:8000` へ proxy し、same-origin のまま cookie session を扱う。
+
 ### 本番デプロイ（必要な場合）
 
 Docker Composeを使用:
@@ -376,8 +379,10 @@ services:
 - 全置換更新を表す `PUT` は、設定やラベル、ドキュメント bundle など一部のリソースで限定的に利用する
 
 ```
-POST   /auth/login                                               # ログイン
-GET    /auth/me                                                  # ログイン中ユーザー取得
+POST   /auth/session                                             # browser session 作成
+GET    /auth/session                                             # browser session 取得
+DELETE /auth/session                                             # browser session 破棄
+POST   /auth/token                                               # CLI / API client 用 JWT 発行
 
 GET    /projects                                                 # プロジェクト一覧
 POST   /projects                                                 # プロジェクト作成

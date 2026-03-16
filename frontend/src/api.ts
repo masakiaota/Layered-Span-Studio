@@ -8,7 +8,6 @@ import type {
   JsonObject,
   LabelSurfaceGroupsResponse,
   LabelRecord,
-  LoginResponse,
   ProjectImportResponse,
   ProjectListItemRecord,
   ProjectRecord,
@@ -16,7 +15,9 @@ import type {
 } from "./types";
 import { toJsonObject } from "./utils";
 
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
+const DEFAULT_API_BASE_URL = "/api";
+const CSRF_COOKIE_NAME = "lss_csrf";
+const CSRF_HEADER_NAME = "X-CSRF-Token";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -28,13 +29,30 @@ export class ApiError extends Error {
   }
 }
 
-function headers(token?: string, contentType?: string) {
-  const result = new Headers();
-  if (token) {
-    result.set("Authorization", `Bearer ${token}`);
+function readCookie(name: string) {
+  if (typeof document === "undefined") {
+    return null;
   }
+  const prefix = `${name}=`;
+  for (const cookie of document.cookie.split(";")) {
+    const normalized = cookie.trim();
+    if (normalized.startsWith(prefix)) {
+      return decodeURIComponent(normalized.slice(prefix.length));
+    }
+  }
+  return null;
+}
+
+function headers(contentType?: string, includeCsrf = false) {
+  const result = new Headers();
   if (contentType) {
     result.set("Content-Type", contentType);
+  }
+  if (includeCsrf) {
+    const csrfToken = readCookie(CSRF_COOKIE_NAME);
+    if (csrfToken) {
+      result.set(CSRF_HEADER_NAME, csrfToken);
+    }
   }
   return result;
 }
@@ -101,6 +119,13 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+type RequestOptions = {
+  method?: string;
+  body?: BodyInit | null;
+  contentType?: string;
+  includeCsrf?: boolean;
+};
+
 export class ApiClient {
   readonly baseUrl: string;
 
@@ -108,34 +133,54 @@ export class ApiClient {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
-  async login(username: string, password: string) {
-    const response = await fetch(`${this.baseUrl}/auth/login`, {
-      method: "POST",
-      headers: headers(undefined, "application/json"),
-      body: JSON.stringify({ username, password }),
+  private async request(path: string, options: RequestOptions = {}) {
+    return fetch(`${this.baseUrl}${path}`, {
+      method: options.method,
+      body: options.body,
+      headers: headers(options.contentType, options.includeCsrf),
+      credentials: "include",
     });
-    return parseResponse<LoginResponse>(response);
   }
 
-  async getMe(token: string) {
-    const response = await fetch(`${this.baseUrl}/auth/me`, { headers: headers(token) });
+  async createSession(username: string, password: string) {
+    const response = await this.request("/auth/session", {
+      method: "POST",
+      contentType: "application/json",
+      body: JSON.stringify({ username, password }),
+    });
     return parseResponse<UserRecord>(response);
   }
 
-  async listProjects(token: string) {
-    const response = await fetch(`${this.baseUrl}/projects`, { headers: headers(token) });
+  async getSession() {
+    const response = await this.request("/auth/session");
+    return parseResponse<UserRecord>(response);
+  }
+
+  async deleteSession() {
+    const response = await this.request("/auth/session", {
+      method: "DELETE",
+      includeCsrf: true,
+    });
+    if (!response.ok) {
+      throw await toApiError(response);
+    }
+  }
+
+  async listProjects() {
+    const response = await this.request("/projects");
     return parseResponse<{ projects: ProjectListItemRecord[] }>(response);
   }
 
-  async getProject(token: string, projectId: string) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}`, { headers: headers(token) });
+  async getProject(projectId: string) {
+    const response = await this.request(`/projects/${projectId}`);
     return parseResponse<ProjectRecord>(response);
   }
 
-  async saveProjectSettings(token: string, project: ProjectRecord) {
-    const response = await fetch(`${this.baseUrl}/projects/${project.id}/settings`, {
+  async saveProjectSettings(project: ProjectRecord) {
+    const response = await this.request(`/projects/${project.id}/settings`, {
       method: "PUT",
-      headers: headers(token, "application/json"),
+      contentType: "application/json",
+      includeCsrf: true,
       body: JSON.stringify({
         name: project.name,
         description: project.description ?? "",
@@ -145,13 +190,12 @@ export class ApiClient {
     return parseResponse<ProjectRecord>(response);
   }
 
-  async listLabels(token: string, projectId: string) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/labels`, { headers: headers(token) });
+  async listLabels(projectId: string) {
+    const response = await this.request(`/projects/${projectId}/labels`);
     return parseResponse<{ labels: LabelRecord[] }>(response);
   }
 
   async saveProjectLabels(
-    token: string,
     projectId: string,
     labels: Array<
       Pick<LabelRecord, "name" | "color" | "description" | "shortcut" | "meta"> & {
@@ -159,9 +203,10 @@ export class ApiClient {
       }
     >,
   ) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/labels`, {
+    const response = await this.request(`/projects/${projectId}/labels`, {
       method: "PUT",
-      headers: headers(token, "application/json"),
+      contentType: "application/json",
+      includeCsrf: true,
       body: JSON.stringify({
         labels: labels.map((label) => ({
           ...label,
@@ -172,32 +217,23 @@ export class ApiClient {
     return parseResponse<{ labels: LabelRecord[] }>(response);
   }
 
-  async listDocuments(
-    token: string,
-    projectId: string,
-    options?: { offset?: number; limit?: number; search?: string; sort?: string },
-  ) {
+  async listDocuments(projectId: string, options?: { offset?: number; limit?: number; search?: string; sort?: string }) {
     const query = new URLSearchParams({
       offset: String(options?.offset ?? 0),
       limit: String(options?.limit ?? 100),
       search: options?.search ?? "",
       sort: options?.sort ?? "created",
     });
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents?${query.toString()}`, {
-      headers: headers(token),
-    });
+    const response = await this.request(`/projects/${projectId}/documents?${query.toString()}`);
     return parseResponse<DocumentListResponse>(response);
   }
 
-  async getDocument(token: string, projectId: string, documentId: string) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents/${documentId}`, {
-      headers: headers(token),
-    });
+  async getDocument(projectId: string, documentId: string) {
+    const response = await this.request(`/projects/${projectId}/documents/${documentId}`);
     return parseResponse<DocumentRecord>(response);
   }
 
   async saveDocumentBundle(
-    token: string,
     projectId: string,
     documentId: string,
     annotations: Array<
@@ -207,9 +243,10 @@ export class ApiClient {
     >,
     submit = false,
   ) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents/${documentId}/bundle`, {
+    const response = await this.request(`/projects/${projectId}/documents/${documentId}/bundle`, {
       method: "PUT",
-      headers: headers(token, "application/json"),
+      contentType: "application/json",
+      includeCsrf: true,
       body: JSON.stringify({
         submit,
         annotations: annotations.map((annotation) => ({
@@ -221,14 +258,11 @@ export class ApiClient {
     return parseResponse<DocumentRecord>(response);
   }
 
-  async createDocument(
-    token: string,
-    projectId: string,
-    document: Pick<DocumentRecord, "document_name" | "text" | "meta">,
-  ) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents`, {
+  async createDocument(projectId: string, document: Pick<DocumentRecord, "document_name" | "text" | "meta">) {
+    const response = await this.request(`/projects/${projectId}/documents`, {
       method: "POST",
-      headers: headers(token, "application/json"),
+      contentType: "application/json",
+      includeCsrf: true,
       body: JSON.stringify({
         document_name: document.document_name,
         text: document.text,
@@ -238,10 +272,10 @@ export class ApiClient {
     return parseResponse<Omit<DocumentRecord, "annotations">>(response);
   }
 
-  async deleteDocument(token: string, projectId: string, documentId: string) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/documents/${documentId}`, {
+  async deleteDocument(projectId: string, documentId: string) {
+    const response = await this.request(`/projects/${projectId}/documents/${documentId}`, {
       method: "DELETE",
-      headers: headers(token),
+      includeCsrf: true,
     });
     if (!response.ok) {
       throw await toApiError(response);
@@ -249,7 +283,6 @@ export class ApiClient {
   }
 
   async listLabelSurfaceGroups(
-    token: string,
     projectId: string,
     labelId: string,
     options?: { offset?: number; limit?: number; status?: string; contextWindow?: number; excludeAnnotationId?: string | null },
@@ -263,17 +296,11 @@ export class ApiClient {
     if (options?.excludeAnnotationId) {
       query.set("exclude_annotation_id", options.excludeAnnotationId);
     }
-    const response = await fetch(
-      `${this.baseUrl}/projects/${projectId}/labels/${labelId}/surface-groups?${query.toString()}`,
-      {
-        headers: headers(token),
-      },
-    );
+    const response = await this.request(`/projects/${projectId}/labels/${labelId}/surface-groups?${query.toString()}`);
     return parseResponse<LabelSurfaceGroupsResponse>(response);
   }
 
   async searchAnnotations(
-    token: string,
     projectId: string,
     options: {
       text: string;
@@ -298,34 +325,35 @@ export class ApiClient {
     if (options.excludeAnnotationId) {
       query.set("exclude_annotation_id", options.excludeAnnotationId);
     }
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/annotations/search?${query.toString()}`, {
-      headers: headers(token),
-    });
+    const response = await this.request(`/projects/${projectId}/annotations/search?${query.toString()}`);
     return parseResponse<AnnotationSearchResponse>(response);
   }
 
-  async importProjectAsNew(token: string, payload: JsonObject) {
-    const response = await fetch(`${this.baseUrl}/projects/import`, {
+  async importProjectAsNew(payload: JsonObject) {
+    const response = await this.request("/projects/import", {
       method: "POST",
-      headers: headers(token, "application/json"),
+      contentType: "application/json",
+      includeCsrf: true,
       body: JSON.stringify(payload),
     });
     return parseResponse<ProjectImportResponse>(response);
   }
 
-  async importProject(token: string, projectId: string, payload: JsonObject) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/import`, {
+  async importProject(projectId: string, payload: JsonObject) {
+    const response = await this.request(`/projects/${projectId}/import`, {
       method: "POST",
-      headers: headers(token, "application/json"),
+      contentType: "application/json",
+      includeCsrf: true,
       body: JSON.stringify(payload),
     });
     return parseResponse<ImportResponse>(response);
   }
 
-  async exportProject(token: string, projectId: string, includePending: boolean, includeVerified: boolean) {
-    const response = await fetch(`${this.baseUrl}/projects/${projectId}/export`, {
+  async exportProject(projectId: string, includePending: boolean, includeVerified: boolean) {
+    const response = await this.request(`/projects/${projectId}/export`, {
       method: "POST",
-      headers: headers(token, "application/json"),
+      contentType: "application/json",
+      includeCsrf: true,
       body: JSON.stringify({
         include_pending: includePending,
         include_verified: includeVerified,

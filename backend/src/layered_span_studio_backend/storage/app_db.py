@@ -18,6 +18,15 @@ users_table = Table(
     Column("meta", String),
 )
 
+sessions_table = Table(
+    "sessions",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("user_id", String, nullable=False),
+    Column("created_at", String, nullable=False),
+    Column("expires_at", String, nullable=False),
+)
+
 
 def _engine_for_path(path: Path) -> Engine:
     return create_engine(

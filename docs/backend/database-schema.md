@@ -7,12 +7,16 @@ Layered Span Studioでは、データ永続化にSQLiteを使用します。1プ
 ## データベース構成
 
 ```
+backend/data/
+└── app.db               # users / sessions
+
 backend/data/projects/
 └── {project_id}/
     └── database.db      # 1プロジェクト = 1 SQLiteファイル
 ```
 
 各プロジェクトは独立したデータベースファイルを持ちます。これにより、プロジェクト単位でのバックアップ、エクスポート、削除が容易になります。
+認証系は project DB に混ぜず、`app.db` に集約します。
 
 ## 設計方針
 
@@ -92,6 +96,50 @@ DBスキーマは **そのJSONを生成・保存できること** を満たせ�
 - labels 1 : * annotations
 
 ## テーブル定義
+
+### app.db の認証テーブル
+
+Browser session と user は `backend/data/app.db` で管理します。
+
+#### users テーブル
+
+```sql
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    meta TEXT
+);
+```
+
+| カラム | 型 | NULL | 説明 |
+|--------|-----|------|------|
+| id | TEXT | NOT NULL | ユーザーID |
+| username | TEXT | NOT NULL | ログイン名 |
+| password_hash | TEXT | NOT NULL | argon2 でハッシュ化した password |
+| meta | TEXT | NULL | 任意の拡張情報（JSON文字列） |
+
+#### sessions テーブル
+
+```sql
+CREATE TABLE sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+```
+
+| カラム | 型 | NULL | 説明 |
+|--------|-----|------|------|
+| id | TEXT | NOT NULL | browser session id |
+| user_id | TEXT | NOT NULL | 紐づくユーザーID |
+| created_at | TEXT | NOT NULL | 作成日時（ISO 8601 UTC） |
+| expires_at | TEXT | NOT NULL | 期限（ISO 8601 UTC） |
+
+メモ:
+- `id` は `lss_session` cookie に載せる opaque id であり、JWT ではない
+- CSRF token は cookie (`lss_csrf`) で管理し、DB には保存しない
 
 ### project テーブル
 

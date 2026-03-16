@@ -103,7 +103,7 @@ function renderProjectSettings() {
   return render(
     <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
       <Routes>
-        <Route path="/projects/:projectId/settings" element={<ProjectShell token="token" user={user} onLogout={vi.fn()} />} />
+        <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -282,7 +282,7 @@ describe("ProjectShell settings import validation", () => {
     render(
       <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
         <Routes>
-          <Route path="/projects/:projectId/settings" element={<ProjectShell token="token" user={user} onLogout={vi.fn()} />} />
+          <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -326,7 +326,7 @@ describe("ProjectShell settings import validation", () => {
     render(
       <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
         <Routes>
-          <Route path="/projects/:projectId/settings" element={<ProjectShell token="token" user={user} onLogout={vi.fn()} />} />
+          <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
         </Routes>
       </MemoryRouter>,
     );

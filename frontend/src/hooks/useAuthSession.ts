@@ -1,38 +1,50 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { ApiError, api } from "../api";
 import type { UserRecord } from "../types";
 
-const TOKEN_KEY = "layered-span-studio/token";
+function getErrorStatus(error: unknown): number | null {
+  if (error instanceof ApiError) {
+    return error.status;
+  }
+  if (error && typeof error === "object" && "status" in error && typeof error.status === "number") {
+    return error.status;
+  }
+  if (error && typeof error === "object" && "cause" in error) {
+    const cause = error.cause;
+    if (cause && typeof cause === "object" && "status" in cause && typeof cause.status === "number") {
+      return cause.status;
+    }
+  }
+  return null;
+}
 
 export function useAuthSession() {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState<UserRecord | null>(null);
-  const [loading, setLoading] = useState(Boolean(token));
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
     let active = true;
     setLoading(true);
+    setError("");
     void api
-      .getMe(token)
+      .getSession()
       .then((response) => {
         if (!active) {
           return;
         }
         setUser(response);
       })
-      .catch(() => {
+      .catch((sessionError) => {
         if (!active) {
           return;
         }
-        localStorage.removeItem(TOKEN_KEY);
-        setToken(null);
         setUser(null);
+        if (getErrorStatus(sessionError) !== 401 && sessionError instanceof Error) {
+          setError(sessionError.message);
+          return;
+        }
+        setError("");
       })
       .finally(() => {
         if (active) {
@@ -42,21 +54,16 @@ export function useAuthSession() {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, []);
 
   async function login(username: string, password: string) {
     setError("");
     setLoading(true);
     try {
-      const response = await api.login(username, password);
-      localStorage.setItem(TOKEN_KEY, response.access_token);
-      setToken(response.access_token);
-      const me = await api.getMe(response.access_token);
-      setUser(me);
+      const sessionUser = await api.createSession(username, password);
+      setUser(sessionUser);
       return true;
     } catch (loginError) {
-      localStorage.removeItem(TOKEN_KEY);
-      setToken(null);
       setUser(null);
       setError(loginError instanceof Error ? loginError.message : "ログインに失敗した");
       return false;
@@ -65,15 +72,20 @@ export function useAuthSession() {
     }
   }
 
-  function logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
-    setUser(null);
+  async function logout() {
     setError("");
+    setLoading(true);
+    try {
+      await api.deleteSession();
+    } catch (logoutError) {
+      setError(logoutError instanceof Error ? logoutError.message : "ログアウトに失敗した");
+    } finally {
+      setUser(null);
+      setLoading(false);
+    }
   }
 
   return {
-    token,
     user,
     loading,
     error,

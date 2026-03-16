@@ -104,7 +104,7 @@ function renderWorkspace() {
   return render(
     <MemoryRouter initialEntries={["/projects/project-1"]}>
       <Routes>
-        <Route path="/projects/:projectId" element={<ProjectShell token="token" user={user} onLogout={vi.fn()} />} />
+        <Route path="/projects/:projectId" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -154,7 +154,7 @@ describe("ProjectShell submit behavior", () => {
     await userEventSetup.click(screen.getByRole("button", { name: "Submit" }));
 
     await waitFor(() => {
-      expect(saveDocumentBundleSpy).toHaveBeenCalledWith("token", "project-1", "doc-1", [], true);
+      expect(saveDocumentBundleSpy).toHaveBeenCalledWith("project-1", "doc-1", [], true);
     });
     expect(await screen.findByText("0 pending / 1 docs")).toBeInTheDocument();
   });
@@ -202,7 +202,6 @@ describe("ProjectShell submit behavior", () => {
 
     await waitFor(() => {
       expect(saveDocumentBundleSpy).toHaveBeenCalledWith(
-        "token",
         "project-1",
         "doc-1",
         [
@@ -274,7 +273,6 @@ describe("ProjectShell submit behavior", () => {
 
     await waitFor(() => {
       expect(saveDocumentBundleSpy).toHaveBeenCalledWith(
-        "token",
         "project-1",
         "doc-1",
         [

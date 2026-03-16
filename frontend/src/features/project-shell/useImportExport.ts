@@ -18,12 +18,10 @@ type ShowToast = (message: string, severity: "success" | "info" | "warning" | "e
 
 export function useImportExport({
   bundle,
-  token,
   loadBundle,
   showToast,
 }: {
   bundle: ProjectBundle | null;
-  token: string;
   loadBundle: () => Promise<void>;
   showToast: ShowToast;
 }) {
@@ -52,8 +50,8 @@ export function useImportExport({
       }
 
       const [{ labels: persistedLabels }, firstPageResponse] = await Promise.all([
-        api.listLabels(token, bundle.project.id),
-        api.listDocuments(token, bundle.project.id, {
+        api.listLabels(bundle.project.id),
+        api.listDocuments(bundle.project.id, {
           offset: 0,
           limit: DOCUMENT_PAGE_SIZE,
           sort: "created",
@@ -67,7 +65,7 @@ export function useImportExport({
           if (offset === 0) {
             return Promise.resolve(firstPageResponse);
           }
-          return api.listDocuments(token, bundle.project.id, {
+          return api.listDocuments(bundle.project.id, {
             offset,
             limit,
             sort: "created",
@@ -85,7 +83,7 @@ export function useImportExport({
         showToast("Import 前チェックで問題を検出した", "error");
         return;
       }
-      await api.importProject(token, bundle.project.id, payload);
+      await api.importProject(bundle.project.id, payload);
       setSettingsImportFeedback({
         severity: "success",
         message: `Import 完了: ${describeImportSummary(
@@ -115,7 +113,6 @@ export function useImportExport({
     }
     try {
       const payload = await api.exportProject(
-        token,
         bundle.project.id,
         exportPending,
         exportVerified,

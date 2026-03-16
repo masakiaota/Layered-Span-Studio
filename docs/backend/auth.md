@@ -1,33 +1,118 @@
 # 認証・認可（Backend）
 
-このドキュメントは Layered Span Studio の **APIレベルの認証/認可** と、**ユーザー名・パスワードの保存方法** を定義します。
+このドキュメントは Layered Span Studio の API レベルの認証/認可と、認証系データの持ち方を定義する。
 
 前提:
-- フロントエンド/バックエンドが同一サーバーで動く可能性があっても、APIはUIを介さず直接叩けます。したがって「フロントにログイン画面がある」だけでは防御になりません。
-- まずはシンプルに始めます（権限設計は最小）。
+- Browser と CLI / API client は、使いやすさと安全性が異なるため認証方式を分ける。
+- Browser 向けは same-origin 前提で運用する。開発時は frontend dev server が `/api` を backend に proxy する。
+- 権限設計は当面最小で、「認証済みなら全 API を使える」とする。
 
-## 目的
+## 採用方式
 
-- **認証**: username/passwordでログインし、以後のAPI呼び出しに対して「ログイン済みユーザー」を識別できるようにする
-- **認可**: 当面は「ログイン済みなら全APIを利用可能」。将来、プロジェクト単位の権限制御に拡張できる形にする
+### Browser
 
-## 採用方式（Bearer Token / JWT）
+- `HttpOnly Cookie + server session`
+- Browser は `lss_session` Cookie を自動送信する
+- frontend は `localStorage` に認証情報を保存しない
+- 更新系 request では CSRF 対策として `X-CSRF-Token` を付ける
 
-### 概要
+### CLI / API client
 
-1. クライアントが `POST /auth/login` に username/password を送る
-2. バックエンドが認証できたら **アクセストークン（JWT）** を返す
-3. 以後のリクエストはヘッダ `Authorization: Bearer <token>` を付けて呼ぶ
+- `Authorization: Bearer <JWT>`
+- `POST /auth/token` で短命 JWT を取得する
+- JWT の即時失効や denylist は今回入れない
 
-### トークンの性質
+## Auth API
 
-- **短命**（例: 8時間）
-- **署名付き**（改ざん検知）
-- トークンがあればAPIを呼べるため、クライアント側での扱いは慎重に行う
+### `POST /auth/session`
 
-## API仕様（最小セット）
+Browser session を作成する。
 
-### `POST /auth/login`
+#### Request JSON
+
+```json
+{
+  "username": "alice",
+  "password": "password"
+}
+```
+
+#### Response JSON（200）
+
+```json
+{
+  "id": "uuid",
+  "username": "alice",
+  "meta": {}
+}
+```
+
+#### Set-Cookie
+
+- `lss_session=<opaque-session-id>; HttpOnly; SameSite=Lax; Path=/`
+- `lss_csrf=<random-token>; SameSite=Lax; Path=/`
+
+補足:
+- `Secure` は HTTPS 環境で付与する
+- `lss_csrf` は JS から読める Cookie で、unsafe method の `X-CSRF-Token` に転写して使う
+
+#### Error
+
+- `401 Unauthorized`: username/password が不正
+
+---
+
+### `GET /auth/session`
+
+現在の Browser session に紐づく user を返す。
+
+#### Cookie
+
+- `lss_session=<opaque-session-id>`
+
+#### Response JSON（200）
+
+```json
+{
+  "id": "uuid",
+  "username": "alice",
+  "meta": {}
+}
+```
+
+#### Side Effect
+
+- 有効な session がある場合、`lss_csrf` Cookie を再発行する
+
+#### Error
+
+- `401 Unauthorized`: session なし、期限切れ、無効 session
+
+---
+
+### `DELETE /auth/session`
+
+Browser session を破棄する。
+
+#### Cookie / Header
+
+- `lss_session=<opaque-session-id>`
+- `X-CSRF-Token: <lss_csrf の値>`
+
+#### Response（204）
+
+- body なし
+- `lss_session` と `lss_csrf` を失効させる
+
+#### Error
+
+- `403 Forbidden`: CSRF token 不一致
+
+---
+
+### `POST /auth/token`
+
+CLI / API client 向け Bearer JWT を発行する。
 
 #### Request JSON
 
@@ -48,124 +133,83 @@
 }
 ```
 
-- `expires_in`: 秒（例: 8時間 = 28800）
-
 #### Error
 
-- 401: username/passwordが不正
+- `401 Unauthorized`: username/password が不正
 
----
+## 保護 API の認証ルール
 
-### `GET /auth/me`
+- `POST /auth/session`
+- `GET /auth/session`
+- `DELETE /auth/session`
+- `POST /auth/token`
 
-#### Headers
+以外の API は原則認証必須とする。
 
-- `Authorization: Bearer <access_token>`
+認証判定の優先順位:
+1. `Authorization: Bearer <token>` があれば Bearer JWT として検証する
+2. Authorization が無い場合のみ `lss_session` Cookie を見る
+3. invalid Bearer が来た場合は session cookie にフォールバックしない
 
-#### Response JSON（200）
+## CSRF
 
-```json
-{
-  "id": "uuid",
-  "username": "alice",
-  "meta": {}
-}
-```
+Browser session 利用時のみ、unsafe method に CSRF 対策をかける。
 
-#### Error
+- 対象外: `GET`, `HEAD`, `OPTIONS`
+- 対象: `POST`, `PUT`, `PATCH`, `DELETE`
 
-- 401: トークンなし、期限切れ、署名不正
+検証方法:
+- frontend は `lss_csrf` Cookie の値を読む
+- unsafe method で `X-CSRF-Token` header に同じ値を付ける
+- backend は cookie と header の一致を検証する
 
----
+JWT 認証時は CSRF 検証を行わない。
 
-## 保護ルール（どのAPIが認証必須か）
+## Cookie 属性
 
-- `POST /auth/login` は **認証不要**
-- それ以外は原則 **認証必須**
-  - トークンがない場合は 401
+- `lss_session`
+  - `HttpOnly=true`
+  - `SameSite=Lax`
+  - `Path=/`
+  - `Max-Age=28800`
+  - `Secure=true` は HTTPS 環境のみ
+- `lss_csrf`
+  - `HttpOnly=false`
+  - `SameSite=Lax`
+  - `Path=/`
+  - `Max-Age=28800`
+  - `Secure=true` は HTTPS 環境のみ
 
-## 認可（いまは最小）
+`Domain` は host-only cookie とし、明示指定しない。
 
-現時点では「認証できたユーザーは全操作が可能」です。
+## JWT の中身
 
-将来の拡張（必要になってから）:
-- `role`（admin/annotatorなど）
-- projectごとのアクセス制御（project_membershipsテーブル等）
+最小で次を含める。
 
-## JWTの中身（claims）
+- `sub`: user_id
+- `iat`: 発行時刻
+- `exp`: 有効期限
 
-最小で次を含めます:
-- `sub`: user_id（UUID文字列）
-- `exp`: 有効期限（UNIX time）
-- `iat`: 発行時刻（任意）
-
-必要になったら追加:
-- `username`（デバッグ用途）
-- `roles`（権限）
+JWT は短命運用とし、logout による即時失効は今回導入しない。
 
 ## ユーザー名・パスワードの保存方法
 
-### 絶対に守ること
+- パスワードは平文保存しない
+- 保存するのは `password_hash` のみ
+- 現行実装では `argon2` を使う
 
-- **パスワードを平文で保存しない**
-- 保存するのは **ハッシュ** のみ（`password_hash`）
+## 認証系データの保存先
 
-### 推奨ハッシュ方式
+認証系データは `backend/data/app.db` に集約する。
 
-- `argon2`（現行実装）
-  - saltはライブラリに任せる
-  - パラメータはライブラリ既定値を基準に運用
+- `users`: ユーザー情報
+- `sessions`: Browser session
 
-補足:
-- `bcrypt` でも実装可能だが、現在の実装では `argon2-cffi` を使用している
-
-### ユーザー保存先（アプリ全体で共通）
-
-ユーザーは「プロジェクトごと」ではなく「アプリ全体」で共通にします。
-
-例:
-
-```
-backend/data/
-└── app.db   # users 等（認証系を集約）
-```
-
-プロジェクトDB（`backend/data/projects/{project_id}/database.db`）とは分ける想定です。
-
-### `users` テーブル（案）
-
-```sql
-CREATE TABLE users (
-  id TEXT PRIMARY KEY,
-  username TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  meta TEXT
-);
-```
-
-メモ:
-- `meta` は任意JSON（将来の拡張用）
-
-## シークレット管理（JWT署名鍵）
-
-- JWTの署名鍵は **環境変数** で管理します（例: `JWT_SECRET`）
-- リポジトリにコミットしない
-
-運用メモ:
-- 本番相当で運用するなら、HTTPS（TLS）前提にする
-
-## クライアント側のトークン取り扱い（最低限の方針）
-
-- まずはシンプルにするため、トークンはクライアントで保持する
-- 現行 frontend 実装では、Bearer JWT を `localStorage` に保存している
-- ただしこれは暫定方針であり、`TODO.md` にある通り見直し対象である
-  - Browser 向けは `HttpOnly Cookie` ベースのサーバセッション方式を第一候補として検討する
-  - CLI / API クライアント用途を残すため、Bearer JWT の併用可否も含めて再設計する
-- `localStorage` 継続時は利便性が高い一方、XSS 対策が重要になる
+プロジェクトごとの `database.db` とは分離する。
 
 ## 今後追加しやすい要素
 
-- refresh token（長期ログイン）
-- logout（トークンの失効管理）
-- パスワード変更
-- 管理者ユーザー作成フロー（初回セットアップ）
+- refresh token
+- sliding session expiration
+- password change
+- role / project membership

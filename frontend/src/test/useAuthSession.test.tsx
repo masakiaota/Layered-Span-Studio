@@ -1,26 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../api";
+import { ApiError, api } from "../api";
 import { useAuthSession } from "../hooks/useAuthSession";
 import type { UserRecord } from "../types";
-
-const TOKEN_KEY = "layered-span-studio/token";
-
-type Deferred<T> = {
-  promise: Promise<T>;
-  resolve: (value: T | PromiseLike<T>) => void;
-  reject: (reason?: unknown) => void;
-};
-
-function createDeferred<T>(): Deferred<T> {
-  let resolve!: Deferred<T>["resolve"];
-  let reject!: Deferred<T>["reject"];
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-  return { promise, resolve, reject };
-}
 
 const demoUser: UserRecord = {
   id: "user-1",
@@ -30,39 +12,47 @@ const demoUser: UserRecord = {
 
 describe("useAuthSession", () => {
   beforeEach(() => {
-    localStorage.clear();
     vi.restoreAllMocks();
   });
 
   afterEach(() => {
-    localStorage.clear();
     vi.restoreAllMocks();
   });
 
-  it("does not clear a newer token when a stale auth check fails", async () => {
-    const staleCheck = createDeferred<UserRecord>();
+  it("restores an existing session on mount", async () => {
+    vi.spyOn(api, "getSession").mockResolvedValue(demoUser);
 
-    vi.spyOn(api, "login").mockResolvedValue({
-      access_token: "new-token",
-      expires_in: 3600,
-      token_type: "bearer",
-    });
-    vi.spyOn(api, "getMe").mockImplementation((token: string) => {
-      if (token === "old-token") {
-        return staleCheck.promise;
-      }
-      if (token === "new-token") {
-        return Promise.resolve(demoUser);
-      }
-      return Promise.reject(new Error(`Unexpected token: ${token}`));
-    });
+    const { result } = renderHook(() => useAuthSession());
 
-    localStorage.setItem(TOKEN_KEY, "old-token");
+    expect(result.current.loading).toBe(true);
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+      expect(result.current.user).toEqual(demoUser);
+      expect(result.current.error).toBe("");
+    });
+  });
+
+  it("treats 401 during bootstrap as logged out without surfacing an error", async () => {
+    vi.spyOn(api, "getSession").mockRejectedValue(new ApiError("Not authenticated", 401));
 
     const { result } = renderHook(() => useAuthSession());
 
     await waitFor(() => {
-      expect(api.getMe).toHaveBeenCalledWith("old-token");
+      expect(result.current.loading).toBe(false);
+      expect(result.current.user).toBeNull();
+      expect(result.current.error).toBe("");
+    });
+  });
+
+  it("logs in via session creation and stores the current user in memory only", async () => {
+    vi.spyOn(api, "getSession").mockRejectedValue({ status: 401 });
+    vi.spyOn(api, "createSession").mockResolvedValue(demoUser);
+
+    const { result } = renderHook(() => useAuthSession());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
     });
 
     await act(async () => {
@@ -70,17 +60,26 @@ describe("useAuthSession", () => {
       expect(loginSucceeded).toBe(true);
     });
 
+    expect(api.createSession).toHaveBeenCalledWith("demo_login_user", "demo_login_pass");
+    expect(result.current.user).toEqual(demoUser);
+    expect(result.current.error).toBe("");
+  });
+
+  it("clears the user after logout even if the delete request fails", async () => {
+    vi.spyOn(api, "getSession").mockResolvedValue(demoUser);
+    vi.spyOn(api, "deleteSession").mockRejectedValue(new Error("logout failed"));
+
+    const { result } = renderHook(() => useAuthSession());
+
     await waitFor(() => {
-      expect(result.current.token).toBe("new-token");
       expect(result.current.user).toEqual(demoUser);
     });
 
-    staleCheck.reject(new Error("expired token"));
-
-    await waitFor(() => {
-      expect(localStorage.getItem(TOKEN_KEY)).toBe("new-token");
-      expect(result.current.token).toBe("new-token");
-      expect(result.current.user).toEqual(demoUser);
+    await act(async () => {
+      await result.current.logout();
     });
+
+    expect(result.current.user).toBeNull();
+    expect(result.current.error).toBe("logout failed");
   });
 });
