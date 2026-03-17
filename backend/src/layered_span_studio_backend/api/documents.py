@@ -11,7 +11,6 @@ from layered_span_studio_backend.models.documents import (
     DocumentListSort,
     DocumentNavigationResponse,
     DocumentOut,
-    DocumentUpdate,
 )
 from layered_span_studio_backend.services import documents_service
 
@@ -129,25 +128,6 @@ def save_document_bundle(
         if "not found" in message.lower():
             status_code = status.HTTP_404_NOT_FOUND
         raise HTTPException(status_code=status_code, detail=message)
-
-
-@router.patch("/{document_id}", response_model=DocumentOut)
-def update_document(
-    project_id: str, document_id: str, payload: DocumentUpdate, settings=Depends(get_settings)
-):
-    try:
-        document = documents_service.update_document(
-            settings, project_id, document_id, payload.document_name, payload.meta
-        )
-    except ValueError as exc:
-        message = str(exc)
-        status_code = status.HTTP_400_BAD_REQUEST
-        if "Project not found" in message:
-            status_code = status.HTTP_404_NOT_FOUND
-        raise HTTPException(status_code=status_code, detail=message)
-    if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    return document
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

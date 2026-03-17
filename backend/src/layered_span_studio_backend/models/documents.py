@@ -23,11 +23,6 @@ class DocumentCreate(APIModel):
     meta: Meta = None
 
 
-class DocumentUpdate(APIModel):
-    document_name: Optional[str] = None
-    meta: Meta = None
-
-
 class DocumentBundleAnnotationIn(APIModel):
     id: Optional[str] = None
     label_id: str

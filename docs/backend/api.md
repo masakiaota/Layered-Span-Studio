@@ -55,7 +55,6 @@
 - `GET /projects/{project_id}/documents/{document_id}/navigation` - 現在 document 基準の `prev/next/next_pending` を取得
 - `GET /projects/{project_id}/documents/{document_id}` - ドキュメント詳細を取得（`annotations` 全件含む）
 - `PUT /projects/{project_id}/documents/{document_id}/bundle` - 現在 document の annotation 一覧を一括保存
-- `PATCH /projects/{project_id}/documents/{document_id}` - ドキュメントの `document_name` / `meta` を更新（`text` は更新不可）
 - `DELETE /projects/{project_id}/documents/{document_id}` - ドキュメントを削除（関連アノテも連動削除）
 
 ### Annotations
@@ -972,52 +971,6 @@ Authorization: Bearer <token>
 
 ---
 
-### PATCH /projects/{project_id}/documents/{document_id}
-
-ドキュメントのメタデータを更新する。
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Request:**
-```json
-{
-  "document_name": "患者記録_001_revised",
-  "meta": {
-    "source": "hospital_records",
-    "date": "2024-01-15",
-    "reviewed": true
-  }
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "id": "uuid",
-  "project_id": "uuid",
-  "project_name": "医療文書NER",
-  "document_name": "患者記録_001_revised",
-  "text": "患者は頭痛を訴え、アスピリンを処方された。既往歴に糖尿病あり。",
-  "status": "pending",
-  "created_at": "2026-03-11T01:23:45Z",
-  "updated_at": "2026-03-12T02:00:00Z",
-  "meta": {
-    "source": "hospital_records",
-    "date": "2024-01-15",
-    "reviewed": true
-  }
-}
-```
-
-**注記:**
-- `text` フィールドは更新不可（既存のアノテーションが壊れるため）
-- `document_name` と `meta` のみ更新可能
-
----
-
 ### PUT /projects/{project_id}/documents/{document_id}/bundle
 
 現在の document に対する annotation 一覧を一括保存する。request の `annotations` はその document の最終状態全件を表す。通常の Save では現在状態をそのまま送り、Submit では frontend が `pending` を `verified` に変換したうえで同じ endpoint に送る。
@@ -1062,6 +1015,7 @@ Authorization: Bearer <token>
 - `GET /projects/{project_id}/documents/{document_id}` と同じ full document を返す
 
 **注記:**
+- `document_name` / `text` / `meta` はこの endpoint では更新しない
 - request に含まれない既存 annotation は削除される
 - `id: null` は新規 annotation として作成される
 - 既存 annotation の `label_id/start/end/span_text` は変更不可

@@ -396,7 +396,6 @@ PUT    /projects/{project_id}/labels                             # ラベル一�
 GET    /projects/{project_id}/documents                          # ドキュメント一覧
 POST   /projects/{project_id}/documents                          # ドキュメント作成
 GET    /projects/{project_id}/documents/{document_id}            # ドキュメント取得
-PATCH  /projects/{project_id}/documents/{document_id}            # ドキュメント部分更新
 DELETE /projects/{project_id}/documents/{document_id}            # ドキュメント削除
 
 GET    /projects/{project_id}/annotations/search                 # アノテーション横断検索
