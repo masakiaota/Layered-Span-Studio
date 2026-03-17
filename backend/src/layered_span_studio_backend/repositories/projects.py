@@ -37,6 +37,31 @@ def _parse_timestamp(value: Any) -> Optional[float]:
     return parsed.astimezone(timezone.utc).timestamp()
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _timestamp_to_utc_iso(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _project_db_timestamp(db_path: Path) -> str:
+    return _timestamp_to_utc_iso(db_path.stat().st_mtime)
+
+
+def _ensure_project_created_at_column(conn, db_path: Path) -> None:
+    columns = {row["name"] for row in conn.exec_driver_sql("PRAGMA table_info(project)").mappings()}
+    if "created_at" in columns:
+        return
+    created_at = _project_db_timestamp(db_path)
+    conn.exec_driver_sql("ALTER TABLE project ADD COLUMN created_at TEXT")
+    conn.execute(
+        project_table.update()
+        .where(project_table.c.created_at.is_(None))
+        .values(created_at=created_at)
+    )
+
+
 def _project_sort_key(project: Dict[str, Any]) -> tuple[Any, ...]:
     summary = project["summary"]
     updated_at_timestamp = _parse_timestamp(summary["updated_at"])
@@ -59,7 +84,8 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
         if not db_path.exists():
             continue
         engine = get_project_engine(str(db_path))
-        with engine.connect() as conn:
+        with engine.begin() as conn:
+            _ensure_project_created_at_column(conn, db_path)
             row = conn.execute(select(project_table)).mappings().first()
             if not row:
                 continue
@@ -77,6 +103,7 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
                 "name": row["name"],
                 "description": row["description"],
                 "meta": decode_meta(row["meta"]),
+                "created_at": row["created_at"],
                 "summary": {
                     "labels_count": labels_count,
                     "documents_count": documents_count,
@@ -94,7 +121,8 @@ def get_project(settings: Settings, project_id: str) -> Optional[Dict[str, Any]]
     if not db_path.exists():
         return None
     engine = get_project_engine(str(db_path))
-    with engine.connect() as conn:
+    with engine.begin() as conn:
+        _ensure_project_created_at_column(conn, db_path)
         row = conn.execute(select(project_table)).mappings().first()
     if not row:
         return None
@@ -103,6 +131,7 @@ def get_project(settings: Settings, project_id: str) -> Optional[Dict[str, Any]]
         "name": row["name"],
         "description": row["description"],
         "meta": decode_meta(row["meta"]),
+        "created_at": row["created_at"],
     }
 
 
@@ -114,6 +143,7 @@ def create_project(settings: Settings, name: str, description: Optional[str], me
     db_path = _project_db_path(settings, project_id)
     init_project_db(db_path)
     engine = get_project_engine(str(db_path))
+    created_at = _utc_now_iso()
     with engine.begin() as conn:
         conn.execute(
             project_table.insert().values(
@@ -121,9 +151,10 @@ def create_project(settings: Settings, name: str, description: Optional[str], me
                 name=name,
                 description=description,
                 meta=encode_meta(meta),
+                created_at=created_at,
             )
         )
-    return {"id": project_id, "name": name, "description": description, "meta": meta or {}}
+    return {"id": project_id, "name": name, "description": description, "meta": meta or {}, "created_at": created_at}
 
 
 def update_project(
@@ -154,7 +185,13 @@ def update_project(
                 meta=encode_meta(new_meta),
             )
         )
-    return {"id": project_id, "name": new_name, "description": new_description, "meta": new_meta or {}}
+    return {
+        "id": project_id,
+        "name": new_name,
+        "description": new_description,
+        "meta": new_meta or {},
+        "created_at": project["created_at"],
+    }
 
 
 def replace_project(
@@ -182,7 +219,7 @@ def replace_project(
                 meta=encode_meta(meta),
             )
         )
-    return {"id": project_id, "name": name, "description": description, "meta": meta}
+    return {"id": project_id, "name": name, "description": description, "meta": meta, "created_at": project["created_at"]}
 
 
 def replace_project_and_labels(
@@ -217,7 +254,13 @@ def replace_project_and_labels(
         updated_rows = load_label_rows(conn, project_id)
 
     return {
-        "project": {"id": project_id, "name": name, "description": description, "meta": meta},
+        "project": {
+            "id": project_id,
+            "name": name,
+            "description": description,
+            "meta": meta,
+            "created_at": project["created_at"],
+        },
         "labels": [
             {
                 "id": row["id"],

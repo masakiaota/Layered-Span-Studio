@@ -182,13 +182,14 @@ response 例:
   "id": "uuid",
   "name": "医療文書NER",
   "description": "医療文書からエンティティ抽出",
+  "created_at": "2026-03-10T09:00:00Z",
   "meta": {
     "note": "任意"
   }
 }
 ```
 
-- **必須**: `id`, `name`
+- **必須**: `id`, `name`, `created_at`
 - **任意**: `description`, `meta`
 
 メモ:
@@ -205,6 +206,7 @@ response 例:
       "name": "医療文書NER",
       "description": "医療文書からエンティティ抽出",
       "meta": {},
+      "created_at": "2026-03-10T09:00:00Z",
       "summary": {
         "labels_count": 12,
         "documents_count": 248,
@@ -217,6 +219,7 @@ response 例:
 ```
 
 - response の `projects` は一覧用の `summary` を持つ
+- `created_at`: project 作成時刻。既存 project は `database.db` のファイル時刻で補完する
 - `summary.labels_count`: project 配下 label の総数
 - `summary.documents_count`: project 配下 document の総数
 - `summary.pending_documents_count`: `document.status != "verified"` の document 総数

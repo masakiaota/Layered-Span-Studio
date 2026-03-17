@@ -11,11 +11,17 @@ import {
   Chip,
   CircularProgress,
   Container,
+  FormControl,
   InputAdornment,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Snackbar,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Toolbar,
   Typography,
   alpha,
@@ -40,6 +46,64 @@ import {
 } from "../importValidation";
 import type { ProjectListItemRecord, UserRecord } from "../types";
 import { normalizeSearchText, readJsonFile } from "../utils";
+
+type ProjectSortKey = "created" | "name" | "documents" | "pendingDocuments";
+type ProjectSortDirection = "asc" | "desc";
+
+const PROJECT_SORT_OPTIONS: Array<{ value: ProjectSortKey; label: string }> = [
+  { value: "created", label: "作成順" },
+  { value: "name", label: "名前順" },
+  { value: "documents", label: "ドキュメント数順" },
+  { value: "pendingDocuments", label: "未確定ドキュメント数順" },
+];
+
+function compareText(left: string, right: string) {
+  return left.localeCompare(right, "ja");
+}
+
+function compareNullableIso(left: string | null | undefined, right: string | null | undefined) {
+  if (!left && !right) {
+    return 0;
+  }
+  if (!left) {
+    return 1;
+  }
+  if (!right) {
+    return -1;
+  }
+  return left.localeCompare(right);
+}
+
+function compareProjects(
+  left: ProjectListItemRecord,
+  right: ProjectListItemRecord,
+  sortKey: ProjectSortKey,
+  sortDirection: ProjectSortDirection,
+) {
+  let comparison = 0;
+  switch (sortKey) {
+    case "created":
+      comparison = compareNullableIso(left.created_at, right.created_at);
+      break;
+    case "name":
+      comparison = compareText(left.name, right.name);
+      break;
+    case "documents":
+      comparison = left.summary.documents_count - right.summary.documents_count;
+      break;
+    case "pendingDocuments":
+      comparison = left.summary.pending_documents_count - right.summary.pending_documents_count;
+      break;
+  }
+  if (comparison !== 0) {
+    return sortDirection === "asc" ? comparison : -comparison;
+  }
+  const nameComparison = compareText(left.name, right.name);
+  if (nameComparison !== 0) {
+    return nameComparison;
+  }
+  return left.id.localeCompare(right.id);
+}
 
 function formatRelativeDate(value: string | null) {
   if (!value) {
@@ -88,6 +152,8 @@ export function ProjectsPage({
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortKey, setSortKey] = useState<ProjectSortKey>("created");
+  const [sortDirection, setSortDirection] = useState<ProjectSortDirection>("desc");
   const mutationBusy = importing || creating;
   const [importFeedback, setImportFeedback] = useState<{
     severity: "success" | "info" | "warning" | "error";
@@ -196,13 +262,13 @@ export function ProjectsPage({
     );
   }
 
-  const filteredProjects = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return projects;
-    }
+  const visibleProjects = useMemo(() => {
     const normalized = normalizeSearchText(searchQuery);
-    return projects.filter((project) => buildProjectSearchText(project).includes(normalized));
-  }, [projects, searchQuery]);
+    const filtered = !searchQuery.trim()
+      ? projects
+      : projects.filter((project) => buildProjectSearchText(project).includes(normalized));
+    return [...filtered].sort((left, right) => compareProjects(left, right, sortKey, sortDirection));
+  }, [projects, searchQuery, sortDirection, sortKey]);
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "#f6f8fc" }}>
@@ -246,14 +312,19 @@ export function ProjectsPage({
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <Stack spacing={3}>
           {importFeedback ? <Alert severity={importFeedback.severity}>{importFeedback.message}</Alert> : null}
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "center",
-              pt: { xs: 0.5, md: 1.5 },
-            }}
-          >
-            <Box sx={{ width: "100%", maxWidth: 640 }}>
+          <Box sx={{ pt: { xs: 0.5, md: 1.5 } }}>
+            <Box
+              sx={{
+                width: "100%",
+                display: "grid",
+                gap: 1.5,
+                alignItems: "center",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  md: "minmax(0, 1fr) 220px 180px",
+                },
+              }}
+            >
               <TextField
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
@@ -277,6 +348,65 @@ export function ProjectsPage({
                   ),
                 }}
               />
+              <FormControl size="small" sx={{ minWidth: 0 }}>
+                <InputLabel id="project-sort-label">並び順</InputLabel>
+                <Select
+                  labelId="project-sort-label"
+                  value={sortKey}
+                  label="並び順"
+                  onChange={(event) => setSortKey(event.target.value as ProjectSortKey)}
+                  sx={{
+                    height: 58,
+                    borderRadius: 4,
+                    bgcolor: "#fff",
+                    boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+                  }}
+                >
+                  {PROJECT_SORT_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <ToggleButtonGroup
+                exclusive
+                value={sortDirection}
+                onChange={(_event, value: ProjectSortDirection | null) => {
+                  if (value) {
+                    setSortDirection(value);
+                  }
+                }}
+                aria-label="並び方向"
+                size="small"
+                sx={{
+                  height: 58,
+                  bgcolor: "#fff",
+                  borderRadius: 4,
+                  overflow: "hidden",
+                  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+                  "& .MuiToggleButton-root": {
+                    flex: 1,
+                    border: "none",
+                    px: 2,
+                  },
+                  "& .MuiToggleButtonGroup-grouped:first-of-type": {
+                    borderTopLeftRadius: 16,
+                    borderBottomLeftRadius: 16,
+                  },
+                  "& .MuiToggleButtonGroup-grouped:last-of-type": {
+                    borderTopRightRadius: 16,
+                    borderBottomRightRadius: 16,
+                  },
+                }}
+              >
+                <ToggleButton value="desc" aria-label="降順">
+                  降順
+                </ToggleButton>
+                <ToggleButton value="asc" aria-label="昇順">
+                  昇順
+                </ToggleButton>
+              </ToggleButtonGroup>
             </Box>
           </Box>
 
@@ -316,7 +446,7 @@ export function ProjectsPage({
                 {renderImportButton("Import Project", "contained")}
               </Stack>
             </Paper>
-          ) : filteredProjects.length === 0 ? (
+          ) : visibleProjects.length === 0 ? (
             <Paper sx={{ p: 6, borderRadius: 4, textAlign: "center" }}>
               <Typography variant="h6">一致する project がない</Typography>
               <Typography color="text.secondary" sx={{ mt: 1 }}>
@@ -338,7 +468,7 @@ export function ProjectsPage({
                 },
               }}
             >
-              {filteredProjects.map((project, index) => {
+              {visibleProjects.map((project, index) => {
                 return (
                   <Card
                     key={project.id}

@@ -20,6 +20,7 @@ export interface ProjectRecord {
   name: string;
   description?: string | null;
   meta: JsonObject | null;
+  created_at?: string | null;
 }
 
 export interface ProjectSummaryRecord {

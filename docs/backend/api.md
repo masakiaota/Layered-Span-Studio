@@ -214,6 +214,7 @@ Authorization: Bearer <token>
       "name": "医療文書NER",
       "description": "医療分野の固有表現抽出",
       "meta": {},
+      "created_at": "2026-03-10T09:00:00Z",
       "summary": {
         "labels_count": 12,
         "documents_count": 248,
@@ -226,6 +227,7 @@ Authorization: Bearer <token>
       "name": "法律文書NER",
       "description": "法律文書からの固有表現抽出",
       "meta": {},
+      "created_at": "2026-03-08T10:00:00Z",
       "summary": {
         "labels_count": 8,
         "documents_count": 90,
@@ -238,6 +240,7 @@ Authorization: Bearer <token>
 ```
 
 **注記:**
+- `created_at`: project 作成時刻。既存 project は `database.db` のファイル時刻で補完する
 - `summary.labels_count`: project 配下 label の総数
 - `summary.documents_count`: project 配下 document の総数
 - `summary.pending_documents_count`: `document.status != verified` の document 総数
@@ -273,7 +276,8 @@ Authorization: Bearer <token>
   "id": "uuid",
   "name": "医療文書NER",
   "description": "医療分野の固有表現抽出",
-  "meta": {}
+  "meta": {},
+  "created_at": "2026-03-10T09:00:00Z"
 }
 ```
 
@@ -301,7 +305,8 @@ Authorization: Bearer <token>
   "id": "uuid",
   "name": "医療文書NER",
   "description": "医療分野の固有表現抽出",
-  "meta": {}
+  "meta": {},
+  "created_at": "2026-03-10T09:00:00Z"
 }
 ```
 
@@ -338,7 +343,8 @@ Authorization: Bearer <token>
   "id": "uuid",
   "name": "医療文書NER v2",
   "description": "医療分野の固有表現抽出（改訂版）",
-  "meta": {}
+  "meta": {},
+  "created_at": "2026-03-10T09:00:00Z"
 }
 ```
 
@@ -372,7 +378,8 @@ Authorization: Bearer <token>
   "description": "医療分野の固有表現抽出（改訂版）",
   "meta": {
     "guideline": "共通ガイドライン"
-  }
+  },
+  "created_at": "2026-03-10T09:00:00Z"
 }
 ```
 
@@ -430,7 +437,8 @@ Authorization: Bearer <token>
     "description": "医療分野の固有表現抽出（改訂版）",
     "meta": {
       "guideline": "共通ガイドライン"
-    }
+    },
+    "created_at": "2026-03-10T09:00:00Z"
   },
   "labels": [
     {

@@ -148,6 +148,9 @@
 ## 6.2 Import / Export（Project List / Project Settings）
 
 - Project List では `New Project` と `Import Project` を並列導線として提供する。
+- Project List では検索欄の近くに `並び順` と `昇順 / 降順` の UI を置く。
+- Project List の並び順候補は `作成順` `名前順` `ドキュメント数順` `未確定ドキュメント数順` とし、初期値は `作成順 / 降順` とする。
+- この並び順は Project List 専用であり、Workspace 左ペインの Document sort 仕様とは独立して扱う。
 - `New Project` は Project List 上部から dialog で起動し、`Project name` と `Description` を入力して空の project を作成する。
 - `New Project` 完了後は、作成された project の Project Settings へ遷移する。
 - Project List では `.json` ファイルから新規 project import を行う。

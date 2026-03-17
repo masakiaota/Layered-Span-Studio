@@ -38,6 +38,7 @@ class ProjectOut(APIModel):
     name: str
     description: Optional[str] = None
     meta: Meta = None
+    created_at: str
 
 
 class ProjectSummaryOut(APIModel):

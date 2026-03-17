@@ -31,11 +31,13 @@
 7. `New Project` では作成ダイアログで `name` / `description` を入力し、作成完了後は `"/projects/:projectId/settings"` を開く。
 8. 新規 Project Import 完了時も、作成された `"/projects/:projectId"` の Workspace を開く。
 9. Project List からは各 Project の `Settings` 導線で `"/projects/:projectId/settings"` を直接開ける。
-10. 上部ナビゲーションで以下を切り替える。
+10. Project List では `並び順` と `昇順 / 降順` を user が切り替えられるようにする。
+11. Project List の初期並びは `作成順 / 降順` とし、新しく作成・import した project が先頭に来る。
+12. 上部ナビゲーションで以下を切り替える。
   - Workspace
   - Project Settings
-11. Workspace では左ペインで Document を選び、中央で Annotation 編集、右ペインで詳細編集を行う。
-12. Project Settings では Project 名 / 説明 / Label 定義 / ガイドライン / Import・Export・Project 削除を管理する。
+13. Workspace では左ペインで Document を選び、中央で Annotation 編集、右ペインで詳細編集を行う。
+14. Project Settings では Project 名 / 説明 / Label 定義 / ガイドライン / Import・Export・Project 削除を管理する。
 
 ## 4. Document 切り替え時の扱い
 
@@ -63,6 +65,8 @@
 
 - Project List では、新規 project 作成のための Import Project 導線を提供する。
 - Project List では、空の project を作る `New Project` 導線も提供する。
+- Project List では `作成順` `名前順` `ドキュメント数順` `未確定ドキュメント数順` を切り替え可能にし、昇順 / 降順も選べるようにする。
+- Project List の初期値は `作成順 / 降順` とする。
 - `New Project` は dialog で `Project name` と `Description` を入力して確定する。
 - `New Project` 完了後は、作成された project の `Project Settings` を開く。
 - Project List の Import は backend の `POST /projects/import` と同じ意味を持ち、export JSON から新規 project を作る。
