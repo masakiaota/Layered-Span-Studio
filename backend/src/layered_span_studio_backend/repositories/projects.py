@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +17,7 @@ from layered_span_studio_backend.utils.json_utils import decode_meta, encode_met
 
 
 PROJECT_DB_FILENAME = "database.db"
+PROJECT_SCHEMA_RETRY_DELAYS = (0.01, 0.05, 0.1)
 
 
 def _project_dir(settings: Settings, project_id: str) -> Path:
@@ -50,27 +52,40 @@ def _project_db_timestamp(db_path: Path) -> str:
     return _timestamp_to_utc_iso(db_path.stat().st_mtime)
 
 
+def _is_sqlite_lock_error(exc: OperationalError) -> bool:
+    message = str(exc).lower()
+    return "database is locked" in message or "database table is locked" in message
+
+
 def _ensure_project_created_at_column(conn, db_path: Path) -> None:
-    columns = {row["name"] for row in conn.exec_driver_sql("PRAGMA table_info(project)").mappings()}
-    created_at = _project_db_timestamp(db_path)
-    should_backfill = False
-    if "created_at" not in columns:
-        should_backfill = True
+    for attempt in range(len(PROJECT_SCHEMA_RETRY_DELAYS) + 1):
+        columns = {row["name"] for row in conn.exec_driver_sql("PRAGMA table_info(project)").mappings()}
+        created_at = _project_db_timestamp(db_path)
+        should_backfill = False
         try:
-            conn.exec_driver_sql("ALTER TABLE project ADD COLUMN created_at TEXT")
+            if "created_at" not in columns:
+                should_backfill = True
+                try:
+                    conn.exec_driver_sql("ALTER TABLE project ADD COLUMN created_at TEXT")
+                except OperationalError as exc:
+                    if "duplicate column name" not in str(exc).lower():
+                        raise
+            if not should_backfill:
+                should_backfill = (
+                    conn.execute(select(project_table.c.id).where(project_table.c.created_at.is_(None)).limit(1)).first()
+                    is not None
+                )
+            if should_backfill:
+                conn.execute(
+                    project_table.update()
+                    .where(project_table.c.created_at.is_(None))
+                    .values(created_at=created_at)
+                )
+            return
         except OperationalError as exc:
-            if "duplicate column name" not in str(exc).lower():
+            if attempt == len(PROJECT_SCHEMA_RETRY_DELAYS) or not _is_sqlite_lock_error(exc):
                 raise
-    if not should_backfill:
-        should_backfill = (
-            conn.execute(select(project_table.c.id).where(project_table.c.created_at.is_(None)).limit(1)).first() is not None
-        )
-    if should_backfill:
-        conn.execute(
-            project_table.update()
-            .where(project_table.c.created_at.is_(None))
-            .values(created_at=created_at)
-        )
+            time.sleep(PROJECT_SCHEMA_RETRY_DELAYS[attempt])
 
 
 def _project_sort_key(project: Dict[str, Any]) -> tuple[Any, ...]:

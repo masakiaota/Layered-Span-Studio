@@ -64,9 +64,7 @@ function createProject(overrides: Partial<ProjectListItemRecord>): ProjectListIt
 }
 
 function getRenderedProjectNames() {
-  return Array.from(document.querySelectorAll("h6"))
-    .map((node) => node.textContent ?? "")
-    .filter((text) => text !== "Layered Span Studio");
+  return screen.getAllByTestId("project-card-title").map((node) => node.textContent ?? "");
 }
 
 describe("ProjectsPage", () => {

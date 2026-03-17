@@ -516,7 +516,7 @@ export function ProjectsPage({
                             {index + 1}
                           </Avatar>
                           <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="h6" sx={{ lineHeight: 1.25 }}>
+                            <Typography data-testid="project-card-title" variant="h6" sx={{ lineHeight: 1.25 }}>
                               {project.name}
                             </Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
