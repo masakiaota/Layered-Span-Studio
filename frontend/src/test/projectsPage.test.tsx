@@ -222,4 +222,35 @@ describe("ProjectsPage", () => {
     expect(getRenderedProjectNames()).toEqual(["Alpha Suite"]);
     expect(listProjectsSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("sorts created_at by numeric timestamp and keeps missing values last", async () => {
+    const userEventSetup = userEvent.setup();
+    vi.spyOn(api, "listProjects").mockResolvedValue({
+      projects: [
+        createProject({
+          id: "project-1",
+          name: "No Timestamp",
+          created_at: null,
+        }),
+        createProject({
+          id: "project-2",
+          name: "Whole Second",
+          created_at: "2026-03-03T00:00:00Z",
+        }),
+        createProject({
+          id: "project-3",
+          name: "Fractional Second",
+          created_at: "2026-03-03T00:00:00.123Z",
+        }),
+      ],
+    });
+
+    renderProjectsPage();
+
+    await screen.findByText("Fractional Second");
+    expect(getRenderedProjectNames()).toEqual(["Fractional Second", "Whole Second", "No Timestamp"]);
+
+    await userEventSetup.click(screen.getByRole("button", { name: "昇順" }));
+    expect(getRenderedProjectNames()).toEqual(["Whole Second", "Fractional Second", "No Timestamp"]);
+  });
 });

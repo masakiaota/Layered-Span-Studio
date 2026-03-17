@@ -442,3 +442,38 @@ def test_projects_list_backfills_created_at_from_legacy_project_db(
         assert "created_at" in columns
         stored_created_at = conn.execute("SELECT created_at FROM project WHERE id = ?", (project_id,)).fetchone()[0]
     assert stored_created_at == expected_created_at
+
+
+def test_projects_list_backfills_null_created_at_when_column_already_exists(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    settings,
+) -> None:
+    project_id = "legacy-null-project"
+    project_dir = settings.projects_dir / project_id
+    project_dir.mkdir(parents=True, exist_ok=True)
+    db_path = project_dir / PROJECT_DB_FILENAME
+    expected_created_at = datetime(2026, 3, 8, 9, 10, 11, tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE project (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, meta TEXT, created_at TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE labels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL, description TEXT NOT NULL, shortcut TEXT, meta TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE documents (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, document_name TEXT NOT NULL, text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, meta TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO project (id, name, description, meta, created_at) VALUES (?, ?, ?, ?, ?)",
+            (project_id, "Legacy Null Project", "desc", "{}", None),
+        )
+        conn.commit()
+    legacy_timestamp = datetime(2026, 3, 8, 9, 10, 11, tzinfo=timezone.utc).timestamp()
+    os.utime(db_path, (legacy_timestamp, legacy_timestamp))
+
+    response = client.get("/projects", headers=auth_headers)
+    assert response.status_code == 200
+    payload = next(item for item in response.json()["projects"] if item["id"] == project_id)
+    assert payload["created_at"] == expected_created_at

@@ -61,17 +61,32 @@ function compareText(left: string, right: string) {
   return left.localeCompare(right, "ja");
 }
 
-function compareNullableIso(left: string | null | undefined, right: string | null | undefined) {
-  if (!left && !right) {
+function parseSortableTimestamp(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function compareNullableTimestamp(
+  left: string | null | undefined,
+  right: string | null | undefined,
+  sortDirection: ProjectSortDirection,
+) {
+  const leftTimestamp = parseSortableTimestamp(left);
+  const rightTimestamp = parseSortableTimestamp(right);
+  if (leftTimestamp === null && rightTimestamp === null) {
     return 0;
   }
-  if (!left) {
+  if (leftTimestamp === null) {
     return 1;
   }
-  if (!right) {
+  if (rightTimestamp === null) {
     return -1;
   }
-  return left.localeCompare(right);
+  const comparison = leftTimestamp - rightTimestamp;
+  return sortDirection === "asc" ? comparison : -comparison;
 }
 
 function compareProjects(
@@ -83,7 +98,7 @@ function compareProjects(
   let comparison = 0;
   switch (sortKey) {
     case "created":
-      comparison = compareNullableIso(left.created_at, right.created_at);
+      comparison = compareNullableTimestamp(left.created_at, right.created_at, sortDirection);
       break;
     case "name":
       comparison = compareText(left.name, right.name);
@@ -96,7 +111,7 @@ function compareProjects(
       break;
   }
   if (comparison !== 0) {
-    return sortDirection === "asc" ? comparison : -comparison;
+    return sortKey === "created" ? comparison : sortDirection === "asc" ? comparison : -comparison;
   }
   const nameComparison = compareText(left.name, right.name);
   if (nameComparison !== 0) {

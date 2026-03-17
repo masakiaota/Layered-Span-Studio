@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import OperationalError
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.label_sync import load_label_rows, sync_labels
@@ -51,10 +52,13 @@ def _project_db_timestamp(db_path: Path) -> str:
 
 def _ensure_project_created_at_column(conn, db_path: Path) -> None:
     columns = {row["name"] for row in conn.exec_driver_sql("PRAGMA table_info(project)").mappings()}
-    if "created_at" in columns:
-        return
     created_at = _project_db_timestamp(db_path)
-    conn.exec_driver_sql("ALTER TABLE project ADD COLUMN created_at TEXT")
+    if "created_at" not in columns:
+        try:
+            conn.exec_driver_sql("ALTER TABLE project ADD COLUMN created_at TEXT")
+        except OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
     conn.execute(
         project_table.update()
         .where(project_table.c.created_at.is_(None))
