@@ -168,6 +168,7 @@
 
 ## 6.3 Project Settings 画面
 
+- Project scope 共通 header では、左側に project 名と説明文、中央に `Workspace / Project Settings` 切り替え、右側に現在の username と logout 導線をまとめて表示する。
 - Project 名と説明文を編集可能にする。
 - Label定義管理を行う（追加 / 編集 / 削除）。
 - Label削除時は対応するAnnotationも同時に除去する。

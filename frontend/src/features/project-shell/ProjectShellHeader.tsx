@@ -1,4 +1,4 @@
-import { AppBar, Box, Button, IconButton, Stack, Tab, Tabs, Toolbar, Tooltip, Typography } from "@mui/material";
+import { AppBar, Button, IconButton, Stack, Tab, Tabs, Toolbar, Tooltip, Typography } from "@mui/material";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
@@ -31,17 +31,18 @@ export function ProjectShellHeader({
         <Button color="inherit" startIcon={<ArrowBackRoundedIcon />} onClick={onBackToProjects} sx={{ flexShrink: 0 }}>
           Projects
         </Button>
-        <Stack sx={{ minWidth: 0, flexGrow: 1, flexShrink: 1, flexBasis: 0, overflow: "hidden" }}>
+        <Stack sx={{ minWidth: 0, width: 0, maxWidth: "100%", flexGrow: 1, flexShrink: 1, flexBasis: 0, overflow: "hidden" }}>
           <Typography variant="h6" noWrap sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {bundle.project.name}
           </Typography>
           <Typography
             variant="body2"
+            component="div"
             color="text.secondary"
             noWrap
-            sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            sx={{ minWidth: 0, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
           >
-            {bundle.project.description || "説明なし"} / {user.username}
+            {bundle.project.description || "説明なし"}
           </Typography>
         </Stack>
         <Tabs value={view} onChange={(_event, nextView) => onChangeView(nextView)} sx={{ minHeight: 0, flexShrink: 0 }}>
@@ -53,9 +54,31 @@ export function ProjectShellHeader({
             <HelpOutlineRoundedIcon />
           </IconButton>
         </Tooltip>
-        <Button onClick={onLogout} color="inherit" startIcon={<LogoutRoundedIcon />} sx={{ flexShrink: 0 }}>
-          Logout
-        </Button>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          sx={{
+            flexShrink: 0,
+            px: 1.25,
+            py: 0.5,
+            borderRadius: 999,
+            border: "1px solid #d7e2f0",
+            bgcolor: "rgba(22, 50, 79, 0.04)",
+          }}
+        >
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 160, fontWeight: 700, lineHeight: 1 }}>
+            {user.username}
+          </Typography>
+          <Button
+            onClick={onLogout}
+            color="inherit"
+            startIcon={<LogoutRoundedIcon />}
+            sx={{ flexShrink: 0, minWidth: "auto", px: 1, py: 0.5, borderRadius: 999, lineHeight: 1 }}
+          >
+            Logout
+          </Button>
+        </Stack>
       </Toolbar>
     </AppBar>
   );
