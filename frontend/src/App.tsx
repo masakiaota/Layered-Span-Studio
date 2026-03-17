@@ -499,6 +499,7 @@ export function ProjectShell({
               shortcut: label.shortcut ?? null,
               meta: label.meta ?? {},
             })),
+            settingsSnapshot.labelsRevision,
           );
           savedLabels = labelsResponse.labels;
           const refreshedCurrentDocument = selectedDocId
@@ -519,6 +520,7 @@ export function ProjectShell({
               ? {
                   ...current,
                   labels: deepClone(savedLabels),
+                  labelsRevision: labelsResponse.revision ?? current.labelsRevision,
                 }
               : current,
           );

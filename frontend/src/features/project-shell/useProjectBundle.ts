@@ -16,6 +16,7 @@ import {
 type ShowToast = (message: string, severity: "success" | "info" | "warning" | "error") => void;
 
 export type OnBundleLoaded = (bundle: ProjectBundle, firstDocId: string | null) => void;
+type SettingsSnapshot = Pick<ProjectBundle, "project" | "labels"> & { labelsRevision: string };
 type SettingsBundleDraft = Pick<ProjectBundle, "project" | "labels">;
 
 export function useProjectBundle({
@@ -33,7 +34,7 @@ export function useProjectBundle({
 }) {
   const [loading, setLoading] = useState(true);
   const [bundle, setBundle] = useState<ProjectBundle | null>(null);
-  const [settingsSnapshot, setSettingsSnapshot] = useState<Pick<ProjectBundle, "project" | "labels"> | null>(null);
+  const [settingsSnapshot, setSettingsSnapshot] = useState<SettingsSnapshot | null>(null);
   const [documentSnapshotsById, setDocumentSnapshotsById] = useState<Record<string, DocumentRecord>>({});
   const [documentList, setDocumentList] = useState<DocumentListItem[]>([]);
   const [documentTotal, setDocumentTotal] = useState(0);
@@ -53,7 +54,7 @@ export function useProjectBundle({
     setDocumentsLoadingMore(false);
     const loadRequestId = ++bundleLoadRequestIdRef.current;
     try {
-      const [project, { labels }, documentsResponse] = await Promise.all([
+      const [project, labelsResponse, documentsResponse] = await Promise.all([
         api.getProject(projectId),
         api.listLabels(projectId),
         api.listDocuments(projectId, {
@@ -75,13 +76,14 @@ export function useProjectBundle({
       }
       const nextBundle = {
         project,
-        labels,
+        labels: labelsResponse.labels,
         documents: loadedDocuments,
       } satisfies ProjectBundle;
       setBundle(nextBundle);
       setSettingsSnapshot({
         project: deepClone(project),
-        labels: deepClone(labels),
+        labels: deepClone(labelsResponse.labels),
+        labelsRevision: labelsResponse.revision ?? "",
       });
       setDocumentSnapshotsById(
         Object.fromEntries(

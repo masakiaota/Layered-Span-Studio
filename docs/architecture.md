@@ -390,8 +390,8 @@ GET    /projects/{project_id}                                    # プロジェ�
 PATCH  /projects/{project_id}                                    # プロジェクト部分更新
 DELETE /projects/{project_id}                                    # プロジェクト削除
 
-GET    /projects/{project_id}/labels                             # ラベル一覧
-PUT    /projects/{project_id}/labels                             # ラベル一括同期
+GET    /projects/{project_id}/labels                             # ラベル一覧（revision 付き）
+PUT    /projects/{project_id}/labels                             # ラベル一括同期（base_revision 必須）
 
 GET    /projects/{project_id}/documents                          # ドキュメント一覧
 POST   /projects/{project_id}/documents                          # ドキュメント作成

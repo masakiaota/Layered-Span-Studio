@@ -51,6 +51,7 @@ const labels: LabelRecord[] = [
     meta: {},
   },
 ];
+const labelsRevision = "labels-revision-1";
 
 const user: UserRecord = {
   id: "user-1",
@@ -116,7 +117,7 @@ describe("ProjectShell submit behavior", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(labels) });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(labels), revision: labelsRevision });
   });
 
   afterEach(() => {

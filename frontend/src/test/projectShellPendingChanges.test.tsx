@@ -51,6 +51,7 @@ const labels: LabelRecord[] = [
     meta: {},
   },
 ];
+const labelsRevision = "labels-revision-1";
 
 const user: UserRecord = {
   id: "user-1",
@@ -138,7 +139,7 @@ describe("ProjectShell pending changes navigation guard", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(labels) });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(labels), revision: labelsRevision });
   });
 
   afterEach(() => {
@@ -364,7 +365,9 @@ describe("ProjectShell pending changes navigation guard", () => {
       sort: "created",
     });
     const saveProjectSettingsSpy = vi.spyOn(api, "saveProjectSettings").mockResolvedValue(project);
-    const saveProjectLabelsSpy = vi.spyOn(api, "saveProjectLabels").mockResolvedValue({ labels: structuredClone(labels) });
+    const saveProjectLabelsSpy = vi
+      .spyOn(api, "saveProjectLabels")
+      .mockResolvedValue({ labels: structuredClone(labels), revision: labelsRevision });
 
     renderSettingsShell();
 

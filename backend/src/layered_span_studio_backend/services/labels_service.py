@@ -17,11 +17,18 @@ def list_labels(settings: Settings, project_id: str) -> List[Dict[str, Any]]:
     _ensure_project(settings, project_id)
     return labels_repo.list_labels(settings, project_id)
 
+
+def list_labels_state(settings: Settings, project_id: str) -> Dict[str, Any]:
+    _ensure_project(settings, project_id)
+    return labels_repo.list_labels_state(settings, project_id)
+
+
 def save_labels(
     settings: Settings,
     project_id: str,
     items: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
+    base_revision: str,
+) -> Dict[str, Any]:
     _ensure_project(settings, project_id)
 
     seen_ids: set[str] = set()
@@ -37,7 +44,7 @@ def save_labels(
             raise ValueError("Duplicate label name in payload")
         seen_names.add(name)
 
-    return labels_repo.save_labels(settings, project_id, items)
+    return labels_repo.save_labels_state(settings, project_id, items, base_revision)
 
 
 def list_label_examples(

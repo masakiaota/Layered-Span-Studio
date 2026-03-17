@@ -28,6 +28,7 @@ class LabelSyncItemIn(APIModel):
 
 
 class LabelSyncIn(APIModel):
+    base_revision: str
     labels: list[LabelSyncItemIn]
 
 
@@ -44,6 +45,7 @@ class LabelOut(APIModel):
 
 class LabelListResponse(APIModel):
     labels: list[LabelOut]
+    revision: str
 
 
 class LabelExamplesStatusFilter(str, Enum):

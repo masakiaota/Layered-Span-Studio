@@ -47,6 +47,7 @@
 
 ```json
 {
+  "base_revision": "<sha256>",
   "labels": [
     {
       "id": "uuid or null",
@@ -61,9 +62,30 @@
 ```
 
 - request の `labels` は project 配下 label の最終状態全件
+- request の `base_revision` は直前に取得した label 一覧の revision
 - `id: null` は新規 label
 - request に含まれない既存 label は削除
-- response は `labels: Label[]`
+- response は `labels: Label[]` と `revision`
+
+response 例:
+
+```json
+{
+  "revision": "<sha256>",
+  "labels": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "project_name": "医療文書NER",
+      "name": "疾患名",
+      "color": "#ff6b6b",
+      "description": "ガイドラインもここに書く",
+      "shortcut": "1",
+      "meta": {}
+    }
+  ]
+}
+```
 
 ---
 

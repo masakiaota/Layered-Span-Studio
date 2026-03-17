@@ -20,6 +20,12 @@ def _create_project(client: TestClient, auth_headers: dict[str, str]) -> str:
     return response.json()["id"]
 
 
+def _get_labels_payload(client: TestClient, auth_headers: dict[str, str], project_id: str) -> dict[str, Any]:
+    response = client.get(f"/projects/{project_id}/labels", headers=auth_headers)
+    assert response.status_code == 200
+    return response.json()
+
+
 def _insert_annotation_row(
     settings: Settings,
     project_id: str,
@@ -54,7 +60,10 @@ def test_label_color_validation(client: TestClient, auth_headers: dict[str, str]
 
     response = client.put(
         f"/projects/{project_id}/labels",
-        json={"labels": [{"id": None, "name": "Bad", "color": "red", "description": "desc", "shortcut": None, "meta": {}}]},
+        json={
+            "base_revision": _get_labels_payload(client, auth_headers, project_id)["revision"],
+            "labels": [{"id": None, "name": "Bad", "color": "red", "description": "desc", "shortcut": None, "meta": {}}],
+        },
         headers=auth_headers,
     )
     assert response.status_code == 422
@@ -68,10 +77,12 @@ def test_labels_put_syncs_create_update_delete(client: TestClient, auth_headers:
     second = create_label_via_sync(
         client, auth_headers, project_id, name="Label2", color="#33AA44", description="desc", shortcut="b", meta={}
     )
+    current_payload = _get_labels_payload(client, auth_headers, project_id)
 
     response = client.put(
         f"/projects/{project_id}/labels",
         json={
+            "base_revision": current_payload["revision"],
             "labels": [
                 {
                     "id": first["id"],
@@ -102,10 +113,12 @@ def test_labels_put_syncs_create_update_delete(client: TestClient, auth_headers:
 
 def test_labels_put_rejects_duplicate_name_in_payload(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
+    current_payload = _get_labels_payload(client, auth_headers, project_id)
 
     response = client.put(
         f"/projects/{project_id}/labels",
         json={
+            "base_revision": current_payload["revision"],
             "labels": [
                 {"id": None, "name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": None, "meta": {}},
                 {"id": None, "name": "Label1", "color": "#33AA44", "description": "desc", "shortcut": None, "meta": {}},
@@ -121,10 +134,12 @@ def test_labels_put_rejects_duplicate_id_in_payload(client: TestClient, auth_hea
     first = create_label_via_sync(
         client, auth_headers, project_id, name="Label1", color="#FF5733", description="desc", shortcut="a", meta={}
     )
+    current_payload = _get_labels_payload(client, auth_headers, project_id)
 
     response = client.put(
         f"/projects/{project_id}/labels",
         json={
+            "base_revision": current_payload["revision"],
             "labels": [
                 {"id": first["id"], "name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
                 {"id": first["id"], "name": "Label2", "color": "#33AA44", "description": "desc", "shortcut": "b", "meta": {}},
@@ -137,10 +152,12 @@ def test_labels_put_rejects_duplicate_id_in_payload(client: TestClient, auth_hea
 
 def test_labels_put_unknown_id_returns_404(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
+    current_payload = _get_labels_payload(client, auth_headers, project_id)
 
     response = client.put(
         f"/projects/{project_id}/labels",
         json={
+            "base_revision": current_payload["revision"],
             "labels": [
                 {
                     "id": "00000000-0000-0000-0000-000000000000",
@@ -183,7 +200,7 @@ def test_labels_put_delete_cascades_annotations(client: TestClient, auth_headers
 
     response = client.put(
         f"/projects/{project_id}/labels",
-        json={"labels": []},
+        json={"base_revision": _get_labels_payload(client, auth_headers, project_id)["revision"], "labels": []},
         headers=auth_headers,
     )
     assert response.status_code == 200
@@ -207,6 +224,7 @@ def test_labels_put_response_uses_latest_project_name(client: TestClient, auth_h
     response = client.put(
         f"/projects/{project_id}/labels",
         json={
+            "base_revision": _get_labels_payload(client, auth_headers, project_id)["revision"],
             "labels": [
                 {"id": None, "name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": None, "meta": {}}
             ]
@@ -232,7 +250,7 @@ def test_labels_put_does_not_delete_other_project_labels(
 
     response = client.put(
         f"/projects/{first_project_id}/labels",
-        json={"labels": []},
+        json={"base_revision": _get_labels_payload(client, auth_headers, first_project_id)["revision"], "labels": []},
         headers=auth_headers,
     )
     assert response.status_code == 200
@@ -240,6 +258,26 @@ def test_labels_put_does_not_delete_other_project_labels(
     remaining = client.get(f"/projects/{second_project_id}/labels", headers=auth_headers)
     assert remaining.status_code == 200
     assert [label["name"] for label in remaining.json()["labels"]] == ["Label2"]
+
+
+def test_labels_put_rejects_stale_revision(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+    initial_payload = _get_labels_payload(client, auth_headers, project_id)
+    create_label_via_sync(client, auth_headers, project_id, name="Label1", color="#FF5733", description="desc")
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "base_revision": initial_payload["revision"],
+            "labels": [
+                {"id": None, "name": "Label2", "color": "#33AA44", "description": "desc", "shortcut": None, "meta": {}}
+            ],
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Label revision mismatch"
 
 
 def _setup_examples_fixture(client: TestClient, auth_headers: dict[str, str]) -> dict[str, Any]:

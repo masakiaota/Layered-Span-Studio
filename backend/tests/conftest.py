@@ -73,12 +73,14 @@ def create_label_via_sync(
 ) -> dict[str, Any]:
     existing_response = client.get(f"/projects/{project_id}/labels", headers=auth_headers)
     assert existing_response.status_code == 200
-    existing_labels: list[dict[str, Any]] = existing_response.json()["labels"]
+    existing_payload = existing_response.json()
+    existing_labels: list[dict[str, Any]] = existing_payload["labels"]
     existing_ids = {label["id"] for label in existing_labels}
 
     response = client.put(
         f"/projects/{project_id}/labels",
         json={
+            "base_revision": existing_payload["revision"],
             "labels": [
                 *[
                     {

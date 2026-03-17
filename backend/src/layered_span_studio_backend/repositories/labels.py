@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -18,6 +20,36 @@ from layered_span_studio_backend.storage.project_db import (
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
 
 
+def _serialize_label_row(row: Dict[str, Any] | Any, project_name: str) -> Dict[str, Any]:
+    return {
+        "id": row["id"],
+        "project_id": row["project_id"],
+        "project_name": project_name,
+        "name": row["name"],
+        "color": row["color"],
+        "description": row["description"],
+        "shortcut": row["shortcut"],
+        "meta": decode_meta(row["meta"]),
+    }
+
+
+def _labels_revision_from_rows(rows: List[Dict[str, Any]] | Any) -> str:
+    payload = [
+        {
+            "id": row["id"],
+            "project_id": row["project_id"],
+            "name": row["name"],
+            "color": row["color"],
+            "description": row["description"],
+            "shortcut": row["shortcut"],
+            "meta": decode_meta(row["meta"]),
+        }
+        for row in rows
+    ]
+    encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def _project_name(settings: Settings, project_id: str) -> str:
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
@@ -30,24 +62,20 @@ def _project_name(settings: Settings, project_id: str) -> str:
 
 
 def list_labels(settings: Settings, project_id: str) -> List[Dict[str, Any]]:
+    return list_labels_state(settings, project_id)["labels"]
+
+
+def list_labels_state(settings: Settings, project_id: str) -> Dict[str, Any]:
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     project_name = _project_name(settings, project_id)
     with engine.connect() as conn:
         rows = load_label_rows(conn, project_id)
-    return [
-        {
-            "id": row["id"],
-            "project_id": row["project_id"],
-            "project_name": project_name,
-            "name": row["name"],
-            "color": row["color"],
-            "description": row["description"],
-            "shortcut": row["shortcut"],
-            "meta": decode_meta(row["meta"]),
-        }
-        for row in rows
-    ]
+    rows_list = list(rows)
+    return {
+        "labels": [_serialize_label_row(row, project_name) for row in rows_list],
+        "revision": _labels_revision_from_rows(rows_list),
+    }
 
 
 def get_label(settings: Settings, project_id: str, label_id: str) -> Optional[Dict[str, Any]]:
@@ -201,14 +229,37 @@ def delete_label(settings: Settings, project_id: str, label_id: str) -> bool:
     return result.rowcount > 0
 
 
-def save_labels(settings: Settings, project_id: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def save_labels(
+    settings: Settings,
+    project_id: str,
+    items: List[Dict[str, Any]],
+    base_revision: str,
+) -> List[Dict[str, Any]]:
+    return save_labels_state(settings, project_id, items, base_revision)["labels"]
+
+
+def save_labels_state(
+    settings: Settings,
+    project_id: str,
+    items: List[Dict[str, Any]],
+    base_revision: str,
+) -> Dict[str, Any]:
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
+    project_name = _project_name(settings, project_id)
 
     with engine.begin() as conn:
-        sync_labels(conn, project_id, items)
+        current_rows = list(load_label_rows(conn, project_id))
+        current_revision = _labels_revision_from_rows(current_rows)
+        if base_revision != current_revision:
+            raise ValueError("Label revision mismatch")
+        sync_labels(conn, project_id, items, existing_rows=current_rows)
+        next_rows = list(load_label_rows(conn, project_id))
 
-    return list_labels(settings, project_id)
+    return {
+        "labels": [_serialize_label_row(row, project_name) for row in next_rows],
+        "revision": _labels_revision_from_rows(next_rows),
+    }
 
 
 def list_label_examples(

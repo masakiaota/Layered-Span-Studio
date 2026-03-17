@@ -7,6 +7,7 @@ import type {
   ExportResponse,
   ImportResponse,
   JsonObject,
+  LabelListResponse,
   LabelSurfaceGroupsResponse,
   LabelRecord,
   ProjectImportResponse,
@@ -217,7 +218,7 @@ export class ApiClient {
 
   async listLabels(projectId: string) {
     const response = await this.request(`/projects/${projectId}/labels`);
-    return parseResponse<{ labels: LabelRecord[] }>(response);
+    return parseResponse<LabelListResponse>(response);
   }
 
   async saveProjectLabels(
@@ -227,19 +228,21 @@ export class ApiClient {
         id: string | null;
       }
     >,
+    baseRevision: string,
   ) {
     const response = await this.request(`/projects/${projectId}/labels`, {
       method: "PUT",
       contentType: "application/json",
       includeCsrf: true,
       body: JSON.stringify({
+        base_revision: baseRevision,
         labels: labels.map((label) => ({
           ...label,
           meta: toJsonObject(label.meta),
         })),
       }),
     });
-    return parseResponse<{ labels: LabelRecord[] }>(response);
+    return parseResponse<LabelListResponse>(response);
   }
 
   async listDocuments(projectId: string, options?: { offset?: number; limit?: number; search?: string; sort?: string }) {

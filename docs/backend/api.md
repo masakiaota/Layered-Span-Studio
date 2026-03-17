@@ -464,7 +464,7 @@ Authorization: Bearer <token>
 - `labels` は最終状態全件を表す。request に含まれない既存 label は削除される
 - `id: null` は新規 label として作成される
 - `labels[].shortcut` は省略可で、指定する場合は `string | null` を取る。未設定値を明示する場合は `null`
-- response の `labels` は `GET /projects/{project_id}/labels` と同じ形で返す
+- response の `labels[]` 要素は `GET /projects/{project_id}/labels` の `labels[]` と同じ形で返す
 - browser settings 画面は partial success を避けたいときにこの API を使う想定
 
 **Error (404 Not Found):**
@@ -510,6 +510,7 @@ Authorization: Bearer <token>
 **Response (200 OK):**
 ```json
 {
+  "revision": "<sha256>",
   "labels": [
     {
       "id": "uuid",
@@ -549,6 +550,7 @@ Authorization: Bearer <token>
 **Request:**
 ```json
 {
+  "base_revision": "<sha256>",
   "labels": [
     {
       "id": "uuid",
@@ -573,6 +575,7 @@ Authorization: Bearer <token>
 **Response (200 OK):**
 ```json
 {
+  "revision": "<sha256>",
   "labels": [
     {
       "id": "uuid",
@@ -600,10 +603,12 @@ Authorization: Bearer <token>
 
 **注記:**
 - Label の作成 / 更新 / 削除は、この endpoint で最終状態全件を同期して表現する
+- `GET /projects/{project_id}/labels` の response に含まれる `revision` を、保存時に `base_revision` としてそのまま渡す
 - `id = null` は新規 label 作成
 - request に含まれない既存 label は削除
 - payload 内 duplicate name / duplicate id は `400`
 - unknown id は `404`
+- `base_revision` が現在の label 状態と一致しない場合は `409 Label revision mismatch`
 
 ---
 
