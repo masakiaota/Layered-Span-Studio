@@ -271,6 +271,7 @@ response 例:
     "id": "uuid",
     "name": "医療文書NER v2",
     "description": "医療文書からエンティティ抽出（改訂版）",
+    "created_at": "2026-03-10T09:00:00Z",
     "meta": {
       "guideline": "共通ガイドライン"
     }
