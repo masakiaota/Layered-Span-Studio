@@ -64,18 +64,11 @@ def test_document_crud(client: TestClient, auth_headers: dict[str, str]) -> None
     assert response.status_code == 200
     assert response.json()["annotations"] == []
 
-    response = client.patch(
-        f"/projects/{project_id}/documents/{document_id}",
-        json={"document_name": "Doc1Updated"},
-        headers=auth_headers,
-    )
-    assert response.status_code == 200
-
     response = client.delete(f"/projects/{project_id}/documents/{document_id}", headers=auth_headers)
     assert response.status_code == 204
 
 
-def test_document_text_update_forbidden(client: TestClient, auth_headers: dict[str, str]) -> None:
+def test_document_patch_is_not_supported(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
     response = client.post(
         f"/projects/{project_id}/documents",
@@ -86,10 +79,10 @@ def test_document_text_update_forbidden(client: TestClient, auth_headers: dict[s
 
     response = client.patch(
         f"/projects/{project_id}/documents/{document_id}",
-        json={"text": "New text"},
+        json={"document_name": "Doc1Updated", "meta": {"reviewed": True}},
         headers=auth_headers,
     )
-    assert response.status_code == 422
+    assert response.status_code == 405
 
 
 def test_document_list_supports_search_sort_and_pending_total(
@@ -406,9 +399,7 @@ def test_document_navigation_returns_404_when_document_does_not_exist(
     assert response.json()["detail"] == "Document not found"
 
 
-def test_document_create_and_update_reject_duplicate_name(
-    client: TestClient, auth_headers: dict[str, str]
-) -> None:
+def test_document_create_rejects_duplicate_name(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
     first = client.post(
         f"/projects/{project_id}/documents",
@@ -423,21 +414,6 @@ def test_document_create_and_update_reject_duplicate_name(
         headers=auth_headers,
     )
     assert duplicate_create.status_code == 400
-
-    second = client.post(
-        f"/projects/{project_id}/documents",
-        json={"document_name": "Doc2", "text": "Second body"},
-        headers=auth_headers,
-    )
-    assert second.status_code == 201
-
-    duplicate_update = client.patch(
-        f"/projects/{project_id}/documents/{second.json()['id']}",
-        json={"document_name": "Doc1"},
-        headers=auth_headers,
-    )
-    assert duplicate_update.status_code == 400
-
 
 def test_document_create_sets_server_managed_fields(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)

@@ -334,43 +334,6 @@ def create_document(
     )
 
 
-def update_document(
-    settings: Settings,
-    project_id: str,
-    document_id: str,
-    document_name: Optional[str],
-    meta: Optional[Dict[str, Any]],
-) -> Optional[Dict[str, Any]]:
-    document = get_document(settings, project_id, document_id)
-    if not document:
-        return None
-    new_name = document_name if document_name is not None else document["document_name"]
-    new_meta = _sanitize_document_meta(meta) if meta is not None else document.get("meta") or {}
-    new_updated_at = _utc_now_iso()
-
-    db_path = project_db_path(settings, project_id)
-    engine = get_project_engine(str(db_path))
-    with engine.begin() as conn:
-        conn.execute(
-            documents_table.update().where(documents_table.c.id == document_id).values(
-                document_name=new_name,
-                updated_at=new_updated_at,
-                meta=encode_meta(new_meta),
-            )
-        )
-    return {
-        "id": document_id,
-        "project_id": project_id,
-        "project_name": document["project_name"],
-        "document_name": new_name,
-        "text": document["text"],
-        "status": document["status"],
-        "created_at": document["created_at"],
-        "updated_at": new_updated_at,
-        "meta": new_meta,
-    }
-
-
 def set_document_system_fields(
     settings: Settings,
     project_id: str,

@@ -104,22 +104,6 @@ def _validate_document_bundle(
         label_spans.append((start, end))
 
 
-def update_document(
-    settings: Settings,
-    project_id: str,
-    document_id: str,
-    document_name: Optional[str],
-    meta: Optional[Dict[str, Any]],
-) -> Optional[Dict[str, Any]]:
-    _ensure_project(settings, project_id)
-    if document_name is not None:
-        if documents_repo.document_name_exists(
-            settings, project_id, document_name, exclude_document_id=document_id
-        ):
-            raise ValueError("Document name already exists in this project")
-    return documents_repo.update_document(settings, project_id, document_id, document_name, meta)
-
-
 def delete_document(settings: Settings, project_id: str, document_id: str) -> bool:
     _ensure_project(settings, project_id)
     return documents_repo.delete_document(settings, project_id, document_id)

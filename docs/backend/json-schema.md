@@ -418,6 +418,8 @@ response 例:
 
 - request の `annotations` は対象 document の最終状態全件を表す
 - `submit` は optional。未指定時は `false`
+- `document_name` と `text` は document 作成後に固定であり、更新 API は持たない
+- `meta` は Document の属性として保持するが、現時点では更新 API を持たない
 - `id: null` は新規 annotation
 - request に含まれない既存 annotation は削除される
 - response は full `Document` を返す
