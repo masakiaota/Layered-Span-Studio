@@ -467,7 +467,7 @@ Authorization: Bearer <token>
 - project 更新と labels 同期を同一トランザクションで扱う
 - `labels` は最終状態全件を表す。request に含まれない既存 label は削除される
 - `id: null` は新規 label として作成される
-- `labels[].shortcut` は `string | null` を取りうる。未設定値を明示する場合は `null`
+- `labels[].shortcut` は省略可で、指定する場合は `string | null` を取る。未設定値を明示する場合は `null`
 - response の `labels` は `GET /projects/{project_id}/labels` と同じ形で返す
 - browser settings 画面は partial success を避けたいときにこの API を使う想定
 
@@ -995,6 +995,8 @@ Authorization: Bearer <token>
 - `next_pending_document_id` は現在位置より後方にある最初の `status != "verified"` document を返す
 - `next_pending_document_id` は前方への wrap をしない
 - 候補が存在しない場合は `null` を返す
+- `Document not found` は対象 `document_id` 自体が project 配下に存在しない場合に返る
+- `Document not found in current filtered documents` は `document_id` は存在するが、指定した `search` / `sort` 条件で解決対象集合に含まれない場合に返る
 
 **Error (404 Not Found):**
 ```json
