@@ -9,6 +9,7 @@ from pydantic import Field, field_validator
 from layered_span_studio_backend.models.common import APIModel, AnnotationStatus, Meta
 
 HEX_COLOR_RE = re.compile(r"^#([0-9a-fA-F]{6})$")
+SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class LabelSyncItemIn(APIModel):
@@ -28,8 +29,15 @@ class LabelSyncItemIn(APIModel):
 
 
 class LabelSyncIn(APIModel):
-    base_revision: str
+    base_revision: str = Field(..., min_length=64, max_length=64)
     labels: list[LabelSyncItemIn]
+
+    @field_validator("base_revision")
+    @classmethod
+    def validate_base_revision(cls, value: str) -> str:
+        if not SHA256_HEX_RE.match(value):
+            raise ValueError("base_revision must be a lowercase sha256 hex digest")
+        return value
 
 
 class LabelOut(APIModel):

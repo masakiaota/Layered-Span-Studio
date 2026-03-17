@@ -46,7 +46,7 @@ export interface LabelRecord {
 
 export interface LabelListResponse {
   labels: LabelRecord[];
-  revision?: string;
+  revision: string;
 }
 
 export interface AnnotationRecord {

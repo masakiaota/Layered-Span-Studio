@@ -63,6 +63,7 @@
 
 - request の `labels` は project 配下 label の最終状態全件
 - request の `base_revision` は直前に取得した label 一覧の revision
+- `base_revision` / response の `revision` は 64 文字の lowercase sha256 hex digest
 - `id: null` は新規 label
 - request に含まれない既存 label は削除
 - response は `labels: Label[]` と `revision`

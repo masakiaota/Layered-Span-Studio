@@ -97,6 +97,13 @@ function formatErrorDetail(detail: unknown): string | null {
   return null;
 }
 
+function assertLabelListResponseRevision(payload: LabelListResponse): LabelListResponse {
+  if (!payload.revision || payload.revision.trim().length === 0) {
+    throw new ApiError("Labels revision が取得できなかった", 500);
+  }
+  return payload;
+}
+
 async function toApiError(response: Response): Promise<ApiError> {
   if (response.ok) {
     throw new Error("toApiError called with ok response");
@@ -218,7 +225,7 @@ export class ApiClient {
 
   async listLabels(projectId: string) {
     const response = await this.request(`/projects/${projectId}/labels`);
-    return parseResponse<LabelListResponse>(response);
+    return assertLabelListResponseRevision(await parseResponse<LabelListResponse>(response));
   }
 
   async saveProjectLabels(
@@ -242,7 +249,7 @@ export class ApiClient {
         })),
       }),
     });
-    return parseResponse<LabelListResponse>(response);
+    return assertLabelListResponseRevision(await parseResponse<LabelListResponse>(response));
   }
 
   async listDocuments(projectId: string, options?: { offset?: number; limit?: number; search?: string; sort?: string }) {

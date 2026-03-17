@@ -602,8 +602,10 @@ Authorization: Bearer <token>
 ```
 
 **注記:**
+- `revision` は現在の label 一覧を表す 64 文字の lowercase sha256 hex digest
 - Label の作成 / 更新 / 削除は、この endpoint で最終状態全件を同期して表現する
 - `GET /projects/{project_id}/labels` の response に含まれる `revision` を、保存時に `base_revision` としてそのまま渡す
+- `base_revision` は 64 文字の lowercase sha256 hex digest を受け付ける
 - `id = null` は新規 label 作成
 - request に含まれない既存 label は削除
 - payload 内 duplicate name / duplicate id は `400`

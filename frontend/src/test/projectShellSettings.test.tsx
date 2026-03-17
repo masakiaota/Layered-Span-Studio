@@ -91,7 +91,7 @@ function getLabelRow(name: string) {
 
 function renderProjectSettings() {
   vi.spyOn(api, "getProject").mockResolvedValue(project);
-  vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels) });
+  vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
   vi.spyOn(api, "listDocuments").mockResolvedValue({
     documents: [],
     total: 0,
@@ -277,7 +277,7 @@ describe("ProjectShell settings import validation", () => {
 
   it("uses persisted labels instead of unsaved newly added labels for import validation", async () => {
     const userEventSetup = userEvent.setup();
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels) });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
     vi.spyOn(api, "getProject").mockResolvedValue(project);
     vi.spyOn(api, "listDocuments").mockResolvedValue({
       documents: [],
@@ -321,7 +321,7 @@ describe("ProjectShell settings import validation", () => {
 
   it("detects persisted label conflicts even after an unsaved rename", async () => {
     const userEventSetup = userEvent.setup();
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels) });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
     vi.spyOn(api, "getProject").mockResolvedValue(project);
     vi.spyOn(api, "listDocuments").mockResolvedValue({
       documents: [],
@@ -366,7 +366,7 @@ describe("ProjectShell settings import validation", () => {
   it("deletes the project from the danger zone and navigates back to projects", async () => {
     const userEventSetup = userEvent.setup();
     vi.spyOn(api, "deleteProject").mockResolvedValue(undefined);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels) });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
     vi.spyOn(api, "getProject").mockResolvedValue(project);
     vi.spyOn(api, "listDocuments").mockResolvedValue({
       documents: [],

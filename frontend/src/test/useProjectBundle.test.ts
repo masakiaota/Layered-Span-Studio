@@ -23,6 +23,7 @@ const labels: LabelRecord[] = [
     meta: {},
   },
 ];
+const labelsRevision = "labels-revision-1";
 
 function createDocument(overrides: Partial<DocumentRecord> = {}): DocumentRecord {
   return {
@@ -80,7 +81,7 @@ describe("useProjectBundle", () => {
   it("loads bundle when loadBundle is called", async () => {
     const doc = createDocument();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels, revision: labelsRevision });
     vi.spyOn(api, "listDocuments").mockResolvedValue({
       documents: [createDocumentListItem()],
       total: 1,
@@ -126,7 +127,7 @@ describe("useProjectBundle", () => {
 
   it("shows toast on load error", async () => {
     vi.spyOn(api, "getProject").mockRejectedValue(new Error("Network error"));
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
     vi.spyOn(api, "listDocuments").mockResolvedValue({
       documents: [],
       total: 0,
@@ -170,7 +171,7 @@ describe("useProjectBundle", () => {
     vi.spyOn(api, "getProject")
       .mockRejectedValueOnce(new Error("stale load failed"))
       .mockResolvedValueOnce(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
     vi.spyOn(api, "listDocuments")
       .mockReturnValueOnce(staleLoadDeferred.promise)
       .mockResolvedValueOnce({
@@ -226,7 +227,7 @@ describe("useProjectBundle", () => {
   it("mutateSettingsBundle updates project and labels in bundle", async () => {
     const doc = createDocument();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels, revision: labelsRevision });
     vi.spyOn(api, "listDocuments").mockResolvedValue({
       documents: [createDocumentListItem()],
       total: 1,
@@ -267,7 +268,7 @@ describe("useProjectBundle", () => {
     const doc1 = createDocument({ id: "doc-1", document_name: "Doc 1" });
     const doc2 = createDocument({ id: "doc-2", document_name: "Doc 2" });
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
     vi.spyOn(api, "listDocuments").mockResolvedValue({
       documents: [
         createDocumentListItem({ id: "doc-1", document_name: "Doc 1" }),
@@ -323,7 +324,7 @@ describe("useProjectBundle", () => {
   it("fetchDocumentPage appends to document list when not resetting", async () => {
     const doc = createDocument();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
     vi.spyOn(api, "listDocuments")
       .mockResolvedValueOnce({
         documents: [createDocumentListItem({ id: "doc-1", document_name: "Doc 1" })],
@@ -395,7 +396,7 @@ describe("useProjectBundle", () => {
       sort: string;
     }>();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
     vi.spyOn(api, "listDocuments")
       .mockReturnValueOnce(firstListDeferred.promise)
       .mockReturnValueOnce(secondListDeferred.promise);
@@ -474,7 +475,7 @@ describe("useProjectBundle", () => {
     vi.spyOn(api, "getProject")
       .mockResolvedValueOnce(initialProject)
       .mockResolvedValueOnce(refreshedProject);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
     vi.spyOn(api, "listDocuments")
       .mockResolvedValueOnce({
         documents: [createDocumentListItem()],
@@ -556,7 +557,7 @@ describe("useProjectBundle", () => {
       sort: string;
     }>();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
     vi.spyOn(api, "listDocuments")
       .mockResolvedValueOnce({
         documents: [createDocumentListItem({ id: "doc-1", document_name: "Doc 1" })],
@@ -664,7 +665,7 @@ describe("useProjectBundle", () => {
       sort: string;
     }>();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
     vi.spyOn(api, "listDocuments")
       .mockResolvedValueOnce({
         documents: [createDocumentListItem()],
@@ -741,7 +742,7 @@ describe("useProjectBundle", () => {
   it("suppresses stale pagination errors when a newer request succeeds", async () => {
     const stalePageDeferred = createDeferred<DocumentListItem[]>();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
     const listDocumentsSpy = vi.spyOn(api, "listDocuments")
       .mockResolvedValueOnce({
         documents: [createDocumentListItem()],
@@ -830,7 +831,7 @@ describe("useProjectBundle", () => {
       sort: string;
     }>();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
     vi.spyOn(api, "listDocuments")
       .mockResolvedValueOnce({
         documents: [createDocumentListItem()],

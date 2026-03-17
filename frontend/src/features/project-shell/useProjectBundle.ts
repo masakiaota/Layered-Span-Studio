@@ -83,7 +83,7 @@ export function useProjectBundle({
       setSettingsSnapshot({
         project: deepClone(project),
         labels: deepClone(labelsResponse.labels),
-        labelsRevision: labelsResponse.revision ?? "",
+        labelsRevision: labelsResponse.revision,
       });
       setDocumentSnapshotsById(
         Object.fromEntries(

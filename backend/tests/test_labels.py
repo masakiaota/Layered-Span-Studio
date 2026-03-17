@@ -72,6 +72,21 @@ def test_label_color_validation(client: TestClient, auth_headers: dict[str, str]
     assert response.status_code == 422
 
 
+def test_labels_put_rejects_empty_revision(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = _create_project(client, auth_headers)
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "base_revision": "",
+            "labels": [{"id": None, "name": "Bad", "color": "#FF5733", "description": "desc", "shortcut": None, "meta": {}}],
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+
+
 def test_labels_put_syncs_create_update_delete(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
     first = create_label_via_sync(
