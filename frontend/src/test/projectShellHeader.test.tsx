@@ -44,7 +44,7 @@ describe("ProjectShellHeader", () => {
     const projectsButton = screen.getByRole("button", { name: "Projects" });
     const toolbar = projectsButton.parentElement;
     const title = screen.getByText(longProjectName);
-    const description = screen.getByText(`${longProjectDescription} / ${user.username}`);
+    const description = screen.getByText(longProjectDescription);
     const metadataStack = title.parentElement;
 
     if (!(toolbar instanceof HTMLElement)) {
@@ -57,6 +57,8 @@ describe("ProjectShellHeader", () => {
     expect(toolbar).toHaveStyle({ minWidth: "0px", overflow: "hidden" });
     expect(metadataStack).toHaveStyle({
       minWidth: "0px",
+      width: "0px",
+      maxWidth: "100%",
       overflow: "hidden",
       flexGrow: "1",
       flexShrink: "1",
@@ -70,10 +72,13 @@ describe("ProjectShellHeader", () => {
     });
     expect(description).toHaveStyle({
       minWidth: "0px",
+      display: "block",
       overflow: "hidden",
       textOverflow: "ellipsis",
       whiteSpace: "nowrap",
     });
+    expect(screen.queryByText(`${longProjectDescription} / ${user.username}`)).not.toBeInTheDocument();
+    expect(screen.getByText(user.username)).toBeVisible();
     expect(screen.getByRole("tab", { name: "Workspace" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Project Settings" })).toBeVisible();
     expect(screen.getByRole("button", { name: "ショートカット一覧" })).toBeVisible();
