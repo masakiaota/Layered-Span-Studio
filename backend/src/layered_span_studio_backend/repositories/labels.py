@@ -248,13 +248,19 @@ def save_labels_state(
     engine = get_project_engine(str(db_path))
     project_name = _project_name(settings, project_id)
 
-    with engine.begin() as conn:
-        current_rows = list(load_label_rows(conn, project_id))
-        current_revision = _labels_revision_from_rows(current_rows)
-        if base_revision != current_revision:
-            raise ValueError("Label revision mismatch")
-        sync_labels(conn, project_id, items, existing_rows=current_rows)
-        next_rows = list(load_label_rows(conn, project_id))
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            current_rows = list(load_label_rows(conn, project_id))
+            current_revision = _labels_revision_from_rows(current_rows)
+            if base_revision != current_revision:
+                raise ValueError("Label revision mismatch")
+            sync_labels(conn, project_id, items, existing_rows=current_rows)
+            next_rows = list(load_label_rows(conn, project_id))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     return {
         "labels": [_serialize_label_row(row, project_name) for row in next_rows],

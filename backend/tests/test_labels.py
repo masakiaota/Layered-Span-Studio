@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 from fastapi.testclient import TestClient
 
 from conftest import create_label_via_sync
 from layered_span_studio_backend.core.config import Settings
+from layered_span_studio_backend.repositories import labels as labels_repo
+from layered_span_studio_backend.repositories import projects as projects_repo
 from layered_span_studio_backend.repositories.projects import project_db_path
 from layered_span_studio_backend.storage.project_db import annotations_table, get_project_engine
 from layered_span_studio_backend.utils.json_utils import encode_meta
@@ -278,6 +281,51 @@ def test_labels_put_rejects_stale_revision(client: TestClient, auth_headers: dic
 
     assert response.status_code == 409
     assert response.json()["detail"] == "Label revision mismatch"
+
+
+def test_labels_save_state_rejects_concurrent_stale_revision(settings: Settings) -> None:
+    project = projects_repo.create_project(settings, "Project A", "desc", {})
+    initial_state = labels_repo.list_labels_state(settings, project["id"])
+    base_revision = initial_state["revision"]
+    barrier = threading.Barrier(2)
+    revisions: list[str] = []
+    errors: list[str] = []
+
+    def worker(name: str, color: str) -> None:
+        try:
+            barrier.wait()
+            result = labels_repo.save_labels_state(
+                settings,
+                project["id"],
+                [
+                    {
+                        "id": None,
+                        "name": name,
+                        "color": color,
+                        "description": "desc",
+                        "shortcut": None,
+                        "meta": {},
+                    }
+                ],
+                base_revision,
+            )
+            revisions.append(result["revision"])
+        except ValueError as exc:
+            errors.append(str(exc))
+
+    threads = [
+        threading.Thread(target=worker, args=("Label1", "#FF5733")),
+        threading.Thread(target=worker, args=("Label2", "#33AA44")),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert len(revisions) == 1
+    assert errors == ["Label revision mismatch"]
+    final_state = labels_repo.list_labels_state(settings, project["id"])
+    assert len(final_state["labels"]) == 1
 
 
 def _setup_examples_fixture(client: TestClient, auth_headers: dict[str, str]) -> dict[str, Any]:
