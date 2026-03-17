@@ -53,17 +53,24 @@ def _project_db_timestamp(db_path: Path) -> str:
 def _ensure_project_created_at_column(conn, db_path: Path) -> None:
     columns = {row["name"] for row in conn.exec_driver_sql("PRAGMA table_info(project)").mappings()}
     created_at = _project_db_timestamp(db_path)
+    should_backfill = False
     if "created_at" not in columns:
+        should_backfill = True
         try:
             conn.exec_driver_sql("ALTER TABLE project ADD COLUMN created_at TEXT")
         except OperationalError as exc:
             if "duplicate column name" not in str(exc).lower():
                 raise
-    conn.execute(
-        project_table.update()
-        .where(project_table.c.created_at.is_(None))
-        .values(created_at=created_at)
-    )
+    if not should_backfill:
+        should_backfill = (
+            conn.execute(select(project_table.c.id).where(project_table.c.created_at.is_(None)).limit(1)).first() is not None
+        )
+    if should_backfill:
+        conn.execute(
+            project_table.update()
+            .where(project_table.c.created_at.is_(None))
+            .values(created_at=created_at)
+        )
 
 
 def _project_sort_key(project: Dict[str, Any]) -> tuple[Any, ...]:

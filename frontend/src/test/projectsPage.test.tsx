@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
 import { ProjectsPage } from "../pages/ProjectsPage";
-import type { ProjectListItemRecord, UserRecord } from "../types";
+import type { ProjectImportResponse, ProjectListItemRecord, UserRecord } from "../types";
 
 const user: UserRecord = {
   id: "user-1",
@@ -45,26 +45,21 @@ function createImportFile(payload: unknown) {
 }
 
 function createProject(overrides: Partial<ProjectListItemRecord>): ProjectListItemRecord {
+  const summary = {
+    labels_count: 0,
+    documents_count: 0,
+    pending_documents_count: 0,
+    updated_at: "2026-03-01T00:00:00Z",
+    ...overrides.summary,
+  };
   return {
     id: "project-default",
     name: "Project Default",
     description: "desc",
     meta: {},
     created_at: "2026-03-01T00:00:00Z",
-    summary: {
-      labels_count: 0,
-      documents_count: 0,
-      pending_documents_count: 0,
-      updated_at: "2026-03-01T00:00:00Z",
-    },
     ...overrides,
-    summary: {
-      labels_count: 0,
-      documents_count: 0,
-      pending_documents_count: 0,
-      updated_at: "2026-03-01T00:00:00Z",
-      ...overrides.summary,
-    },
+    summary,
   };
 }
 
@@ -91,6 +86,7 @@ describe("ProjectsPage", () => {
       name: "New Project",
       description: "fresh project",
       meta: {},
+      created_at: "2026-03-10T00:00:00Z",
     });
 
     renderProjectsPage();
@@ -124,7 +120,7 @@ describe("ProjectsPage", () => {
   it("disables the new project entry point while import is in flight", async () => {
     const userEventSetup = userEvent.setup();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
-    let resolveImport!: (value: { project: { id: string; name: string; description: string; meta: {} }; imported: Record<string, number>; errors: [] }) => void;
+    let resolveImport!: (value: ProjectImportResponse) => void;
     vi.spyOn(api, "importProjectAsNew").mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -152,7 +148,7 @@ describe("ProjectsPage", () => {
 
     expect(screen.getByRole("button", { name: "New Project" })).toBeDisabled();
     resolveImport({
-      project: { id: "project-2", name: "Imported Project", description: "desc", meta: {} },
+      project: { id: "project-2", name: "Imported Project", description: "desc", meta: {}, created_at: "2026-03-10T00:00:00Z" },
       imported: {},
       errors: [],
     });
@@ -230,7 +226,7 @@ describe("ProjectsPage", () => {
         createProject({
           id: "project-1",
           name: "No Timestamp",
-          created_at: null,
+          created_at: undefined as unknown as string,
         }),
         createProject({
           id: "project-2",

@@ -65,6 +65,7 @@ describe("project guideline helpers", () => {
       name: "Project 1",
       description: "desc",
       meta: { keep: true },
+      created_at: "2026-03-01T00:00:00Z",
     };
 
     setProjectGuideline(project, "Guideline text");
