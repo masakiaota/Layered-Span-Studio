@@ -223,7 +223,7 @@ describe("useImportExport", () => {
           description: "",
           shortcut: null,
           meta: {},
-              },
+        },
       ],
       revision: "labels-revision-1",
     });
