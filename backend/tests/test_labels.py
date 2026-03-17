@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from conftest import create_label_via_sync
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.projects import project_db_path
 from layered_span_studio_backend.storage.project_db import annotations_table, get_project_engine
@@ -48,51 +49,12 @@ def _insert_annotation_row(
         )
 
 
-def test_label_crud(client: TestClient, auth_headers: dict[str, str]) -> None:
-    project_id = _create_project(client, auth_headers)
-
-    response = client.post(
-        f"/projects/{project_id}/labels",
-        json={
-            "name": "Label1",
-            "color": "#FF5733",
-            "description": "desc",
-            "shortcut": "a",
-            "meta": {},
-        },
-        headers=auth_headers,
-    )
-    assert response.status_code == 201
-    created_label = response.json()
-    label_id = created_label["id"]
-    assert created_label["project_name"] == "Project A"
-
-    response = client.get(f"/projects/{project_id}/labels", headers=auth_headers)
-    assert response.status_code == 200
-    labels = response.json()["labels"]
-    assert len(labels) == 1
-    assert labels[0]["project_name"] == "Project A"
-
-    response = client.get(f"/projects/{project_id}/labels/{label_id}", headers=auth_headers)
-    assert response.status_code == 200
-
-    response = client.patch(
-        f"/projects/{project_id}/labels/{label_id}",
-        json={"description": "updated", "color": "#FF6644"},
-        headers=auth_headers,
-    )
-    assert response.status_code == 200
-
-    response = client.delete(f"/projects/{project_id}/labels/{label_id}", headers=auth_headers)
-    assert response.status_code == 204
-
-
 def test_label_color_validation(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
 
-    response = client.post(
+    response = client.put(
         f"/projects/{project_id}/labels",
-        json={"name": "Bad", "color": "red", "description": "desc"},
+        json={"labels": [{"id": None, "name": "Bad", "color": "red", "description": "desc", "shortcut": None, "meta": {}}]},
         headers=auth_headers,
     )
     assert response.status_code == 422
@@ -100,16 +62,12 @@ def test_label_color_validation(client: TestClient, auth_headers: dict[str, str]
 
 def test_labels_put_syncs_create_update_delete(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
-    first = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
-        headers=auth_headers,
-    ).json()
-    second = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label2", "color": "#33AA44", "description": "desc", "shortcut": "b", "meta": {}},
-        headers=auth_headers,
-    ).json()
+    first = create_label_via_sync(
+        client, auth_headers, project_id, name="Label1", color="#FF5733", description="desc", shortcut="a", meta={}
+    )
+    second = create_label_via_sync(
+        client, auth_headers, project_id, name="Label2", color="#33AA44", description="desc", shortcut="b", meta={}
+    )
 
     response = client.put(
         f"/projects/{project_id}/labels",
@@ -160,11 +118,9 @@ def test_labels_put_rejects_duplicate_name_in_payload(client: TestClient, auth_h
 
 def test_labels_put_rejects_duplicate_id_in_payload(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
-    first = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
-        headers=auth_headers,
-    ).json()
+    first = create_label_via_sync(
+        client, auth_headers, project_id, name="Label1", color="#FF5733", description="desc", shortcut="a", meta={}
+    )
 
     response = client.put(
         f"/projects/{project_id}/labels",
@@ -203,11 +159,9 @@ def test_labels_put_unknown_id_returns_404(client: TestClient, auth_headers: dic
 
 def test_labels_put_delete_cascades_annotations(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
-    label = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(
+        client, auth_headers, project_id, name="Label1", color="#FF5733", description="desc", shortcut="a", meta={}
+    )
     document = client.post(
         f"/projects/{project_id}/documents",
         json={"document_name": "Doc1", "text": "Hello world", "meta": {}},
@@ -273,16 +227,8 @@ def test_labels_put_does_not_delete_other_project_labels(
         headers=auth_headers,
     ).json()["id"]
 
-    client.post(
-        f"/projects/{first_project_id}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    )
-    client.post(
-        f"/projects/{second_project_id}/labels",
-        json={"name": "Label2", "color": "#33AA44", "description": "desc"},
-        headers=auth_headers,
-    )
+    create_label_via_sync(client, auth_headers, first_project_id, name="Label1", color="#FF5733", description="desc")
+    create_label_via_sync(client, auth_headers, second_project_id, name="Label2", color="#33AA44", description="desc")
 
     response = client.put(
         f"/projects/{first_project_id}/labels",
@@ -303,16 +249,12 @@ def _setup_examples_fixture(client: TestClient, auth_headers: dict[str, str]) ->
         headers=auth_headers,
     ).json()
 
-    target_label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "TargetLabel", "color": "#AA1122", "description": "desc", "meta": {}},
-        headers=auth_headers,
-    ).json()
-    other_label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "OtherLabel", "color": "#11AA22", "description": "desc", "meta": {}},
-        headers=auth_headers,
-    ).json()
+    target_label = create_label_via_sync(
+        client, auth_headers, project["id"], name="TargetLabel", color="#AA1122", description="desc", meta={}
+    )
+    other_label = create_label_via_sync(
+        client, auth_headers, project["id"], name="OtherLabel", color="#11AA22", description="desc", meta={}
+    )
 
     doc_a = client.post(
         f"/projects/{project['id']}/documents",
@@ -502,11 +444,9 @@ def test_label_examples_context_window_boundaries(client: TestClient, auth_heade
         json={"name": "Project Context", "description": "desc", "meta": {}},
         headers=auth_headers,
     ).json()
-    label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "LabelContext", "color": "#1122AA", "description": "desc", "meta": {}},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(
+        client, auth_headers, project["id"], name="LabelContext", color="#1122AA", description="desc", meta={}
+    )
     doc = client.post(
         f"/projects/{project['id']}/documents",
         json={"document_name": "ContextDoc", "text": "hello world", "meta": {}},
@@ -637,11 +577,9 @@ def test_label_surface_groups_tie_break_by_document_name_start_and_annotation_id
         json={"name": "Surface Tie Project", "description": "desc", "meta": {}},
         headers=auth_headers,
     ).json()
-    label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Disease", "color": "#AA1122", "description": "desc", "meta": {}},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(
+        client, auth_headers, project["id"], name="Disease", color="#AA1122", description="desc", meta={}
+    )
     alpha_doc = client.post(
         f"/projects/{project['id']}/documents",
         json={"document_name": "AlphaDoc", "text": "alpha alpha", "meta": {}},
@@ -705,11 +643,9 @@ def test_label_surface_groups_ignore_empty_surface_text(
         json={"name": "Surface Empty Project", "description": "desc", "meta": {}},
         headers=auth_headers,
     ).json()
-    label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Disease", "color": "#AA3322", "description": "desc", "meta": {}},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(
+        client, auth_headers, project["id"], name="Disease", color="#AA3322", description="desc", meta={}
+    )
     doc = client.post(
         f"/projects/{project['id']}/documents",
         json={"document_name": "DocA", "text": "alpha", "meta": {}},
@@ -755,11 +691,9 @@ def test_label_surface_groups_do_not_normalize_surface_text(
         json={"name": "Surface Group Project", "description": "desc", "meta": {}},
         headers=auth_headers,
     ).json()
-    label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Disease", "color": "#AA1122", "description": "desc", "meta": {}},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(
+        client, auth_headers, project["id"], name="Disease", color="#AA1122", description="desc", meta={}
+    )
     doc = client.post(
         f"/projects/{project['id']}/documents",
         json={"document_name": "Doc1", "text": "COVID-19 / COVID 19", "meta": {}},

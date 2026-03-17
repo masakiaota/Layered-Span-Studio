@@ -10,6 +10,16 @@
 - frontend と API の接続抜けを点検する
   - 現在の画面仕様に対して未接続の API、逆に不足している API がないかを洗い出す
   - 未使用 API を整理し、逆に画面側がローカル処理で抱えている責務を API に寄せる必要がないか確認する
+- frontend / backend で実際に使っている API 仕様との差分をドキュメントへ反映する
+  - `GET /projects/{project_id}/documents` の `pending_total` など、実装済みだが仕様書に抜けている項目を更新する
+- Label 個別 CRUD endpoint を削除する
+  - Label 更新契約を `GET /projects/{project_id}/labels` と `PUT /projects/{project_id}/labels` に統一する
+- Annotation 個別 CRUD を browser 用に使うか、LLM / 外部 client 用として維持するか方針を整理する
+- project import などの画面で、前提 JSON 構造を案内する画面を作る
+- Project Settings header の document 名が長いと、画面全体の横幅が押し広がる不具合を修正する
+  - 対象: `/projects/:id/settings` の header 内 document 名表示
+  - 現状: 長文タイトルが伸びると header ではなくページ全体が横に広がる
+  - 期待: header 内で省略・折り返し・overflow 制御し、viewport 幅に影響させない
 - 狭い画面幅での 3 ペインレイアウトをどう扱うか検討する
   - 横スクロール維持、簡易レスポンシブ、専用レイアウト切替のどれを正とするか決める
   - まずは最小対応として、どの画面幅まで desktop 前提で許容するかを決める

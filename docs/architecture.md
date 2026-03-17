@@ -391,10 +391,7 @@ PATCH  /projects/{project_id}                                    # プロジェ�
 DELETE /projects/{project_id}                                    # プロジェクト削除
 
 GET    /projects/{project_id}/labels                             # ラベル一覧
-POST   /projects/{project_id}/labels                             # ラベル作成
-GET    /projects/{project_id}/labels/{label_id}                  # ラベル取得
-PATCH  /projects/{project_id}/labels/{label_id}                  # ラベル部分更新
-DELETE /projects/{project_id}/labels/{label_id}                  # ラベル削除
+PUT    /projects/{project_id}/labels                             # ラベル一括同期
 
 GET    /projects/{project_id}/documents                          # ドキュメント一覧
 POST   /projects/{project_id}/documents                          # ドキュメント作成

@@ -4,6 +4,7 @@ from datetime import datetime
 
 from fastapi.testclient import TestClient
 
+from conftest import create_label_via_sync
 from layered_span_studio_backend.repositories.projects import _parse_timestamp
 
 
@@ -95,16 +96,12 @@ def test_project_settings_atomic_put_saves_project_and_labels(client: TestClient
         json={"name": "Project A", "description": "desc", "meta": {"guideline": "old"}},
         headers=auth_headers,
     ).json()
-    first_label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
-        headers=auth_headers,
-    ).json()
-    second_label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Label2", "color": "#33AA44", "description": "desc", "shortcut": "b", "meta": {}},
-        headers=auth_headers,
-    ).json()
+    first_label = create_label_via_sync(
+        client, auth_headers, project["id"], name="Label1", color="#FF5733", description="desc", shortcut="a", meta={}
+    )
+    second_label = create_label_via_sync(
+        client, auth_headers, project["id"], name="Label2", color="#33AA44", description="desc", shortcut="b", meta={}
+    )
 
     response = client.put(
         f"/projects/{project['id']}/settings/atomic",
@@ -154,11 +151,9 @@ def test_project_settings_atomic_put_rolls_back_project_on_label_error(
         json={"name": "Project A", "description": "desc", "meta": {"guideline": "old"}},
         headers=auth_headers,
     ).json()
-    label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(
+        client, auth_headers, project["id"], name="Label1", color="#FF5733", description="desc", shortcut="a", meta={}
+    )
 
     response = client.put(
         f"/projects/{project['id']}/settings/atomic",
@@ -200,16 +195,12 @@ def test_project_settings_atomic_put_uses_same_label_order_as_labels_api(
         json={"name": "Project A", "description": "desc", "meta": {"guideline": "old"}},
         headers=auth_headers,
     ).json()
-    first_label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Zulu", "color": "#FF5733", "description": "desc", "shortcut": "a", "meta": {}},
-        headers=auth_headers,
-    ).json()
-    second_label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Alpha", "color": "#33AA44", "description": "desc", "shortcut": "b", "meta": {}},
-        headers=auth_headers,
-    ).json()
+    first_label = create_label_via_sync(
+        client, auth_headers, project["id"], name="Zulu", color="#FF5733", description="desc", shortcut="a", meta={}
+    )
+    second_label = create_label_via_sync(
+        client, auth_headers, project["id"], name="Alpha", color="#33AA44", description="desc", shortcut="b", meta={}
+    )
 
     response = client.put(
         f"/projects/{project['id']}/settings/atomic",
@@ -290,16 +281,8 @@ def test_projects_list_returns_summary_counts_and_updated_at(client: TestClient,
         headers=auth_headers,
     ).json()
 
-    client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    )
-    label2 = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Label2", "color": "#33AA44", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    create_label_via_sync(client, auth_headers, project["id"], name="Label1", color="#FF5733", description="desc")
+    label2 = create_label_via_sync(client, auth_headers, project["id"], name="Label2", color="#33AA44", description="desc")
 
     verified_document = client.post(
         f"/projects/{project['id']}/documents",
