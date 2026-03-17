@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from conftest import create_label_via_sync
 
 JSONDict = dict[str, Any]
 
@@ -18,11 +19,7 @@ def _setup_project_with_data(
     project = client.post(
         "/projects", json={"name": name, "description": "desc"}, headers=auth_headers
     ).json()
-    label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(client, auth_headers, project["id"], name="Label1", color="#FF5733", description="desc")
     doc = client.post(
         f"/projects/{project['id']}/documents",
         json={"document_name": "Doc1", "text": "Hello world"},
@@ -170,11 +167,7 @@ def test_existing_import_rejects_conflicting_label_names(
     conflict_project = client.post(
         "/projects", json={"name": "Project B", "description": "desc"}, headers=auth_headers
     ).json()
-    client.post(
-        f"/projects/{conflict_project['id']}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    )
+    create_label_via_sync(client, auth_headers, conflict_project["id"], name="Label1", color="#FF5733", description="desc")
 
     conflict_resp = client.post(
         f"/projects/{conflict_project['id']}/import", json=payload, headers=auth_headers
@@ -221,11 +214,7 @@ def test_export_filters_by_status(client: TestClient, auth_headers: dict[str, st
     project = client.post(
         "/projects", json={"name": "Project Export Filter", "description": "desc"}, headers=auth_headers
     ).json()
-    label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "LabelFilter", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(client, auth_headers, project["id"], name="LabelFilter", color="#FF5733", description="desc")
     doc = client.post(
         f"/projects/{project['id']}/documents",
         json={"document_name": "DocFilter", "text": "Hello world"},
@@ -450,11 +439,9 @@ def test_import_allows_existing_label_reference(client: TestClient, auth_headers
     target_project = client.post(
         "/projects", json={"name": "Project D", "description": "desc"}, headers=auth_headers
     ).json()
-    existing_label = client.post(
-        f"/projects/{target_project['id']}/labels",
-        json={"name": "ExistingLabel", "color": "#11AA22", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    existing_label = create_label_via_sync(
+        client, auth_headers, target_project["id"], name="ExistingLabel", color="#11AA22", description="desc"
+    )
 
     payload = {
         "project": {"name": "Project D", "description": "desc", "meta": {}},
@@ -849,11 +836,7 @@ def test_existing_import_preflight_detects_conflict_without_mutating_project(
     target_project = client.post(
         "/projects", json={"name": "Project Preflight Target", "description": "desc"}, headers=auth_headers
     ).json()
-    client.post(
-        f"/projects/{target_project['id']}/labels",
-        json={"name": "Label1", "color": "#1122AA", "description": "desc"},
-        headers=auth_headers,
-    )
+    create_label_via_sync(client, auth_headers, target_project["id"], name="Label1", color="#1122AA", description="desc")
 
     response = client.post(
         f"/projects/{target_project['id']}/import/preflight", json=payload, headers=auth_headers

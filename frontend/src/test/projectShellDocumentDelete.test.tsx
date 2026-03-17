@@ -135,7 +135,7 @@ function setupDocumentApis(initialDocuments: DocumentRecord[]) {
   let deleteMessage = "Document not found";
 
   vi.spyOn(api, "getProject").mockResolvedValue(project);
-  vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(labels) });
+  vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(labels), revision: "labels-revision-1" });
   vi.spyOn(api, "listDocuments").mockImplementation(async (_projectId, options) => {
     const search = normalizeSearchText(options?.search ?? "");
     const filtered = search

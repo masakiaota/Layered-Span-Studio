@@ -58,3 +58,56 @@ def session_auth(client: TestClient, settings: Settings) -> dict[str, str]:
     csrf_token = client.cookies.get("lss_csrf")
     assert csrf_token is not None
     return {"X-CSRF-Token": csrf_token}
+
+
+def create_label_via_sync(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    project_id: str,
+    *,
+    name: str,
+    color: str,
+    description: str,
+    shortcut: str | None = None,
+    meta: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    existing_response = client.get(f"/projects/{project_id}/labels", headers=auth_headers)
+    assert existing_response.status_code == 200
+    existing_payload = existing_response.json()
+    existing_labels: list[dict[str, Any]] = existing_payload["labels"]
+    existing_ids = {label["id"] for label in existing_labels}
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "base_revision": existing_payload["revision"],
+            "labels": [
+                *[
+                    {
+                        "id": label["id"],
+                        "name": label["name"],
+                        "color": label["color"],
+                        "description": label["description"],
+                        "shortcut": label.get("shortcut"),
+                        "meta": label.get("meta") or {},
+                    }
+                    for label in existing_labels
+                ],
+                {
+                    "id": None,
+                    "name": name,
+                    "color": color,
+                    "description": description,
+                    "shortcut": shortcut,
+                    "meta": meta or {},
+                },
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    labels: list[dict[str, Any]] = response.json()["labels"]
+    created = next((label for label in labels if label["id"] not in existing_ids and label["name"] == name), None)
+    if created is None:
+        raise AssertionError(f"Unable to find created label: {name}")
+    return created

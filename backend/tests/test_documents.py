@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from conftest import create_label_via_sync
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.projects import project_db_path
 from layered_span_studio_backend.storage.project_db import documents_table, get_project_engine
@@ -467,16 +468,8 @@ def test_document_create_sets_server_managed_fields(client: TestClient, auth_hea
 
 def test_document_bundle_save_syncs_annotations(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
-    label1 = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    ).json()
-    label2 = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label2", "color": "#33AA44", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label1 = create_label_via_sync(client, auth_headers, project_id, name="Label1", color="#FF5733", description="desc")
+    label2 = create_label_via_sync(client, auth_headers, project_id, name="Label2", color="#33AA44", description="desc")
     document = client.post(
         f"/projects/{project_id}/documents",
         json={"document_name": "Doc1", "text": "Hello world"},
@@ -551,16 +544,8 @@ def test_document_bundle_save_syncs_annotations(client: TestClient, auth_headers
 
 def test_document_bundle_rejects_existing_immutable_change(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
-    label1 = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    ).json()
-    label2 = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label2", "color": "#33AA44", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label1 = create_label_via_sync(client, auth_headers, project_id, name="Label1", color="#FF5733", description="desc")
+    label2 = create_label_via_sync(client, auth_headers, project_id, name="Label2", color="#33AA44", description="desc")
     document = client.post(
         f"/projects/{project_id}/documents",
         json={"document_name": "Doc1", "text": "Hello world"},
@@ -605,16 +590,8 @@ def test_document_bundle_marks_document_verified_when_all_annotations_are_verifi
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
     project_id = _create_project(client, auth_headers)
-    label1 = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    ).json()
-    label2 = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label2", "color": "#33AA44", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label1 = create_label_via_sync(client, auth_headers, project_id, name="Label1", color="#FF5733", description="desc")
+    label2 = create_label_via_sync(client, auth_headers, project_id, name="Label2", color="#33AA44", description="desc")
     document = client.post(
         f"/projects/{project_id}/documents",
         json={"document_name": "Doc1", "text": "Hello world"},
@@ -740,11 +717,7 @@ def test_document_bundle_rejects_out_of_bounds_range(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
     project_id = _create_project(client, auth_headers)
-    label = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(client, auth_headers, project_id, name="Label1", color="#FF5733", description="desc")
     document = client.post(
         f"/projects/{project_id}/documents",
         json={"document_name": "Doc1", "text": "Hello world"},
@@ -777,11 +750,7 @@ def test_document_bundle_rejects_non_positive_range(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
     project_id = _create_project(client, auth_headers)
-    label = client.post(
-        f"/projects/{project_id}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(client, auth_headers, project_id, name="Label1", color="#FF5733", description="desc")
     document = client.post(
         f"/projects/{project_id}/documents",
         json={"document_name": "Doc1", "text": "Hello world"},

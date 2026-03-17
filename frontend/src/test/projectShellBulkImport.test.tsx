@@ -88,7 +88,7 @@ describe("ProjectShell bulk annotation import", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(labels) });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(labels), revision: "labels-revision-1" });
   });
 
   afterEach(() => {

@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from conftest import create_label_via_sync
 
 JSONDict = dict[str, Any]
 
@@ -12,11 +13,7 @@ def _setup(client: TestClient, auth_headers: dict[str, str]) -> tuple[JSONDict, 
     project = client.post(
         "/projects", json={"name": "Project A", "description": "desc"}, headers=auth_headers
     ).json()
-    label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Label1", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(client, auth_headers, project["id"], name="Label1", color="#FF5733", description="desc")
     doc = client.post(
         f"/projects/{project['id']}/documents",
         json={"document_name": "Doc1", "text": "Hello world"},
@@ -330,11 +327,7 @@ def test_annotation_same_label_overlap_rejected(client: TestClient, auth_headers
 
 def test_annotation_different_label_overlap_allowed(client: TestClient, auth_headers: dict[str, str]) -> None:
     project, label1, doc = _setup(client, auth_headers)
-    label2 = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Label2", "color": "#33AA44", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label2 = create_label_via_sync(client, auth_headers, project["id"], name="Label2", color="#33AA44", description="desc")
 
     first = client.post(
         f"/projects/{project['id']}/documents/{doc['id']}/annotations",
@@ -401,11 +394,7 @@ def test_bulk_same_label_overlap_returns_400(client: TestClient, auth_headers: d
 
 def test_bulk_different_label_overlap_allowed(client: TestClient, auth_headers: dict[str, str]) -> None:
     project, label1, doc = _setup(client, auth_headers)
-    label2 = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Label2", "color": "#33AA44", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label2 = create_label_via_sync(client, auth_headers, project["id"], name="Label2", color="#33AA44", description="desc")
 
     response = client.post(
         f"/projects/{project['id']}/documents/{doc['id']}/annotations/bulk",
@@ -441,16 +430,8 @@ def test_search_annotations_by_surface(client: TestClient, auth_headers: dict[st
     project = client.post(
         "/projects", json={"name": "Search Project", "description": "desc"}, headers=auth_headers
     ).json()
-    disease = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Disease", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    ).json()
-    finding = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Finding", "color": "#33AA44", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    disease = create_label_via_sync(client, auth_headers, project["id"], name="Disease", color="#FF5733", description="desc")
+    finding = create_label_via_sync(client, auth_headers, project["id"], name="Finding", color="#33AA44", description="desc")
     doc = client.post(
         f"/projects/{project['id']}/documents",
         json={"document_name": "Doc1", "text": "alpha bravo alpha bravo"},
@@ -537,11 +518,7 @@ def test_search_annotations_does_not_normalize_surface_text(
     project = client.post(
         "/projects", json={"name": "Exact Search Project", "description": "desc"}, headers=auth_headers
     ).json()
-    label = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "Disease", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label = create_label_via_sync(client, auth_headers, project["id"], name="Disease", color="#FF5733", description="desc")
     doc = client.post(
         f"/projects/{project['id']}/documents",
         json={"document_name": "Doc1", "text": "COVID-19 / COVID 19"},
@@ -589,16 +566,8 @@ def test_search_annotations_pages_and_sorts_in_sql(
     project = client.post(
         "/projects", json={"name": "Paged Search Project", "description": "desc"}, headers=auth_headers
     ).json()
-    label_a = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "LabelA", "color": "#FF5733", "description": "desc"},
-        headers=auth_headers,
-    ).json()
-    label_b = client.post(
-        f"/projects/{project['id']}/labels",
-        json={"name": "LabelB", "color": "#33AA44", "description": "desc"},
-        headers=auth_headers,
-    ).json()
+    label_a = create_label_via_sync(client, auth_headers, project["id"], name="LabelA", color="#FF5733", description="desc")
+    label_b = create_label_via_sync(client, auth_headers, project["id"], name="LabelB", color="#33AA44", description="desc")
     doc_b = client.post(
         f"/projects/{project['id']}/documents",
         json={"document_name": "B_doc", "text": "alpha delta alpha"},

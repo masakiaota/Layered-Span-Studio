@@ -489,6 +489,9 @@ export function ProjectShell({
 
       if (labelsDirty) {
         try {
+          if (!settingsSnapshot.labelsRevision) {
+            throw new Error("Labels revision が取得できなかったため保存を続行できない");
+          }
           const labelsResponse = await api.saveProjectLabels(
             bundle.project.id,
             bundle.labels.map((label) => ({
@@ -499,6 +502,7 @@ export function ProjectShell({
               shortcut: label.shortcut ?? null,
               meta: label.meta ?? {},
             })),
+            settingsSnapshot.labelsRevision,
           );
           savedLabels = labelsResponse.labels;
           const refreshedCurrentDocument = selectedDocId
@@ -519,6 +523,7 @@ export function ProjectShell({
               ? {
                   ...current,
                   labels: deepClone(savedLabels),
+                  labelsRevision: labelsResponse.revision,
                 }
               : current,
           );

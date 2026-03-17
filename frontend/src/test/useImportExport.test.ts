@@ -225,6 +225,7 @@ describe("useImportExport", () => {
           meta: {},
         },
       ],
+      revision: "labels-revision-1",
     });
     vi.spyOn(api, "listDocuments").mockResolvedValue({
       documents: [],
@@ -277,7 +278,7 @@ describe("useImportExport", () => {
       { type: "application/json" },
     );
     vi.spyOn(utils, "readJsonFile").mockResolvedValue(validImportPayload);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: "labels-revision-1" });
     vi.spyOn(api, "listDocuments").mockResolvedValue({
       documents: [],
       total: 0,
@@ -325,7 +326,7 @@ describe("useImportExport", () => {
       { type: "application/json" },
     );
     vi.spyOn(utils, "readJsonFile").mockResolvedValue(validImportPayload);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [] });
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: "labels-revision-1" });
     vi.spyOn(api, "listDocuments").mockResolvedValue({
       documents: [],
       total: 0,

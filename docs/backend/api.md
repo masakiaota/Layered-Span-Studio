@@ -45,12 +45,8 @@
 
 - `GET /projects/{project_id}/labels` - ラベル一覧を取得
 - `PUT /projects/{project_id}/labels` - ラベル一覧を上書き保存
-- `POST /projects/{project_id}/labels` - ラベルを作成
-- `GET /projects/{project_id}/labels/{label_id}` - ラベル詳細を取得
 - `GET /projects/{project_id}/labels/{label_id}/examples` - ラベルの使用例をドキュメント横断で取得
 - `GET /projects/{project_id}/labels/{label_id}/surface-groups` - ラベル配下の同一表層グループをドキュメント横断で取得
-- `PATCH /projects/{project_id}/labels/{label_id}` - ラベルを更新（色/説明/ショートカット等）
-- `DELETE /projects/{project_id}/labels/{label_id}` - ラベルを削除（関連アノテも連動削除）
 
 ### Documents
 
@@ -468,7 +464,7 @@ Authorization: Bearer <token>
 - `labels` は最終状態全件を表す。request に含まれない既存 label は削除される
 - `id: null` は新規 label として作成される
 - `labels[].shortcut` は省略可で、指定する場合は `string | null` を取る。未設定値を明示する場合は `null`
-- response の `labels` は `GET /projects/{project_id}/labels` と同じ形で返す
+- response の `labels[]` 要素は `GET /projects/{project_id}/labels` の `labels[]` と同じ形で返す
 - browser settings 画面は partial success を避けたいときにこの API を使う想定
 
 **Error (404 Not Found):**
@@ -514,6 +510,7 @@ Authorization: Bearer <token>
 **Response (200 OK):**
 ```json
 {
+  "revision": "<sha256>",
   "labels": [
     {
       "id": "uuid",
@@ -553,6 +550,7 @@ Authorization: Bearer <token>
 **Request:**
 ```json
 {
+  "base_revision": "<sha256>",
   "labels": [
     {
       "id": "uuid",
@@ -577,6 +575,7 @@ Authorization: Bearer <token>
 **Response (200 OK):**
 ```json
 {
+  "revision": "<sha256>",
   "labels": [
     {
       "id": "uuid",
@@ -603,78 +602,15 @@ Authorization: Bearer <token>
 ```
 
 **注記:**
+- `revision` は現在の label 一覧を表す 64 文字の lowercase sha256 hex digest
+- Label の作成 / 更新 / 削除は、この endpoint で最終状態全件を同期して表現する
+- `GET /projects/{project_id}/labels` の response に含まれる `revision` を、保存時に `base_revision` としてそのまま渡す
+- `base_revision` は 64 文字の lowercase sha256 hex digest を受け付ける
 - `id = null` は新規 label 作成
 - request に含まれない既存 label は削除
 - payload 内 duplicate name / duplicate id は `400`
 - unknown id は `404`
-
----
-
-### POST /projects/{project_id}/labels
-
-新しいラベルを作成する。
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Request:**
-```json
-{
-  "name": "疾患名",
-  "color": "#FF5733",
-  "description": "疾患や病気の名前",
-  "shortcut": "d",
-  "meta": {}
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "id": "uuid",
-  "project_id": "uuid",
-  "project_name": "医療文書NER",
-  "name": "疾患名",
-  "color": "#FF5733",
-  "description": "疾患や病気の名前",
-  "shortcut": "d",
-  "meta": {}
-}
-```
-
-**Error (400 Bad Request):**
-```json
-{
-  "detail": "Label name already exists in this project"
-}
-```
-
----
-
-### GET /projects/{project_id}/labels/{label_id}
-
-特定のラベルの詳細を取得する。
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "id": "uuid",
-  "project_id": "uuid",
-  "project_name": "医療文書NER",
-  "name": "疾患名",
-  "color": "#FF5733",
-  "description": "疾患や病気の名前。例：糖尿病、高血圧など",
-  "shortcut": "d",
-  "meta": {}
-}
-```
+- `base_revision` が現在の label 状態と一致しない場合は `409 Label revision mismatch`
 
 ---
 
@@ -795,59 +731,6 @@ Authorization: Bearer <token>
 - `duplicate_count` は同一 `surface_text` に完全一致する annotation 件数
 - `representative` は該当グループの表示代表であり、優先順は `verified`、次に `document_name ASC`、`start ASC`、`annotation_id ASC`
 - 実装上は repository が SQL で絞り込み・集約・ページングを行い、service は representative の前後文脈生成とレスポンス整形のみを担う
-
----
-
-### PATCH /projects/{project_id}/labels/{label_id}
-
-ラベル情報を更新する。
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Request:**
-```json
-{
-  "description": "疾患や病気の名前。ICD-10コードに準拠",
-  "color": "#FF6644"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "id": "uuid",
-  "project_id": "uuid",
-  "project_name": "医療文書NER",
-  "name": "疾患名",
-  "color": "#FF6644",
-  "description": "疾患や病気の名前。ICD-10コードに準拠",
-  "shortcut": "d",
-  "meta": {}
-}
-```
-
----
-
-### DELETE /projects/{project_id}/labels/{label_id}
-
-ラベルを削除する。このラベルを使用している全てのアノテーションも削除される。
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Response (204 No Content)**
-
-**Error (404 Not Found):**
-```json
-{
-  "detail": "Label not found"
-}
-```
 
 ---
 

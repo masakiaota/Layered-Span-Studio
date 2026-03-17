@@ -44,6 +44,11 @@ export interface LabelRecord {
   meta: JsonObject | null;
 }
 
+export interface LabelListResponse {
+  labels: LabelRecord[];
+  revision: string;
+}
+
 export interface AnnotationRecord {
   id: string;
   document_id: string;
