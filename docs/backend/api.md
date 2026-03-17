@@ -37,6 +37,7 @@
 - `POST /projects` - プロジェクトを作成
 - `GET /projects/{project_id}` - プロジェクト詳細を取得
 - `PUT /projects/{project_id}/settings` - プロジェクト settings を上書き保存
+- `PUT /projects/{project_id}/settings/atomic` - プロジェクト settings と labels を原子的に上書き保存
 - `PATCH /projects/{project_id}` - プロジェクトを更新（主に `name` / `description` / `meta`）
 - `DELETE /projects/{project_id}` - プロジェクトを削除（配下も連動削除）
 
@@ -55,6 +56,7 @@
 
 - `GET /projects/{project_id}/documents` - ドキュメント一覧を取得（`offset/limit/search/sort`）
 - `POST /projects/{project_id}/documents` - ドキュメントを作成（`text` は作成時のみ）
+- `GET /projects/{project_id}/documents/{document_id}/navigation` - 現在 document 基準の `prev/next/next_pending` を取得
 - `GET /projects/{project_id}/documents/{document_id}` - ドキュメント詳細を取得（`annotations` 全件含む）
 - `PUT /projects/{project_id}/documents/{document_id}/bundle` - 現在 document の annotation 一覧を一括保存
 - `PATCH /projects/{project_id}/documents/{document_id}` - ドキュメントの `document_name` / `meta` を更新（`text` は更新不可）
@@ -73,7 +75,9 @@
 
 - `POST /projects/{project_id}/export` - プロジェクト全体をJSONでエクスポート
 - `POST /projects/import` - Export JSON から新規プロジェクトを作成してインポート
+- `POST /projects/import/preflight` - 新規プロジェクト import の dry-run を実行
 - `POST /projects/{project_id}/import` - JSONを既存プロジェクトへ追記インポート（不整合時は全体失敗）
+- `POST /projects/{project_id}/import/preflight` - 既存プロジェクト import の dry-run を実行
 
 ---
 
@@ -381,6 +385,98 @@ Authorization: Bearer <token>
 - `name` / `description` / `meta` はすべて必須
 - 省略フィールドは保持されない。settings 画面の完全な現在値を送る
 - `PATCH /projects/{project_id}` は残るが、settings 画面からはこの API を想定する
+
+---
+
+### PUT /projects/{project_id}/settings/atomic
+
+settings 画面の project フォームと label 一覧を 1 リクエストで原子的に上書き保存する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "name": "医療文書NER v2",
+  "description": "医療分野の固有表現抽出（改訂版）",
+  "meta": {
+    "guideline": "共通ガイドライン"
+  },
+  "labels": [
+    {
+      "id": "uuid-existing",
+      "name": "疾患名",
+      "color": "#FF5733",
+      "description": "疾患や病気の名前",
+      "shortcut": "1",
+      "meta": {}
+    },
+    {
+      "id": null,
+      "name": "薬剤名",
+      "color": "#33FF57",
+      "description": "薬品や医薬品の名前",
+      "shortcut": null,
+      "meta": {}
+    }
+  ]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "project": {
+    "id": "uuid",
+    "name": "医療文書NER v2",
+    "description": "医療分野の固有表現抽出（改訂版）",
+    "meta": {
+      "guideline": "共通ガイドライン"
+    }
+  },
+  "labels": [
+    {
+      "id": "uuid-existing",
+      "project_id": "uuid",
+      "project_name": "医療文書NER v2",
+      "name": "疾患名",
+      "color": "#FF5733",
+      "description": "疾患や病気の名前",
+      "shortcut": "1",
+      "meta": {}
+    },
+    {
+      "id": "uuid-new",
+      "project_id": "uuid",
+      "project_name": "医療文書NER v2",
+      "name": "薬剤名",
+      "color": "#33FF57",
+      "description": "薬品や医薬品の名前",
+      "shortcut": null,
+      "meta": {}
+    }
+  ]
+}
+```
+
+**注記:**
+- `name` / `description` / `meta` / `labels` はすべて必須
+- project 更新と labels 同期を同一トランザクションで扱う
+- `labels` は最終状態全件を表す。request に含まれない既存 label は削除される
+- `id: null` は新規 label として作成される
+- `labels[].shortcut` は省略可で、指定する場合は `string | null` を取る。未設定値を明示する場合は `null`
+- response の `labels` は `GET /projects/{project_id}/labels` と同じ形で返す
+- browser settings 画面は partial success を避けたいときにこの API を使う想定
+
+**Error (404 Not Found):**
+```json
+{
+  "detail": "Project not found"
+}
+```
 
 ---
 
@@ -802,6 +898,7 @@ Authorization: Bearer <token>
     }
   ],
   "total": 120,
+  "pending_total": 48,
   "offset": 0,
   "limit": 50,
   "search": "",
@@ -811,6 +908,7 @@ Authorization: Bearer <token>
 
 **注記:**
 - `offset/limit` 方式のページングを採用（シンプルさを優先）
+- `pending_total` は検索条件に一致した document 集合のうち `status != "verified"` の件数
 - `search` は `document_name` ではなく `text` にのみ適用する
 - `search` は SQL LIKE ではなく、`%` / `_` も通常文字として扱う
 - `sort=pending` は `pending` を先頭に寄せ、その後 `document_name ASC` で並べる
@@ -862,6 +960,54 @@ Authorization: Bearer <token>
 ```json
 {
   "detail": "Document name already exists in this project"
+}
+```
+
+---
+
+### GET /projects/{project_id}/documents/{document_id}/navigation
+
+現在の検索条件・並び順における、対象 document の前後関係を取得する。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `search` (string, optional): `GET /projects/{project_id}/documents` と同じ検索条件
+- `sort` (string, optional): `created` / `pending` / `updated` / `name`（デフォルト: `created`）
+
+**Response (200 OK):**
+```json
+{
+  "current_document_id": "uuid-current",
+  "prev_document_id": "uuid-prev",
+  "next_document_id": "uuid-next",
+  "next_pending_document_id": "uuid-next-pending",
+  "search": "target",
+  "sort": "name"
+}
+```
+
+**注記:**
+- `prev_document_id` / `next_document_id` は現在の `search` / `sort` 適用後の隣接 document を表す
+- `next_pending_document_id` は現在位置より後方にある最初の `status != "verified"` document を返す
+- `next_pending_document_id` は前方への wrap をしない
+- 候補が存在しない場合は `null` を返す
+- `Document not found` は対象 `document_id` 自体が project 配下に存在しない場合に返る
+- `Document not found in current filtered documents` は `document_id` は存在するが、指定した `search` / `sort` 条件で解決対象集合に含まれない場合に返る
+
+**Error (404 Not Found):**
+```json
+{
+  "detail": "Document not found in current filtered documents"
+}
+```
+
+```json
+{
+  "detail": "Document not found"
 }
 ```
 
@@ -1559,6 +1705,57 @@ Authorization: Bearer <token>
 
 ---
 
+### POST /projects/import/preflight
+
+新規プロジェクト import の dry-run を実行する。project は作成しない。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+- `POST /projects/import` と同じ payload を受け付ける
+
+**Response (200 OK):**
+```json
+{
+  "ok": true,
+  "resolved_project_name": "医療文書NER (imported)",
+  "imported": {
+    "labels": 1,
+    "documents": 1,
+    "annotations": 1
+  },
+  "errors": []
+}
+```
+
+```json
+{
+  "ok": false,
+  "resolved_project_name": null,
+  "imported": {
+    "labels": 1,
+    "documents": 1,
+    "annotations": 1
+  },
+  "errors": [
+    {
+      "message": "Label description is required"
+    }
+  ]
+}
+```
+
+**注記:**
+- top-level payload が壊れていても 422 ではなく同じ response 契約で返す
+- `resolved_project_name` は name 重複解決後に実際に採用される予定名
+- `ok=false` のときも `imported` には payload から読める件数を返す
+- preflight 実行後も project 一覧や DB 状態は変化しない
+
+---
+
 ### POST /projects/{project_id}/import
 
 既存プロジェクトに対して、labels / documents / annotations を追記インポートする。
@@ -1648,8 +1845,64 @@ Authorization: Bearer <token>
   - 判定は半開区間 `[start, end)` を使用
   - 判定式は `existing.start < new.end && existing.end > new.start`
   - 隣接区間（`existing.end == new.start`）は重複ではない
-  - 異なるラベル同士の区間重複は許可
+- 異なるラベル同士の区間重複は許可
 - 不整合データがある場合は部分成功せず、インポート全体を中断（400）
+
+---
+
+### POST /projects/{project_id}/import/preflight
+
+既存 project への append import の dry-run を実行する。labels / documents / annotations はまだ作成しない。
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+- `POST /projects/{project_id}/import` と同じ payload を受け付ける
+
+**Response (200 OK):**
+```json
+{
+  "ok": true,
+  "imported": {
+    "labels": 1,
+    "documents": 1,
+    "annotations": 1
+  },
+  "errors": []
+}
+```
+
+```json
+{
+  "ok": false,
+  "imported": {
+    "labels": 1,
+    "documents": 1,
+    "annotations": 1
+  },
+  "errors": [
+    {
+      "message": "Label name already exists in this project"
+    }
+  ]
+}
+```
+
+**注記:**
+- top-level payload が壊れていても 422 ではなく同じ response 契約で返す
+- `ok=false` のときも `imported` には payload から読める件数を返す
+- conflict 判定は backend に保存済みの label / document 一覧を基準に行う
+- preflight 実行後も target project の labels / documents は変化しない
+
+**Error (404 Not Found):**
+```json
+{
+  "detail": "Project not found"
+}
+```
 
 ---
 
