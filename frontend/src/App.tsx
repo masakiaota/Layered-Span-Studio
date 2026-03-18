@@ -86,8 +86,14 @@ function formatBulkImportError(error: Record<string, unknown>) {
   }
 }
 
-const WORKSPACE_LAYOUT_COLUMNS = "320px minmax(540px,1fr) 380px";
-const WORKSPACE_LAYOUT_MIN_WIDTH = "1272px";
+const WORKSPACE_LAYOUT = {
+  leftPaneWidth: 320,
+  centerPaneMinWidth: 540,
+  rightPaneWidth: 380,
+  gap: 2,
+} as const;
+
+const WORKSPACE_LAYOUT_COLUMNS = `${WORKSPACE_LAYOUT.leftPaneWidth}px minmax(${WORKSPACE_LAYOUT.centerPaneMinWidth}px,1fr) ${WORKSPACE_LAYOUT.rightPaneWidth}px`;
 
 export function ProjectShell({
   user,
@@ -1260,14 +1266,16 @@ export function ProjectShell({
         }}
       >
         <Box
-          sx={{
+          sx={(theme) => ({
             display: "grid",
-            gap: 2,
+            gap: WORKSPACE_LAYOUT.gap,
             minHeight: "100%",
             width: "100%",
-            minWidth: isWorkspaceView ? WORKSPACE_LAYOUT_MIN_WIDTH : 0,
+            minWidth: isWorkspaceView
+              ? `calc(${WORKSPACE_LAYOUT.leftPaneWidth}px + ${WORKSPACE_LAYOUT.centerPaneMinWidth}px + ${WORKSPACE_LAYOUT.rightPaneWidth}px + ${theme.spacing(WORKSPACE_LAYOUT.gap * 2)})`
+              : 0,
             gridTemplateColumns: isWorkspaceView ? WORKSPACE_LAYOUT_COLUMNS : "minmax(0,1fr)",
-          }}
+          })}
         >
           {isWorkspaceView ? (
             <WorkspaceView
