@@ -13,16 +13,9 @@ import { DeleteProjectDialog } from "./features/project-shell/DeleteProjectDialo
 import { PendingChangesDialog } from "./features/project-shell/PendingChangesDialog";
 import { ProjectShellHeader } from "./features/project-shell/ProjectShellHeader";
 import { SettingsView } from "./features/project-shell/SettingsView";
-import {
-  DEFAULT_LABEL_COLOR,
-} from "./features/project-shell/projectShellConstants";
 import type { LabelDraft, PendingAction, RightTab, SelectionPreview } from "./features/project-shell/projectShellTypes";
 import {
-  createEmptyLabelDraft,
   findConflictingLabelName,
-  isHexColor,
-  normalizeHexColor,
-  toLabelDraft,
   toDocumentListItem,
   trimDocumentWindow,
 } from "./features/project-shell/projectShellUtils";
@@ -98,7 +91,6 @@ export function ProjectShell({
   const [createDocOpen, setCreateDocOpen] = useState(false);
   const [newDocName, setNewDocName] = useState("");
   const [newDocText, setNewDocText] = useState("");
-  const [labelDraft, setLabelDraft] = useState<LabelDraft>(createEmptyLabelDraft);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; documentName: string; isCurrent: boolean } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingDocument, setDeletingDocument] = useState(false);
@@ -114,9 +106,6 @@ export function ProjectShell({
   const labelColorInputRef = useRef<HTMLInputElement | null>(null);
   const [shortcutPanelOffset, setShortcutPanelOffset] = useState({ x: 0, y: 0 });
   const [shortcutDragging, setShortcutDragging] = useState(false);
-  const normalizedLabelColor = normalizeHexColor(labelDraft.color);
-  const labelColorValid = isHexColor(labelDraft.color);
-  const labelColorPreview = labelColorValid ? normalizedLabelColor : DEFAULT_LABEL_COLOR;
 
   useBodyScrollLock();
 
@@ -187,7 +176,6 @@ export function ProjectShell({
     activateDocument(firstDocId);
     setFocusedLabelId(nextBundle.labels[0]?.id ?? null);
     setSelectedSettingsLabelId(null);
-    setLabelDraft(createEmptyLabelDraft());
     setAccordionOpen(Object.fromEntries(nextBundle.labels.map((label) => [label.id, true])));
   }
 
@@ -531,7 +519,6 @@ export function ProjectShell({
           if (selectedSettingsLabel) {
             const persistedSelectedLabel = savedLabels.find((label) => label.name === selectedSettingsLabel.name) ?? null;
             setSelectedSettingsLabelId(persistedSelectedLabel?.id ?? null);
-            setLabelDraft(persistedSelectedLabel ? toLabelDraft(persistedSelectedLabel) : createEmptyLabelDraft());
           }
         } catch (error) {
           showToast(
@@ -1039,12 +1026,8 @@ export function ProjectShell({
     }));
   }
 
-  function handleLabelDraftSubmit() {
-    if (!labelDraft.name.trim() || !bundle) {
-      return;
-    }
-    if (!labelColorValid) {
-      showToast("Color は #RRGGBB 形式で入力する", "warning");
+  function handleLabelDraftSubmit(labelDraft: LabelDraft) {
+    if (!bundle) {
       return;
     }
     const existing = findConflictingLabelName(bundle.labels, labelDraft);
@@ -1058,7 +1041,7 @@ export function ProjectShell({
       project_id: bundle.project.id,
       project_name: bundle.project.name,
       name: labelDraft.name.trim(),
-      color: normalizedLabelColor,
+      color: labelDraft.color,
       description: labelDraft.description,
       shortcut: editingLabel?.shortcut ?? null,
       meta: {},
@@ -1072,7 +1055,6 @@ export function ProjectShell({
       draft.labels.push(nextLabel);
     });
     setSelectedSettingsLabelId(nextLabel.id);
-    setLabelDraft(toLabelDraft(nextLabel));
   }
 
   function handleDeleteLabel(labelId: string) {
@@ -1085,7 +1067,6 @@ export function ProjectShell({
     }
     if (deletingSelectedSettingsLabel) {
       setSelectedSettingsLabelId(null);
-      setLabelDraft(createEmptyLabelDraft());
     }
   }
 
@@ -1225,10 +1206,6 @@ export function ProjectShell({
             <SettingsView
               bundle={bundle}
               selectedLabelId={selectedSettingsLabelId}
-              labelDraft={labelDraft}
-              normalizedLabelColor={normalizedLabelColor}
-              labelColorValid={labelColorValid}
-              labelColorPreview={labelColorPreview}
               labelColorInputRef={labelColorInputRef}
               settingsImportFile={settingsImportFile}
               exportPending={exportPending}
@@ -1252,27 +1229,15 @@ export function ProjectShell({
                   setProjectGuideline(draft.project, value);
                 })
               }
-              onLabelDraftChange={setLabelDraft}
-              onNormalizeLabelColor={() =>
-                setLabelDraft((current) => {
-                  const nextColor = normalizeHexColor(current.color);
-                  return nextColor === current.color ? current : { ...current, color: nextColor };
-                })
-              }
               onOpenColorPicker={() => labelColorInputRef.current?.click()}
-              onPickLabelColor={(value) => setLabelDraft((current) => ({ ...current, color: value }))}
               onSubmitLabelDraft={handleLabelDraftSubmit}
-              onResetLabelDraft={() => {
-                setSelectedSettingsLabelId(null);
-                setLabelDraft(createEmptyLabelDraft());
-              }}
+              onResetLabelDraft={() => setSelectedSettingsLabelId(null)}
               onSelectLabel={(labelId) => {
                 const selectedLabel = bundle.labels.find((label) => label.id === labelId);
                 if (!selectedLabel) {
                   return;
                 }
                 setSelectedSettingsLabelId(labelId);
-                setLabelDraft(toLabelDraft(selectedLabel));
               }}
               onDeleteLabel={handleDeleteLabel}
               onImportFileChange={(file) => {

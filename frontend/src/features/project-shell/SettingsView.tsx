@@ -4,7 +4,6 @@ import {
   Button,
   FormControlLabel,
   IconButton,
-  InputAdornment,
   List,
   ListItemButton,
   ListItemText,
@@ -15,23 +14,17 @@ import {
   Typography,
   alpha,
 } from "@mui/material";
-import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
-import PaletteRoundedIcon from "@mui/icons-material/PaletteRounded";
 import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
-import type { LabelDraft } from "./projectShellTypes";
+import { LabelEditorForm } from "./LabelEditorForm";
 import type { ProjectBundle } from "../../types";
 import { getProjectGuideline } from "../../utils";
 
 export function SettingsView({
   bundle,
   selectedLabelId,
-  labelDraft,
-  normalizedLabelColor,
-  labelColorValid,
-  labelColorPreview,
   labelColorInputRef,
   settingsImportFile,
   exportPending,
@@ -43,10 +36,7 @@ export function SettingsView({
   onProjectNameChange,
   onProjectDescriptionChange,
   onProjectGuidelineChange,
-  onLabelDraftChange,
-  onNormalizeLabelColor,
   onOpenColorPicker,
-  onPickLabelColor,
   onSubmitLabelDraft,
   onResetLabelDraft,
   onSelectLabel,
@@ -62,10 +52,6 @@ export function SettingsView({
 }: {
   bundle: ProjectBundle;
   selectedLabelId: string | null;
-  labelDraft: LabelDraft;
-  normalizedLabelColor: string;
-  labelColorValid: boolean;
-  labelColorPreview: string;
   labelColorInputRef: React.Ref<HTMLInputElement>;
   settingsImportFile: File | null;
   exportPending: boolean;
@@ -77,11 +63,8 @@ export function SettingsView({
   onProjectNameChange: (value: string) => void;
   onProjectDescriptionChange: (value: string) => void;
   onProjectGuidelineChange: (value: string) => void;
-  onLabelDraftChange: (draft: LabelDraft) => void;
-  onNormalizeLabelColor: () => void;
   onOpenColorPicker: () => void;
-  onPickLabelColor: (value: string) => void;
-  onSubmitLabelDraft: () => void;
+  onSubmitLabelDraft: (draft: { id: string; name: string; color: string; description: string }) => void;
   onResetLabelDraft: () => void;
   onSelectLabel: (labelId: string) => void;
   onDeleteLabel: (labelId: string) => void;
@@ -94,6 +77,8 @@ export function SettingsView({
   onRequestDeleteProject: () => void;
   deletingProject: boolean;
 }) {
+  const selectedLabel = selectedLabelId ? bundle.labels.find((label) => label.id === selectedLabelId) ?? null : null;
+
   return (
     <Box sx={{ display: "grid", gap: 2, height: "100%", minHeight: 0, gridTemplateRows: "minmax(0,1fr) auto" }}>
       <Paper sx={{ height: "100%", minHeight: 0, overflow: "auto" }}>
@@ -129,85 +114,13 @@ export function SettingsView({
           <Paper variant="outlined" sx={{ p: 2.5 }}>
             <Typography variant="subtitle1">Labels</Typography>
             <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 2, alignItems: "flex-start" }}>
-              <Stack spacing={1.5} sx={{ minWidth: 320, flex: 1 }}>
-                <TextField
-                  label="Name"
-                  value={labelDraft.name}
-                  onChange={(event) => onLabelDraftChange({ ...labelDraft, name: event.target.value })}
-                />
-                <TextField
-                  label="Color: 16進カラーコード"
-                  value={labelDraft.color}
-                  onChange={(event) => onLabelDraftChange({ ...labelDraft, color: event.target.value })}
-                  onBlur={onNormalizeLabelColor}
-                  error={labelDraft.color.trim().length > 0 && !labelColorValid}
-                  helperText={labelDraft.color.trim().length > 0 && !labelColorValid ? "Color は #RRGGBB 形式で入力する" : undefined}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 0.2 }}>
-                            色見本
-                          </Typography>
-                          <Box
-                            aria-label="Selected color preview"
-                            sx={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: 1.2,
-                              bgcolor: labelColorPreview,
-                              border: `1px solid ${alpha("#16324f", 0.16)}`,
-                              boxShadow: `inset 0 0 0 1px ${alpha("#ffffff", 0.35)}`,
-                            }}
-                          />
-                        </Stack>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
-                  <Button variant="outlined" startIcon={<PaletteRoundedIcon />} onClick={onOpenColorPicker} sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}>
-                    色を選ぶ
-                  </Button>
-                  <Typography variant="caption" color="text.secondary" sx={{ minHeight: 20, display: "flex", alignItems: "center" }}>
-                    {labelColorValid ? `現在の色: ${normalizedLabelColor}` : "有効なカラーコードを入力すると色見本に反映される"}
-                  </Typography>
-                  <Box
-                    component="input"
-                    ref={labelColorInputRef}
-                    type="color"
-                    aria-label="Pick label color"
-                    value={labelColorPreview}
-                    onChange={(event) => onPickLabelColor(event.target.value)}
-                    sx={{
-                      position: "absolute",
-                      width: 1,
-                      height: 1,
-                      p: 0,
-                      m: -1,
-                      overflow: "hidden",
-                      clip: "rect(0 0 0 0)",
-                      whiteSpace: "nowrap",
-                      border: 0,
-                    }}
-                  />
-                </Stack>
-                <TextField
-                  label="Description"
-                  multiline
-                  minRows={3}
-                  value={labelDraft.description}
-                  onChange={(event) => onLabelDraftChange({ ...labelDraft, description: event.target.value })}
-                />
-                <Stack direction="row" spacing={1}>
-                  <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={onSubmitLabelDraft} disabled={!labelDraft.name.trim() || !labelColorValid}>
-                    {labelDraft.id ? "Update label" : "Add label"}
-                  </Button>
-                  <Button variant="outlined" onClick={onResetLabelDraft}>
-                    Clear
-                  </Button>
-                </Stack>
-              </Stack>
+              <LabelEditorForm
+                selectedLabel={selectedLabel}
+                labelColorInputRef={labelColorInputRef}
+                onOpenColorPicker={onOpenColorPicker}
+                onSubmit={onSubmitLabelDraft}
+                onReset={onResetLabelDraft}
+              />
               <List
                 sx={{
                   flex: 1,

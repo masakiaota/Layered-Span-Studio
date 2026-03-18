@@ -265,6 +265,54 @@ describe("ProjectShell settings label selection", () => {
     expect(screen.getByText("病名")).toBeInTheDocument();
     expect(getLabelRow("病名")).toHaveClass("Mui-selected");
   });
+
+  it("keeps unsaved label edits while project fields change", async () => {
+    const userEventSetup = userEvent.setup();
+    renderProjectSettings();
+
+    await screen.findByRole("heading", { name: "Project Settings" });
+
+    const projectNameInput = screen.getByLabelText("Project name");
+    const nameInput = screen.getByLabelText("Name");
+
+    await userEventSetup.click(getLabelRow("病名"));
+    await userEventSetup.clear(nameInput);
+    await userEventSetup.type(nameInput, "病名編集中");
+    await userEventSetup.type(projectNameInput, " v2");
+
+    expect(nameInput).toHaveValue("病名編集中");
+  });
+
+  it("normalizes color input on blur and blocks invalid colors", async () => {
+    const userEventSetup = userEvent.setup();
+    renderProjectSettings();
+
+    await screen.findByRole("heading", { name: "Project Settings" });
+
+    const nameInput = screen.getByLabelText("Name");
+    const colorInput = screen.getByLabelText("Color: 16進カラーコード");
+    const submitButton = screen.getByRole("button", { name: "Add label" });
+
+    await userEventSetup.type(nameInput, "既往歴");
+    await userEventSetup.clear(colorInput);
+    await userEventSetup.type(colorInput, "bad");
+
+    expect(await screen.findByText("Color は #RRGGBB 形式で入力する")).toBeInTheDocument();
+    expect(submitButton).toBeDisabled();
+
+    await userEventSetup.clear(colorInput);
+    await userEventSetup.type(colorInput, "ABCDEF");
+    await userEventSetup.tab();
+
+    expect(colorInput).toHaveValue("#abcdef");
+    await waitFor(() => {
+      expect(submitButton).toBeEnabled();
+    });
+
+    await userEventSetup.click(submitButton);
+
+    expect(getLabelRow("既往歴")).toHaveClass("Mui-selected");
+  });
 });
 
 describe("ProjectShell settings import validation", () => {
