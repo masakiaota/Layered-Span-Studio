@@ -414,7 +414,6 @@ def test_projects_list_backfills_created_at_from_legacy_project_db(
     project_dir = settings.projects_dir / project_id
     project_dir.mkdir(parents=True, exist_ok=True)
     db_path = project_dir / PROJECT_DB_FILENAME
-    expected_created_at = datetime(2026, 3, 7, 12, 34, 56, tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
 
     with sqlite3.connect(db_path) as conn:
         conn.execute("CREATE TABLE project (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, meta TEXT)")
@@ -431,6 +430,7 @@ def test_projects_list_backfills_created_at_from_legacy_project_db(
         conn.commit()
     legacy_timestamp = datetime(2026, 3, 7, 12, 34, 56, tzinfo=timezone.utc).timestamp()
     os.utime(db_path, (legacy_timestamp, legacy_timestamp))
+    expected_created_at = datetime.fromtimestamp(db_path.stat().st_mtime, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
     response = client.get("/projects", headers=auth_headers)
     assert response.status_code == 200
@@ -453,7 +453,6 @@ def test_projects_list_backfills_null_created_at_when_column_already_exists(
     project_dir = settings.projects_dir / project_id
     project_dir.mkdir(parents=True, exist_ok=True)
     db_path = project_dir / PROJECT_DB_FILENAME
-    expected_created_at = datetime(2026, 3, 8, 9, 10, 11, tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
 
     with sqlite3.connect(db_path) as conn:
         conn.execute(
@@ -472,6 +471,7 @@ def test_projects_list_backfills_null_created_at_when_column_already_exists(
         conn.commit()
     legacy_timestamp = datetime(2026, 3, 8, 9, 10, 11, tzinfo=timezone.utc).timestamp()
     os.utime(db_path, (legacy_timestamp, legacy_timestamp))
+    expected_created_at = datetime.fromtimestamp(db_path.stat().st_mtime, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
     response = client.get("/projects", headers=auth_headers)
     assert response.status_code == 200
