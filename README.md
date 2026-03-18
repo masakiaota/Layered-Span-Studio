@@ -31,9 +31,11 @@ Layered Span Studio は、文字列の任意区間に対して、重なり合う
 cd backend
 export JWT_SECRET='dev-secret'
 uv sync # 初回 / 依存更新時のみ
-uv run scripts/create_user.py demo_login_user demo_login_pass # 初回のみ（未作成時）
+uv run scripts/create_user.py demo_login_user demo_login_pass # サンプル: 任意のユーザー名とパスワードに置き換え可 / 初回のみ（未作成時）
 uv run uvicorn layered_span_studio_backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+
+`JWT_SECRET` はログイン後に発行する JWT の署名・検証に使うサーバー側の秘密鍵である。本番環境では十分長くランダムな固定値を設定する。
 
 2. フロントエンドを起動する
 

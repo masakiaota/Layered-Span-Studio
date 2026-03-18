@@ -85,5 +85,7 @@ uv run uvicorn layered_span_studio_backend.main:app --host 127.0.0.1 --port 8000
 ```bash
 cd backend
 export JWT_SECRET='dev-secret'
-uv run scripts/create_user.py demo_login_user demo_login_pass
+uv run scripts/create_user.py demo_login_user demo_login_pass # サンプル: 任意のユーザー名とパスワードに置き換え可
 ```
+
+`demo_login_user` と `demo_login_pass` はサンプルであり、必要に応じて任意のユーザー名とパスワードに置き換えられる。
