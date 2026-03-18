@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories import annotations as annotations_repo
