@@ -86,6 +86,9 @@ function formatBulkImportError(error: Record<string, unknown>) {
   }
 }
 
+const WORKSPACE_LAYOUT_COLUMNS = "320px minmax(540px,1fr) 380px";
+const WORKSPACE_LAYOUT_MIN_WIDTH = "1272px";
+
 export function ProjectShell({
   user,
   onLogout,
@@ -97,6 +100,7 @@ export function ProjectShell({
   const location = useLocation();
   const { projectId = "" } = useParams();
   const view: "workspace" | "settings" = location.pathname.endsWith("/settings") ? "settings" : "workspace";
+  const isWorkspaceView = view === "workspace";
   const { toast, showToast, closeToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
@@ -1250,164 +1254,173 @@ export function ProjectShell({
         sx={{
           p: 2,
           boxSizing: "border-box",
-          display: "grid",
-          gap: 2,
-          overflow: "hidden",
+          overflowX: isWorkspaceView ? "auto" : "hidden",
+          overflowY: "hidden",
           minHeight: 0,
-          gridTemplateColumns: view === "workspace" ? "320px minmax(540px,1fr) 380px" : "minmax(0,1fr)",
         }}
       >
-        {view === "workspace" ? (
-          <WorkspaceView
-            bundle={bundle}
-            currentDocument={currentDocument}
-            selectedDocumentId={selectedDocId}
-            currentDocumentLoading={currentDocumentLoading}
-            currentHiddenBySearch={currentHiddenBySearch}
-            visibleDocuments={visibleDocuments}
-            pinnedCurrentDocument={pinnedCurrentDocument}
-            pendingDocumentTotal={displayedPendingDocumentTotal}
-            documentTotal={documentTotal}
-            searchQuery={searchQuery}
-            sortMode={sortMode}
-            documentsLoadingMore={documentsLoadingMore}
-            documentNextOffset={documentNextOffset}
-            documentListScrollRef={documentListScrollRef}
-            focusedLabel={focusedLabel}
-            selectedAnnotationId={selectedAnnotationId}
-            selectedAnnotation={selectedAnnotation}
-            selectedAnnotationMetaDraft={selectedAnnotationMetaDraft}
-            selectedAnnotationMetaError={selectedAnnotationMetaError}
-            selectionPreview={selectionPreview}
-            rightTab={rightTab}
-            annotationEditCollapsed={annotationEditCollapsed}
-            accordionOpen={accordionOpen}
-            sameLabelExamples={sameLabelExamples}
-            sameLabelExamplesTotal={sameLabelExamplesTotal}
-            sameLabelExamplesOffset={sameLabelExamplesOffset}
-            sameLabelExamplesLoadingMore={sameLabelExamplesLoadingMore}
-            sameLabelExampleDetails={sameLabelExampleDetails}
-            sameLabelExamplesScrollRef={sameLabelExamplesScrollRef}
-            sameSurfaceExamples={sameSurfaceExamples}
-            sameSurfaceExamplesTotal={sameSurfaceExamplesTotal}
-            sameSurfaceExamplesOffset={sameSurfaceExamplesOffset}
-            sameSurfaceExamplesLoadingMore={sameSurfaceExamplesLoadingMore}
-            sameSurfaceExamplesScrollRef={sameSurfaceExamplesScrollRef}
-            sameSurfaceTargetLabelId={sameSurfaceTargetLabelId}
-            getDisplayDocumentStatus={getDisplayDocumentStatus}
-            dirty={dirty}
-            saving={workspaceBusy}
-            bulkImporting={bulkImporting}
-            onOpenCreateDocument={() => setCreateDocOpen(true)}
-            onSearchQueryChange={setSearchQuery}
-            onSortModeChange={setSortMode}
-            onLoadMoreDocuments={() => void fetchDocumentPage(false)}
-            onSelectDocument={(docId) => {
-              if (workspaceBusy) {
-                return;
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            minHeight: "100%",
+            width: "100%",
+            minWidth: isWorkspaceView ? WORKSPACE_LAYOUT_MIN_WIDTH : 0,
+            gridTemplateColumns: isWorkspaceView ? WORKSPACE_LAYOUT_COLUMNS : "minmax(0,1fr)",
+          }}
+        >
+          {isWorkspaceView ? (
+            <WorkspaceView
+              bundle={bundle}
+              currentDocument={currentDocument}
+              selectedDocumentId={selectedDocId}
+              currentDocumentLoading={currentDocumentLoading}
+              currentHiddenBySearch={currentHiddenBySearch}
+              visibleDocuments={visibleDocuments}
+              pinnedCurrentDocument={pinnedCurrentDocument}
+              pendingDocumentTotal={displayedPendingDocumentTotal}
+              documentTotal={documentTotal}
+              searchQuery={searchQuery}
+              sortMode={sortMode}
+              documentsLoadingMore={documentsLoadingMore}
+              documentNextOffset={documentNextOffset}
+              documentListScrollRef={documentListScrollRef}
+              focusedLabel={focusedLabel}
+              selectedAnnotationId={selectedAnnotationId}
+              selectedAnnotation={selectedAnnotation}
+              selectedAnnotationMetaDraft={selectedAnnotationMetaDraft}
+              selectedAnnotationMetaError={selectedAnnotationMetaError}
+              selectionPreview={selectionPreview}
+              rightTab={rightTab}
+              annotationEditCollapsed={annotationEditCollapsed}
+              accordionOpen={accordionOpen}
+              sameLabelExamples={sameLabelExamples}
+              sameLabelExamplesTotal={sameLabelExamplesTotal}
+              sameLabelExamplesOffset={sameLabelExamplesOffset}
+              sameLabelExamplesLoadingMore={sameLabelExamplesLoadingMore}
+              sameLabelExampleDetails={sameLabelExampleDetails}
+              sameLabelExamplesScrollRef={sameLabelExamplesScrollRef}
+              sameSurfaceExamples={sameSurfaceExamples}
+              sameSurfaceExamplesTotal={sameSurfaceExamplesTotal}
+              sameSurfaceExamplesOffset={sameSurfaceExamplesOffset}
+              sameSurfaceExamplesLoadingMore={sameSurfaceExamplesLoadingMore}
+              sameSurfaceExamplesScrollRef={sameSurfaceExamplesScrollRef}
+              sameSurfaceTargetLabelId={sameSurfaceTargetLabelId}
+              getDisplayDocumentStatus={getDisplayDocumentStatus}
+              dirty={dirty}
+              saving={workspaceBusy}
+              bulkImporting={bulkImporting}
+              onOpenCreateDocument={() => setCreateDocOpen(true)}
+              onSearchQueryChange={setSearchQuery}
+              onSortModeChange={setSortMode}
+              onLoadMoreDocuments={() => void fetchDocumentPage(false)}
+              onSelectDocument={(docId) => {
+                if (workspaceBusy) {
+                  return;
+                }
+                requestAction({ type: "doc", docId });
+              }}
+              onRequestDeleteDocument={(documentId) => {
+                const target =
+                  visibleDocuments.find((document) => document.id === documentId) ??
+                  bundle.documents.find((document) => document.id === documentId);
+                if (!target) {
+                  return;
+                }
+                requestDeleteDocument(target);
+              }}
+              deleteDisabled={workspaceBusy}
+              onFocusLabel={setFocusedLabelId}
+              onSelectAnnotation={setSelectedAnnotationId}
+              onCreateAnnotation={handleCreateAnnotation}
+              onClearSelection={() => {
+                clearWorkspaceSelection();
+              }}
+              onSelectionDraftChange={setSelectionPreview}
+              onBulkImportFileSelected={(file) => void handleBulkImportFile(file)}
+              onSave={() => void handleSave()}
+              onSubmit={() => void handleSubmit()}
+              onRightTabChange={setRightTab}
+              onLoadMoreSameLabelExamples={() => void loadSameLabelExamples(false)}
+              onEnsureSameLabelDetails={(surfaceKey, surfaceText, duplicateCount) =>
+                void ensureSameLabelDetails(surfaceKey, surfaceText, duplicateCount)
               }
-              requestAction({ type: "doc", docId });
-            }}
-            onRequestDeleteDocument={(documentId) => {
-              const target =
-                visibleDocuments.find((document) => document.id === documentId) ??
-                bundle.documents.find((document) => document.id === documentId);
-              if (!target) {
-                return;
+              onLoadMoreSameSurfaceExamples={() => void loadSameSurfaceExamples(false)}
+              onToggleAnnotationEditCollapsed={() => setAnnotationEditCollapsed((current) => !current)}
+              onUpdateSelectedAnnotationStatus={handleSelectedAnnotationStatusChange}
+              onUpdateSelectedAnnotationComment={handleSelectedAnnotationCommentChange}
+              onUpdateSelectedAnnotationMeta={handleSelectedAnnotationMetaChange}
+              onDeleteSelectedAnnotation={deleteSelectedAnnotation}
+              onToggleAnnotationGroup={handleToggleAnnotationGroup}
+            />
+          ) : (
+            <SettingsView
+              bundle={bundle}
+              selectedLabelId={selectedSettingsLabelId}
+              labelDraft={labelDraft}
+              normalizedLabelColor={normalizedLabelColor}
+              labelColorValid={labelColorValid}
+              labelColorPreview={labelColorPreview}
+              labelColorInputRef={labelColorInputRef}
+              settingsImportFile={settingsImportFile}
+              exportPending={exportPending}
+              exportVerified={exportVerified}
+              dirty={dirty}
+              saving={saving}
+              importing={settingsImporting}
+              importFeedback={settingsImportFeedback}
+              onProjectNameChange={(value) =>
+                mutateSettingsBundle((draft) => {
+                  draft.project.name = value;
+                })
               }
-              requestDeleteDocument(target);
-            }}
-            deleteDisabled={workspaceBusy}
-            onFocusLabel={setFocusedLabelId}
-            onSelectAnnotation={setSelectedAnnotationId}
-            onCreateAnnotation={handleCreateAnnotation}
-            onClearSelection={() => {
-              clearWorkspaceSelection();
-            }}
-            onSelectionDraftChange={setSelectionPreview}
-            onBulkImportFileSelected={(file) => void handleBulkImportFile(file)}
-            onSave={() => void handleSave()}
-            onSubmit={() => void handleSubmit()}
-            onRightTabChange={setRightTab}
-            onLoadMoreSameLabelExamples={() => void loadSameLabelExamples(false)}
-            onEnsureSameLabelDetails={(surfaceKey, surfaceText, duplicateCount) =>
-              void ensureSameLabelDetails(surfaceKey, surfaceText, duplicateCount)
-            }
-            onLoadMoreSameSurfaceExamples={() => void loadSameSurfaceExamples(false)}
-            onToggleAnnotationEditCollapsed={() => setAnnotationEditCollapsed((current) => !current)}
-            onUpdateSelectedAnnotationStatus={handleSelectedAnnotationStatusChange}
-            onUpdateSelectedAnnotationComment={handleSelectedAnnotationCommentChange}
-            onUpdateSelectedAnnotationMeta={handleSelectedAnnotationMetaChange}
-            onDeleteSelectedAnnotation={deleteSelectedAnnotation}
-            onToggleAnnotationGroup={handleToggleAnnotationGroup}
-          />
-        ) : (
-          <SettingsView
-            bundle={bundle}
-            selectedLabelId={selectedSettingsLabelId}
-            labelDraft={labelDraft}
-            normalizedLabelColor={normalizedLabelColor}
-            labelColorValid={labelColorValid}
-            labelColorPreview={labelColorPreview}
-            labelColorInputRef={labelColorInputRef}
-            settingsImportFile={settingsImportFile}
-            exportPending={exportPending}
-            exportVerified={exportVerified}
-            dirty={dirty}
-            saving={saving}
-            importing={settingsImporting}
-            importFeedback={settingsImportFeedback}
-            onProjectNameChange={(value) =>
-              mutateSettingsBundle((draft) => {
-                draft.project.name = value;
-              })
-            }
-            onProjectDescriptionChange={(value) =>
-              mutateSettingsBundle((draft) => {
-                draft.project.description = value;
-              })
-            }
-            onProjectGuidelineChange={(value) =>
-              mutateSettingsBundle((draft) => {
-                setProjectGuideline(draft.project, value);
-              })
-            }
-            onLabelDraftChange={setLabelDraft}
-            onNormalizeLabelColor={() =>
-              setLabelDraft((current) => {
-                const nextColor = normalizeHexColor(current.color);
-                return nextColor === current.color ? current : { ...current, color: nextColor };
-              })
-            }
-            onOpenColorPicker={() => labelColorInputRef.current?.click()}
-            onPickLabelColor={(value) => setLabelDraft((current) => ({ ...current, color: value }))}
-            onSubmitLabelDraft={handleLabelDraftSubmit}
-            onResetLabelDraft={() => {
-              setSelectedSettingsLabelId(null);
-              setLabelDraft(createEmptyLabelDraft());
-            }}
-            onSelectLabel={(labelId) => {
-              const selectedLabel = bundle.labels.find((label) => label.id === labelId);
-              if (!selectedLabel) {
-                return;
+              onProjectDescriptionChange={(value) =>
+                mutateSettingsBundle((draft) => {
+                  draft.project.description = value;
+                })
               }
-              setSelectedSettingsLabelId(labelId);
-              setLabelDraft(toLabelDraft(selectedLabel));
-            }}
-            onDeleteLabel={handleDeleteLabel}
-            onImportFileChange={(file) => {
-              setSettingsImportFile(file);
-              setSettingsImportFeedback(null);
-            }}
-            onImport={() => void handleSettingsImport()}
-            onExportPendingChange={setExportPending}
-            onExportVerifiedChange={setExportVerified}
-            onExport={() => void handleExport()}
-            onSave={() => void handleSave()}
-            onRequestDeleteProject={() => setDeleteProjectDialogOpen(true)}
-            deletingProject={deletingProject}
-          />
-        )}
+              onProjectGuidelineChange={(value) =>
+                mutateSettingsBundle((draft) => {
+                  setProjectGuideline(draft.project, value);
+                })
+              }
+              onLabelDraftChange={setLabelDraft}
+              onNormalizeLabelColor={() =>
+                setLabelDraft((current) => {
+                  const nextColor = normalizeHexColor(current.color);
+                  return nextColor === current.color ? current : { ...current, color: nextColor };
+                })
+              }
+              onOpenColorPicker={() => labelColorInputRef.current?.click()}
+              onPickLabelColor={(value) => setLabelDraft((current) => ({ ...current, color: value }))}
+              onSubmitLabelDraft={handleLabelDraftSubmit}
+              onResetLabelDraft={() => {
+                setSelectedSettingsLabelId(null);
+                setLabelDraft(createEmptyLabelDraft());
+              }}
+              onSelectLabel={(labelId) => {
+                const selectedLabel = bundle.labels.find((label) => label.id === labelId);
+                if (!selectedLabel) {
+                  return;
+                }
+                setSelectedSettingsLabelId(labelId);
+                setLabelDraft(toLabelDraft(selectedLabel));
+              }}
+              onDeleteLabel={handleDeleteLabel}
+              onImportFileChange={(file) => {
+                setSettingsImportFile(file);
+                setSettingsImportFeedback(null);
+              }}
+              onImport={() => void handleSettingsImport()}
+              onExportPendingChange={setExportPending}
+              onExportVerifiedChange={setExportVerified}
+              onExport={() => void handleExport()}
+              onSave={() => void handleSave()}
+              onRequestDeleteProject={() => setDeleteProjectDialogOpen(true)}
+              deletingProject={deletingProject}
+            />
+          )}
+        </Box>
       </Box>
 
       <PendingChangesDialog
