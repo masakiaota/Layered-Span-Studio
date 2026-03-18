@@ -13,6 +13,14 @@
   - Browser: same-origin の `/api`
   - CLI / API client: `http://localhost:8000` (開発時)
 
+### API の役割分担
+
+- browser の Workspace / Project Settings は、保存系 API として document 単位・settings 単位の同期を正とする
+- browser の annotation 編集結果はローカル state 上で保持し、`PUT /projects/{project_id}/documents/{document_id}/bundle` に最終状態全件を送って保存する
+- `POST/PATCH/DELETE /projects/{project_id}/documents/{document_id}/annotations...` は、LLM・外部 algorithm・CLI / API client 向けの細粒度 API として維持する
+- annotation 個別 CRUD は browser から技術的には呼びうるが、通常の browser UI の保存導線としては採用しない
+- browser から annotation 系 API を使う主用途は、検索・参照や bulk import など、document bundle save と責務が競合しない操作に限る
+
 ---
 
 ## API一覧
@@ -1023,6 +1031,8 @@ Authorization: Bearer <token>
 - `GET /projects/{project_id}/documents/{document_id}` と同じ full document を返す
 
 **注記:**
+- browser Workspace の通常保存導線はこの endpoint を正とする
+- browser は annotation 個別 CRUD を使って逐次保存せず、document 単位の最終状態同期として扱う
 - `document_name` / `text` / `meta` はこの endpoint では更新しない
 - request に含まれない既存 annotation は削除される
 - `id: null` は新規 annotation として作成される
@@ -1159,6 +1169,8 @@ Authorization: Bearer <token>
 ```
 
 **注記:**
+- 主用途は LLM・外部 algorithm・CLI / API client の細粒度操作である
+- browser Workspace の通常保存・Submit 導線ではこの endpoint を使わない
 - `span_text` の整合性チェック: リクエストの `span_text` が `document.text[start:end]` と一致するかを検証
 - `status` は必須（`pending` または `verified`）
 - 同一ドキュメント内で、同一ラベルの区間重複は不可（400）
@@ -1177,6 +1189,10 @@ Authorization: Bearer <token>
 ```
 Authorization: Bearer <token>
 ```
+
+**注記:**
+- 主用途は事前アノテーション投入や外部 client からの一括作成である
+- browser では import 系操作の補助に限って使い、通常の Save/Submit には使わない
 
 **Request:**
 ```json

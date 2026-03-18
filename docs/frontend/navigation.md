@@ -42,6 +42,8 @@
 ## 4. Document 切り替え時の扱い
 
 - 保存方式は明示保存方式とする。
+- browser の annotation 編集は document 単位で保持し、Save/Submit まではローカル state に留める。
+- browser の通常保存導線では annotation 個別 CRUD を使わず、document bundle save を使う。
 - 未保存変更がある状態で Document 切り替えを実行した場合は、確認ダイアログを表示する。
 - ダイアログは以下 3 アクションを持つ。
   - 保存して移動

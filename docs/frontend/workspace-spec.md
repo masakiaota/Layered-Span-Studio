@@ -126,9 +126,12 @@
 ## 6. 保存と確定
 
 - 保存は明示操作で行う。
+- browser Workspace の保存単位は Document とする。
 - Save / Submit 操作列は中央ペインの右下に置く。
 - Submit ボタンは操作列の右端に置く。
+- annotation の追加・削除・`comment` / `status` / `meta` 編集は、Save/Submit 前は browser のローカル state に保持する。
 - `Save` では未保存編集を backend へ同期し、保存確定後は表示上の status を API 応答に合わせて更新する。  
+- `Save` / `Submit` の同期先は `document bundle save` を正とし、browser は annotation 個別 CRUD を通常の保存導線では使わない。
 - 同一 Document が保存前に `verified` だった場合でも、未保存編集分は表示上 `pending` として扱い続ける。
 - Submit の意味は「Document 確定」であり、以下を実行する。
   - Document の `status` を `verified` に更新
