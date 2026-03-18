@@ -26,7 +26,6 @@ import LabelRoundedIcon from "@mui/icons-material/LabelRounded";
 import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
-import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import { DocumentCanvas } from "../../components/DocumentCanvas";
 import { contextSnippet, getDocumentHoverPreview } from "../workspace/workspaceUtils";
 import { floatingTooltipSlotProps } from "./projectShellConstants";
@@ -89,7 +88,6 @@ export function WorkspaceView({
   getDisplayDocumentStatus,
   dirty,
   saving,
-  bulkImporting,
   onOpenCreateDocument,
   onSearchQueryChange,
   onSortModeChange,
@@ -102,7 +100,6 @@ export function WorkspaceView({
   onCreateAnnotation,
   onClearSelection,
   onSelectionDraftChange,
-  onBulkImportFileSelected,
   onSave,
   onSubmit,
   onRightTabChange,
@@ -154,7 +151,6 @@ export function WorkspaceView({
   getDisplayDocumentStatus: (document: DocumentListItem) => StatusValue;
   dirty: boolean;
   saving: boolean;
-  bulkImporting: boolean;
   onOpenCreateDocument: () => void;
   onSearchQueryChange: (value: string) => void;
   onSortModeChange: (value: string) => void;
@@ -167,7 +163,6 @@ export function WorkspaceView({
   onCreateAnnotation: (start: number, end: number, text: string) => void;
   onClearSelection: () => void;
   onSelectionDraftChange: (selection: SelectionPreview | null) => void;
-  onBulkImportFileSelected: (file: File | null) => void;
   onSave: () => void;
   onSubmit: () => void;
   onRightTabChange: (tab: RightTab) => void;
@@ -554,18 +549,6 @@ export function WorkspaceView({
         )}
 
         <Stack direction="row" spacing={1} sx={{ ml: "auto", alignItems: "center", pb: 1 }}>
-          <Button component="label" variant="outlined" startIcon={<UploadFileRoundedIcon />} disabled={!currentDocument || dirty || saving || bulkImporting}>
-            {bulkImporting ? "Importing..." : "Bulk JSON"}
-            <input
-              hidden
-              type="file"
-              accept=".json,application/json"
-              onChange={(event) => {
-                onBulkImportFileSelected(event.currentTarget.files?.[0] ?? null);
-                event.currentTarget.value = "";
-              }}
-            />
-          </Button>
           <Button
             variant="outlined"
             startIcon={<SaveRoundedIcon />}

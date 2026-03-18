@@ -1,5 +1,4 @@
 import type {
-  AnnotationBulkCreateResponse,
   AnnotationRecord,
   AnnotationSearchResponse,
   DocumentRecord,
@@ -291,25 +290,6 @@ export class ApiClient {
       }),
     });
     return parseResponse<DocumentRecord>(response);
-  }
-
-  async bulkCreateDocumentAnnotations(
-    projectId: string,
-    documentId: string,
-    annotations: Array<Pick<AnnotationRecord, "label_id" | "start" | "end" | "span_text" | "comment" | "status" | "meta">>,
-  ) {
-    const response = await this.request(`/projects/${projectId}/documents/${documentId}/annotations/bulk`, {
-      method: "POST",
-      contentType: "application/json",
-      includeCsrf: true,
-      body: JSON.stringify({
-        annotations: annotations.map((annotation) => ({
-          ...annotation,
-          meta: annotation.meta === null ? null : toJsonObject(annotation.meta),
-        })),
-      }),
-    });
-    return parseResponse<AnnotationBulkCreateResponse>(response);
   }
 
   async createDocument(projectId: string, document: Pick<DocumentRecord, "document_name" | "text" | "meta">) {

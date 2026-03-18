@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
-from pydantic import ValidationError
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from layered_span_studio_backend.core.dependencies import get_current_user, get_settings
 from layered_span_studio_backend.models.annotations import (
-    AnnotationBulkCreate,
     AnnotationCreate,
     AnnotationOut,
     AnnotationUpdate,
@@ -45,31 +43,6 @@ def create_annotation(
         if "not found" in message.lower():
             status_code = status.HTTP_404_NOT_FOUND
         raise HTTPException(status_code=status_code, detail=message)
-
-
-@router.post("/bulk", response_model=dict, status_code=status.HTTP_201_CREATED)
-def bulk_create_annotations(
-    project_id: str,
-    document_id: str,
-    payload: dict = Body(...),
-    settings=Depends(get_settings),
-):
-    try:
-        data = AnnotationBulkCreate.model_validate(payload)
-    except ValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid bulk annotations") from exc
-
-    items = [item.model_dump() for item in data.annotations]
-    try:
-        created = annotations_service.bulk_create_annotations(settings, project_id, document_id, items)
-    except ValueError as exc:
-        message = str(exc)
-        status_code = status.HTTP_400_BAD_REQUEST
-        if "not found" in message.lower():
-            status_code = status.HTTP_404_NOT_FOUND
-        raise HTTPException(status_code=status_code, detail=message)
-
-    return {"created": created, "errors": []}
 
 
 @router.get("/{annotation_id}", response_model=AnnotationOut)

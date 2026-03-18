@@ -156,11 +156,6 @@ export interface AnnotationSearchResponse {
   exclude_annotation_id?: string | null;
 }
 
-export interface AnnotationBulkCreateResponse {
-  created: AnnotationRecord[];
-  errors: Array<Record<string, JsonValue>>;
-}
-
 export interface ProjectBundle {
   project: ProjectRecord;
   labels: LabelRecord[];
