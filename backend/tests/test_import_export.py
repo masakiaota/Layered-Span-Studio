@@ -89,6 +89,7 @@ def test_import_creates_new_project_from_export(
     assert created_project["name"] == "Project A Imported"
     assert created_project["description"] == payload["project"]["description"]
     assert created_project["meta"] == payload["project"]["meta"]
+    assert isinstance(created_project["created_at"], str)
 
     projects_response = client.get("/projects", headers=auth_headers)
     assert projects_response.status_code == 200

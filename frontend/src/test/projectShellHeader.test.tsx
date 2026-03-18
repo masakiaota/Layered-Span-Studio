@@ -15,6 +15,7 @@ const bundle: ProjectBundle = {
     name: longProjectName,
     description: longProjectDescription,
     meta: {},
+    created_at: "2026-03-01T00:00:00Z",
   },
   labels: [],
   documents: [],

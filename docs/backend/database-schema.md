@@ -150,7 +150,8 @@ CREATE TABLE project (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
-    meta TEXT                     -- JSON: 任意の拡張情報
+    meta TEXT,                    -- JSON: 任意の拡張情報
+    created_at TEXT NOT NULL      -- ISO 8601 UTC
 );
 ```
 
@@ -160,6 +161,10 @@ CREATE TABLE project (
 | name | TEXT | NOT NULL | プロジェクト名 |
 | description | TEXT | NULL | プロジェクトの説明 |
 | meta | TEXT | NULL | 任意の拡張情報（JSON文字列） |
+| created_at | TEXT | NOT NULL | プロジェクト作成日時（ISO 8601 UTC） |
+
+メモ:
+- 既存 project DB に `created_at` が無い場合は、初回アクセス時に `database.db` のファイル時刻を使って補完する
 
 ---
 

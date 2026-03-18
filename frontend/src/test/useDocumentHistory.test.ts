@@ -26,6 +26,7 @@ function createBundle(document: DocumentRecord): ProjectBundle {
       name: "Test",
       description: "",
       meta: {},
+      created_at: "2026-01-01T00:00:00Z",
     },
     labels: [],
     documents: [document],
@@ -59,7 +60,7 @@ describe("useDocumentHistory", () => {
 
   it("starts with no history when currentDocument is null", () => {
     const bundle: ProjectBundle = {
-      project: { id: "project-1", name: "Test", description: "", meta: {} },
+      project: { id: "project-1", name: "Test", description: "", meta: {}, created_at: "2026-01-01T00:00:00Z" },
       labels: [],
       documents: [],
     };

@@ -28,6 +28,7 @@ project_table = Table(
     Column("name", String, nullable=False),
     Column("description", Text),
     Column("meta", Text),
+    Column("created_at", Text, nullable=False),
 )
 
 labels_table = Table(

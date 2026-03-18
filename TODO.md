@@ -9,13 +9,15 @@
 
 - Annotation 個別 CRUD を browser 用に使うか、LLM / 外部 client 用として維持するか方針を整理する
 - project import などの画面で、前提 JSON 構造を案内する画面を作る
-- Project Settings header の document 名が長いと、画面全体の横幅が押し広がる不具合を修正する
-  - 対象: `/projects/:id/settings` の header 内 document 名表示
-  - 現状: 長文タイトルが伸びると header ではなくページ全体が横に広がる
-  - 期待: header 内で省略・折り返し・overflow 制御し、viewport 幅に影響させない
 - 狭い画面幅での 3 ペインレイアウトをどう扱うか検討する
   - 横スクロール維持、簡易レスポンシブ、専用レイアウト切替のどれを正とするか決める
   - まずは最小対応として、どの画面幅まで desktop 前提で許容するかを決める
+
+- ユーザー作成周りの整理
+  - 現状は `scripts/create_user.py` を直接呼ぶ想定だが、管理画面や API 経由でユーザーを作成するフローも必要か検討する
+  - ユーザー管理の要件を整理し、必要な機能を洗い出す
+  - README も更新。現在はdev前提だけなのが良くない
+
 
 ## Mid
 
