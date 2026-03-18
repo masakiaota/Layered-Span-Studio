@@ -189,6 +189,7 @@ export function DocumentCanvas({
   const [selectionBoxes, setSelectionBoxes] = useState<
     Array<{ left: number; top: number; width: number; height: number; color: string }>
   >([]);
+  const [layoutRevision, setLayoutRevision] = useState(0);
   const labelsById = useMemo(() => new Map(labels.map((label) => [label.id, label])), [labels]);
   const underlineLayout = useMemo(
     () => buildUnderlineLaneByAnnotation(document.annotations, labels, focusedLabelId),
@@ -205,6 +206,42 @@ export function DocumentCanvas({
     setLaneTooltip(null);
     setMarkerTooltip(null);
   }, [document.id, focusedLabelId, selectedAnnotationId]);
+
+  useLayoutEffect(() => {
+    const root = textRef.current;
+    const canvas = canvasRef.current;
+    if (!root && !canvas) {
+      return;
+    }
+
+    let frameId: number | null = null;
+    const scheduleLayoutRefresh = () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        setLayoutRevision((current) => current + 1);
+      });
+    };
+
+    const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(scheduleLayoutRefresh) : null;
+    if (canvas) {
+      resizeObserver?.observe(canvas);
+    }
+    if (root && root !== canvas) {
+      resizeObserver?.observe(root);
+    }
+    window.addEventListener("resize", scheduleLayoutRefresh);
+
+    return () => {
+      window.removeEventListener("resize", scheduleLayoutRefresh);
+      resizeObserver?.disconnect();
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!selection) {
@@ -322,7 +359,7 @@ export function DocumentCanvas({
     setMarkerBoxes(nextMarkerBoxes);
     setOverlayLines(nextOverlayLines);
     setSelectionBoxes(nextSelectionBoxes);
-  }, [document, focusedLabelId, selectedAnnotationId, underlineLayout, labelsById, segments]);
+  }, [document, focusedLabelId, layoutRevision, labelsById, selectedAnnotationId, segments, underlineLayout]);
 
   const moveLaneTooltip = (annotationId: string, clientX: number, clientY: number) => {
     const annotation = document.annotations.find((item) => item.id === annotationId);
