@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api } from "../api";
 import { useAuthSession } from "../hooks/useAuthSession";
+import { createQueryWrapper } from "./queryTestUtils";
 import type { UserRecord } from "../types";
 
 type Deferred<T> = {
@@ -38,7 +39,7 @@ describe("useAuthSession", () => {
   it("restores an existing session on mount", async () => {
     vi.spyOn(api, "getSession").mockResolvedValue(demoUser);
 
-    const { result } = renderHook(() => useAuthSession());
+    const { result } = renderHook(() => useAuthSession(), { wrapper: createQueryWrapper() });
 
     expect(result.current.loading).toBe(true);
 
@@ -52,7 +53,7 @@ describe("useAuthSession", () => {
   it("treats 401 during bootstrap as logged out without surfacing an error", async () => {
     vi.spyOn(api, "getSession").mockRejectedValue(new ApiError("Not authenticated", 401));
 
-    const { result } = renderHook(() => useAuthSession());
+    const { result } = renderHook(() => useAuthSession(), { wrapper: createQueryWrapper() });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -65,7 +66,7 @@ describe("useAuthSession", () => {
     vi.spyOn(api, "getSession").mockRejectedValue({ status: 401 });
     vi.spyOn(api, "createSession").mockResolvedValue(demoUser);
 
-    const { result } = renderHook(() => useAuthSession());
+    const { result } = renderHook(() => useAuthSession(), { wrapper: createQueryWrapper() });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -87,7 +88,7 @@ describe("useAuthSession", () => {
     vi.spyOn(api, "getSession").mockImplementation(() => staleBootstrap.promise);
     vi.spyOn(api, "createSession").mockResolvedValue(demoUser);
 
-    const { result } = renderHook(() => useAuthSession());
+    const { result } = renderHook(() => useAuthSession(), { wrapper: createQueryWrapper() });
 
     expect(result.current.loading).toBe(true);
 
@@ -112,7 +113,7 @@ describe("useAuthSession", () => {
     vi.spyOn(api, "getSession").mockResolvedValue(demoUser);
     vi.spyOn(api, "deleteSession").mockRejectedValue(new Error("logout failed"));
 
-    const { result } = renderHook(() => useAuthSession());
+    const { result } = renderHook(() => useAuthSession(), { wrapper: createQueryWrapper() });
 
     await waitFor(() => {
       expect(result.current.user).toEqual(demoUser);

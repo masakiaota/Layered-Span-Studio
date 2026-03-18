@@ -132,6 +132,7 @@ type RequestOptions = {
   body?: BodyInit | null;
   contentType?: string;
   includeCsrf?: boolean;
+  signal?: AbortSignal;
 };
 
 export class ApiClient {
@@ -147,35 +148,38 @@ export class ApiClient {
       body: options.body,
       headers: headers(options.contentType, options.includeCsrf),
       credentials: "include",
+      signal: options.signal,
     });
   }
 
-  async createSession(username: string, password: string) {
+  async createSession(username: string, password: string, signal?: AbortSignal) {
     const response = await this.request("/auth/session", {
       method: "POST",
       contentType: "application/json",
       body: JSON.stringify({ username, password }),
+      signal,
     });
     return parseResponse<UserRecord>(response);
   }
 
-  async getSession() {
-    const response = await this.request("/auth/session");
+  async getSession(signal?: AbortSignal) {
+    const response = await this.request("/auth/session", { signal });
     return parseResponse<UserRecord>(response);
   }
 
-  async deleteSession() {
+  async deleteSession(signal?: AbortSignal) {
     const response = await this.request("/auth/session", {
       method: "DELETE",
       includeCsrf: true,
+      signal,
     });
     if (!response.ok) {
       throw await toApiError(response);
     }
   }
 
-  async listProjects() {
-    const response = await this.request("/projects");
+  async listProjects(signal?: AbortSignal) {
+    const response = await this.request("/projects", { signal });
     return parseResponse<{ projects: ProjectListItemRecord[] }>(response);
   }
 
@@ -320,6 +324,7 @@ export class ApiClient {
     projectId: string,
     labelId: string,
     options?: { offset?: number; limit?: number; status?: string; contextWindow?: number; excludeAnnotationId?: string | null },
+    signal?: AbortSignal,
   ) {
     const query = new URLSearchParams({
       offset: String(options?.offset ?? 0),
@@ -330,7 +335,9 @@ export class ApiClient {
     if (options?.excludeAnnotationId) {
       query.set("exclude_annotation_id", options.excludeAnnotationId);
     }
-    const response = await this.request(`/projects/${projectId}/labels/${labelId}/surface-groups?${query.toString()}`);
+    const response = await this.request(`/projects/${projectId}/labels/${labelId}/surface-groups?${query.toString()}`, {
+      signal,
+    });
     return parseResponse<LabelSurfaceGroupsResponse>(response);
   }
 
@@ -345,6 +352,7 @@ export class ApiClient {
       limit?: number;
       contextWindow?: number;
     },
+    signal?: AbortSignal,
   ) {
     const query = new URLSearchParams({
       text: options.text,
@@ -359,7 +367,9 @@ export class ApiClient {
     if (options.excludeAnnotationId) {
       query.set("exclude_annotation_id", options.excludeAnnotationId);
     }
-    const response = await this.request(`/projects/${projectId}/annotations/search?${query.toString()}`);
+    const response = await this.request(`/projects/${projectId}/annotations/search?${query.toString()}`, {
+      signal,
+    });
     return parseResponse<AnnotationSearchResponse>(response);
   }
 

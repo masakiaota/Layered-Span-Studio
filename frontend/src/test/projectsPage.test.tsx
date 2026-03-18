@@ -1,9 +1,11 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { render, screen } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
 import { ProjectsPage } from "../pages/ProjectsPage";
+import { createQueryClient } from "../query/queryClient";
 import type { ProjectImportResponse, ProjectListItemRecord, UserRecord } from "../types";
 
 const user: UserRecord = {
@@ -29,14 +31,17 @@ const baseProjects: ProjectListItemRecord[] = [
 ];
 
 function renderProjectsPage() {
+  const queryClient = createQueryClient();
   return render(
-    <MemoryRouter initialEntries={["/projects"]}>
-      <Routes>
-        <Route path="/projects" element={<ProjectsPage user={user} onLogout={vi.fn()} />} />
-        <Route path="/projects/:projectId" element={<div>Project Workspace Route</div>} />
-        <Route path="/projects/:projectId/settings" element={<div>Project Settings Route</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/projects"]}>
+        <Routes>
+          <Route path="/projects" element={<ProjectsPage user={user} onLogout={vi.fn()} />} />
+          <Route path="/projects/:projectId" element={<div>Project Workspace Route</div>} />
+          <Route path="/projects/:projectId/settings" element={<div>Project Settings Route</div>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 

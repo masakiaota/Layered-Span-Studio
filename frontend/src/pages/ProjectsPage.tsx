@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   AppBar,
@@ -44,7 +45,9 @@ import {
   describeImportSummary,
   validateImportPayload,
 } from "../importValidation";
-import type { ProjectListItemRecord, UserRecord } from "../types";
+import { throwIfAborted } from "../query/queryAbort";
+import { queryKeys } from "../query/queryKeys";
+import type { JsonObject, ProjectListItemRecord, UserRecord } from "../types";
 import { normalizeSearchText, readJsonFile } from "../utils";
 
 type ProjectSortKey = "created" | "name" | "documents" | "pendingDocuments";
@@ -158,38 +161,84 @@ export function ProjectsPage({
   onLogout: () => void;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { toast, showToast, closeToast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [projects, setProjects] = useState<ProjectListItemRecord[]>([]);
-  const [importing, setImporting] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<ProjectSortKey>("created");
   const [sortDirection, setSortDirection] = useState<ProjectSortDirection>("desc");
-  const mutationBusy = importing || creating;
   const [importFeedback, setImportFeedback] = useState<{
     severity: "success" | "info" | "warning" | "error";
     message: string;
   } | null>(null);
 
-  async function refreshProjects() {
-    setLoading(true);
-    try {
-      const response = await api.listProjects();
-      setProjects(response.projects);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Project 一覧の取得に失敗した", "error");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const projectsQuery = useQuery({
+    queryKey: queryKeys.projects(),
+    queryFn: async ({ signal }) => {
+      throwIfAborted(signal);
+      const response = await api.listProjects(signal);
+      throwIfAborted(signal);
+      return response.projects;
+    },
+  });
 
   useEffect(() => {
-    void refreshProjects();
-  }, []);
+    if (projectsQuery.error instanceof Error) {
+      showToast(projectsQuery.error.message, "error");
+    }
+  }, [projectsQuery.error, projectsQuery.errorUpdatedAt, showToast]);
+
+  const createProjectMutation = useMutation({
+    mutationFn: (project: { name: string; description: string }) =>
+      api.createProject({
+        name: project.name,
+        description: project.description,
+        meta: {},
+      }),
+    onSuccess: (created) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects() });
+      showToast("Project を作成した", "success");
+      setCreateDialogOpen(false);
+      setNewProjectName("");
+      setNewProjectDescription("");
+      navigate(`/projects/${created.id}/settings`);
+    },
+    onError: (error) => {
+      showToast(error instanceof Error ? error.message : "Project の作成に失敗した", "error");
+    },
+  });
+
+  const importProjectMutation = useMutation({
+    mutationFn: (payload: JsonObject) => api.importProjectAsNew(payload),
+    onSuccess: (response, payload) => {
+      const validation = validateImportPayload(payload);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects() });
+      setImportFeedback({
+        severity: "success",
+        message: `Import 完了: ${describeImportSummary(
+          validation.summary ?? { labelCount: 0, documentCount: 0, annotationCount: 0 },
+        )}`,
+      });
+      showToast("Project を import した", "success");
+      navigate(`/projects/${response.project.id}`);
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Import に失敗した";
+      setImportFeedback({
+        severity: "error",
+        message,
+      });
+      showToast(message, "error");
+    },
+  });
+
+  const projects = projectsQuery.data ?? [];
+  const loading = projectsQuery.isPending;
+  const importing = importProjectMutation.isPending;
+  const creating = createProjectMutation.isPending;
+  const mutationBusy = importing || creating;
 
   async function handleProjectImport(file: File | null, input?: HTMLInputElement | null) {
     if (!file) {
@@ -205,7 +254,6 @@ export function ProjectsPage({
       return;
     }
     setImportFeedback(null);
-    setImporting(true);
     try {
       const payload = await readJsonFile(file);
       const validation = validateImportPayload(payload);
@@ -215,23 +263,8 @@ export function ProjectsPage({
         showToast("Import 前チェックで問題を検出した", "error");
         return;
       }
-      const response = await api.importProjectAsNew(payload);
-      setImportFeedback({
-        severity: "success",
-        message: `Import 完了: ${describeImportSummary(
-          validation.summary ?? { labelCount: 0, documentCount: 0, annotationCount: 0 },
-        )}`,
-      });
-      showToast("Project を import した", "success");
-      navigate(`/projects/${response.project.id}`);
-    } catch (error) {
-      setImportFeedback({
-        severity: "error",
-        message: error instanceof Error ? error.message : "Import に失敗した",
-      });
-      showToast(error instanceof Error ? error.message : "Import に失敗した", "error");
+      await importProjectMutation.mutateAsync(payload);
     } finally {
-      setImporting(false);
       if (input) {
         input.value = "";
       }
@@ -242,23 +275,12 @@ export function ProjectsPage({
     if (!newProjectName.trim() || importing) {
       return;
     }
-    setCreating(true);
     try {
-      const created = await api.createProject({
+      await createProjectMutation.mutateAsync({
         name: newProjectName.trim(),
         description: newProjectDescription,
-        meta: {},
       });
-      showToast("Project を作成した", "success");
-      setCreateDialogOpen(false);
-      setNewProjectName("");
-      setNewProjectDescription("");
-      navigate(`/projects/${created.id}/settings`);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Project の作成に失敗した", "error");
-    } finally {
-      setCreating(false);
-    }
+    } catch {}
   }
 
   function renderImportButton(label: string, variant: "contained" | "outlined", sx?: ButtonProps["sx"]) {

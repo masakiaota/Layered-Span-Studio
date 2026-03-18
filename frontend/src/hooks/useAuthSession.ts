@@ -1,107 +1,121 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "../api";
+import { throwIfAborted } from "../query/queryAbort";
+import { queryKeys } from "../query/queryKeys";
 import type { UserRecord } from "../types";
 
-function getErrorStatus(error: unknown): number | null {
-  if (error instanceof ApiError) {
-    return error.status;
-  }
-  if (error && typeof error === "object" && "status" in error && typeof error.status === "number") {
-    return error.status;
-  }
-  if (error && typeof error === "object" && "cause" in error) {
-    const cause = error.cause;
-    if (cause && typeof cause === "object" && "status" in cause && typeof cause.status === "number") {
-      return cause.status;
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+async function fetchSession(signal: AbortSignal) {
+  throwIfAborted(signal);
+  try {
+    const response = await api.getSession(signal);
+    throwIfAborted(signal);
+    return response;
+  } catch (error) {
+    if (signal.aborted) {
+      throwIfAborted(signal);
     }
+    if (error instanceof ApiError && error.status === 401) {
+      return null;
+    }
+    throw error;
   }
-  return null;
 }
 
 export function useAuthSession() {
-  const [user, setUser] = useState<UserRecord | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const authRequestIdRef = useRef(0);
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState("");
+  const [sessionUser, setSessionUser] = useState<UserRecord | null>(null);
+  const [sessionVersion, setSessionVersion] = useState(0);
+  const sessionKey = useMemo(() => queryKeys.session(sessionVersion), [sessionVersion]);
+
+  const sessionQuery = useQuery<UserRecord | null>({
+    queryKey: sessionKey,
+    queryFn: ({ signal }) => fetchSession(signal),
+  });
+
+  const loginMutation = useMutation({
+    mutationFn: async ({
+      username,
+      password,
+    }: {
+      username: string;
+      password: string;
+      targetSessionKey: ReturnType<typeof queryKeys.session>;
+    }) => {
+      return api.createSession(username, password);
+    },
+    onMutate: () => {
+      setActionError("");
+    },
+    onSuccess: (nextUser, variables) => {
+      queryClient.setQueryData(variables.targetSessionKey, nextUser);
+    },
+    onError: (error, variables) => {
+      setSessionUser(null);
+      queryClient.setQueryData(variables.targetSessionKey, null);
+      setActionError(getErrorMessage(error, "ログインに失敗した"));
+    },
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: async ({ targetSessionKey }: { targetSessionKey: ReturnType<typeof queryKeys.session> }) => {
+      await api.deleteSession();
+      return targetSessionKey;
+    },
+    onMutate: () => {
+      setActionError("");
+      setSessionUser(null);
+    },
+    onError: (error) => {
+      setActionError(getErrorMessage(error, "ログアウトに失敗した"));
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.setQueryData(variables.targetSessionKey, null);
+    },
+  });
 
   useEffect(() => {
-    const requestId = ++authRequestIdRef.current;
-    setLoading(true);
-    setError("");
-    void api
-      .getSession()
-      .then((response) => {
-        if (authRequestIdRef.current !== requestId) {
-          return;
-        }
-        setUser(response);
-      })
-      .catch((sessionError) => {
-        if (authRequestIdRef.current !== requestId) {
-          return;
-        }
-        setUser(null);
-        if (getErrorStatus(sessionError) !== 401 && sessionError instanceof Error) {
-          setError(sessionError.message);
-          return;
-        }
-        setError("");
-      })
-      .finally(() => {
-        if (authRequestIdRef.current === requestId) {
-          setLoading(false);
-        }
-      });
-  }, []);
+    if (loginMutation.isPending || logoutMutation.isPending || sessionQuery.isPending) {
+      return;
+    }
+    setSessionUser(sessionQuery.data ?? null);
+  }, [loginMutation.isPending, logoutMutation.isPending, sessionQuery.data, sessionQuery.isPending]);
 
   async function login(username: string, password: string) {
-    const requestId = ++authRequestIdRef.current;
-    setError("");
-    setLoading(true);
+    const nextSessionVersion = sessionVersion + 1;
+    const targetSessionKey = queryKeys.session(nextSessionVersion);
+    setSessionVersion(nextSessionVersion);
+    await queryClient.cancelQueries({ queryKey: queryKeys.sessionPrefix() });
     try {
-      const sessionUser = await api.createSession(username, password);
-      if (authRequestIdRef.current !== requestId) {
-        return false;
-      }
-      setUser(sessionUser);
+      const nextUser = await loginMutation.mutateAsync({ username, password, targetSessionKey });
+      setSessionUser(nextUser);
       return true;
-    } catch (loginError) {
-      if (authRequestIdRef.current !== requestId) {
-        return false;
-      }
-      setUser(null);
-      setError(loginError instanceof Error ? loginError.message : "ログインに失敗した");
+    } catch {
       return false;
-    } finally {
-      if (authRequestIdRef.current === requestId) {
-        setLoading(false);
-      }
     }
   }
 
   async function logout() {
-    const requestId = ++authRequestIdRef.current;
-    setError("");
-    setLoading(true);
+    const nextSessionVersion = sessionVersion + 1;
+    const targetSessionKey = queryKeys.session(nextSessionVersion);
+    setSessionVersion(nextSessionVersion);
+    await queryClient.cancelQueries({ queryKey: queryKeys.sessionPrefix() });
     try {
-      await api.deleteSession();
-    } catch (logoutError) {
-      if (authRequestIdRef.current !== requestId) {
-        return;
-      }
-      setError(logoutError instanceof Error ? logoutError.message : "ログアウトに失敗した");
-    } finally {
-      if (authRequestIdRef.current === requestId) {
-        setUser(null);
-        setLoading(false);
-      }
+      await logoutMutation.mutateAsync({ targetSessionKey });
+    } catch {
+      // error state is managed by the mutation
     }
   }
 
   return {
-    user,
-    loading,
-    error,
+    user: sessionUser,
+    loading: sessionQuery.isPending || loginMutation.isPending || logoutMutation.isPending,
+    error: actionError || (sessionUser ? "" : sessionQuery.error instanceof Error ? sessionQuery.error.message : ""),
     login,
     logout,
   };
