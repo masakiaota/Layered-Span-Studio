@@ -287,6 +287,8 @@ export function DocumentCanvas({
       return;
     }
     const baseRect = canvas?.getBoundingClientRect() ?? root.getBoundingClientRect();
+    const canvasScrollLeft = canvas?.scrollLeft ?? 0;
+    const canvasScrollTop = canvas?.scrollTop ?? 0;
     const rectsByAnnotationId: Record<
       string,
       Array<{ left: number; right: number; top: number; bottom: number; width: number; height: number }>
@@ -315,8 +317,8 @@ export function DocumentCanvas({
         return mergedRects.map((rect) => ({
           annotationId: annotation.id,
           color: label?.color ?? "#8b94a0",
-          left: rect.left - baseRect.left,
-          top: rect.top - baseRect.top - 1,
+          left: rect.left - baseRect.left + canvasScrollLeft,
+          top: rect.top - baseRect.top + canvasScrollTop - 1,
           width: rect.right - rect.left,
           height: Math.max(18, rect.bottom - rect.top + 2),
         }));
@@ -332,11 +334,12 @@ export function DocumentCanvas({
         return mergedRects.map((rect) => ({
           annotationId: annotation.id,
           color: label?.color ?? "#8b94a0",
-          left: rect.left - baseRect.left,
+          left: rect.left - baseRect.left + canvasScrollLeft,
           width: rect.right - rect.left,
           top:
             rect.bottom -
             baseRect.top +
+            canvasScrollTop +
             (UNDERLINE_LANE_BASE + (laneIndex ?? 0) * UNDERLINE_LANE_PITCH - UNDERLINE_HIT_HEIGHT / 2),
         }));
       })
@@ -347,8 +350,8 @@ export function DocumentCanvas({
           const selectedAnnotation = document.annotations.find((item) => item.id === selectedAnnotationId);
           const selectedLabel = selectedAnnotation ? labelsById.get(selectedAnnotation.label_id) : null;
           return {
-            left: rect.left - baseRect.left,
-            top: rect.top - baseRect.top,
+            left: rect.left - baseRect.left + canvasScrollLeft,
+            top: rect.top - baseRect.top + canvasScrollTop,
             width: rect.right - rect.left,
             height: rect.bottom - rect.top,
             color: mixColorWithBlack(selectedLabel?.color ?? "#1a73e8", 0.5),
@@ -379,7 +382,10 @@ export function DocumentCanvas({
   const moveMarkerTooltip = (annotationId: string) => {
     const annotation = document.annotations.find((item) => item.id === annotationId);
     const label = annotation ? labelsById.get(annotation.label_id) : null;
-    const rootRect = canvasRef.current?.getBoundingClientRect() ?? textRef.current?.getBoundingClientRect();
+    const canvas = canvasRef.current;
+    const rootRect = canvas?.getBoundingClientRect() ?? textRef.current?.getBoundingClientRect();
+    const canvasScrollLeft = canvas?.scrollLeft ?? 0;
+    const canvasScrollTop = canvas?.scrollTop ?? 0;
     const annotationBoxes = markerBoxes.filter((box) => box.annotationId === annotationId);
     if (!annotation || !label || !rootRect || annotationBoxes.length === 0) {
       setMarkerTooltip(null);
@@ -392,8 +398,8 @@ export function DocumentCanvas({
     setMarkerTooltip({
       text: label.name,
       color: label.color,
-      left: rootRect.left + (leftEdge + rightEdge) / 2,
-      top: Math.max(8, rootRect.top + topLineTop - 46),
+      left: rootRect.left + (leftEdge + rightEdge) / 2 - canvasScrollLeft,
+      top: Math.max(8, rootRect.top + topLineTop - canvasScrollTop - 46),
     });
   };
 
