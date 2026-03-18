@@ -60,25 +60,6 @@ def create_annotation(
     )
 
 
-def bulk_create_annotations(
-    settings: Settings,
-    project_id: str,
-    document_id: str,
-    items: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    _ensure_project(settings, project_id)
-    _ensure_document(settings, project_id, document_id)
-    text = documents_repo.get_document_text(settings, project_id, document_id)
-    if text is None:
-        raise ValueError("Document not found")
-
-    for item in items:
-        _ensure_label(settings, project_id, item["label_id"])
-        _validate_span_text(text, item["start"], item["end"], item["span_text"])
-
-    return annotations_repo.bulk_create_annotations(settings, project_id, document_id, items)
-
-
 def update_annotation(
     settings: Settings,
     project_id: str,

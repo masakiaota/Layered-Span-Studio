@@ -17,10 +17,6 @@ class AnnotationCreate(APIModel):
     meta: Meta = None
 
 
-class AnnotationBulkCreate(APIModel):
-    annotations: list[AnnotationCreate]
-
-
 class AnnotationUpdate(APIModel):
     comment: Optional[str] = None
     status: Optional[AnnotationStatus] = None
