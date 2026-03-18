@@ -224,7 +224,7 @@ describe("ProjectsPage", () => {
         createProject({
           id: "project-1",
           name: "No Timestamp",
-          created_at: undefined as unknown as string,
+          created_at: "",
         }),
         createProject({
           id: "project-2",
