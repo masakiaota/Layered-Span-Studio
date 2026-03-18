@@ -400,7 +400,6 @@ DELETE /projects/{project_id}/documents/{document_id}            # ドキュメ�
 
 GET    /projects/{project_id}/annotations/search                 # アノテーション横断検索
 POST   /projects/{project_id}/documents/{document_id}/annotations        # アノテーション作成
-POST   /projects/{project_id}/documents/{document_id}/annotations/bulk   # アノテーション一括作成
 GET    /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}   # アノテーション取得
 PATCH  /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}   # アノテーション部分更新
 DELETE /projects/{project_id}/documents/{document_id}/annotations/{annotation_id}   # アノテーション削除

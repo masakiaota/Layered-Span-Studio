@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories import annotations as annotations_repo
@@ -58,25 +58,6 @@ def create_annotation(
     return annotations_repo.create_annotation(
         settings, project_id, document_id, label_id, start, end, span_text, comment, status, meta
     )
-
-
-def bulk_create_annotations(
-    settings: Settings,
-    project_id: str,
-    document_id: str,
-    items: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    _ensure_project(settings, project_id)
-    _ensure_document(settings, project_id, document_id)
-    text = documents_repo.get_document_text(settings, project_id, document_id)
-    if text is None:
-        raise ValueError("Document not found")
-
-    for item in items:
-        _ensure_label(settings, project_id, item["label_id"])
-        _validate_span_text(text, item["start"], item["end"], item["span_text"])
-
-    return annotations_repo.bulk_create_annotations(settings, project_id, document_id, items)
 
 
 def update_annotation(
