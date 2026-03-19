@@ -15,13 +15,11 @@ export type AnnotationSearchItemRecord = components["schemas"]["AnnotationSearch
 export type AnnotationSearchResponse =
   Omit<components["schemas"]["AnnotationSearchResponse"], "status"> & { status: string };
 export type DocumentRecord = components["schemas"]["DocumentDetailOut"];
-export type DocumentListResponse =
-  Omit<components["schemas"]["DocumentListResponse"], "sort"> & { sort: string };
+export type DocumentListResponse = components["schemas"]["DocumentListResponse"];
 export type LabelExampleRecord = components["schemas"]["LabelExampleOut"];
 export type LabelSurfaceGroupRepresentativeRecord = components["schemas"]["LabelSurfaceGroupRepresentativeOut"];
 export type LabelSurfaceGroupRecord = components["schemas"]["LabelSurfaceGroupOut"];
-export type LabelSurfaceGroupsResponse =
-  Omit<components["schemas"]["LabelSurfaceGroupsResponse"], "status"> & { status: string };
+export type LabelSurfaceGroupsResponse = components["schemas"]["LabelSurfaceGroupsResponse"];
 export type ProjectImportResponse =
   Omit<components["schemas"]["ProjectImportResponse"], "project"> & { project: ProjectRecord };
 export type ImportResponse = components["schemas"]["ImportResponse"];

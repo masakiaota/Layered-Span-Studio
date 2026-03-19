@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
 import { useProjectBundle } from "../features/project-shell/useProjectBundle";
-import type { DocumentRecord, LabelRecord, ProjectRecord } from "../api-contract";
+import type { DocumentRecord, DocumentSortValue, LabelRecord, ProjectRecord } from "../api-contract";
 import type { DocumentListItem } from "../types";
 
 const project: ProjectRecord = {
@@ -168,7 +168,7 @@ describe("useProjectBundle", () => {
       offset: number;
       limit: number;
       search: string;
-      sort: string;
+      sort: DocumentSortValue;
     }>();
     vi.spyOn(api, "getProject")
       .mockRejectedValueOnce(new Error("stale load failed"))
@@ -386,7 +386,7 @@ describe("useProjectBundle", () => {
       offset: number;
       limit: number;
       search: string;
-      sort: string;
+      sort: DocumentSortValue;
     }>();
     const secondListDeferred = createDeferred<{
       documents: DocumentListItem[];
@@ -395,7 +395,7 @@ describe("useProjectBundle", () => {
       offset: number;
       limit: number;
       search: string;
-      sort: string;
+      sort: DocumentSortValue;
     }>();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
     vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
@@ -467,7 +467,7 @@ describe("useProjectBundle", () => {
       offset: number;
       limit: number;
       search: string;
-      sort: string;
+      sort: DocumentSortValue;
     }>();
     const initialProject = project;
     const refreshedProject = {
@@ -556,7 +556,7 @@ describe("useProjectBundle", () => {
       offset: number;
       limit: number;
       search: string;
-      sort: string;
+      sort: DocumentSortValue;
     }>();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
     vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
@@ -655,7 +655,7 @@ describe("useProjectBundle", () => {
       offset: number;
       limit: number;
       search: string;
-      sort: string;
+      sort: DocumentSortValue;
     }>();
     const secondPageDeferred = createDeferred<{
       documents: DocumentListItem[];
@@ -664,7 +664,7 @@ describe("useProjectBundle", () => {
       offset: number;
       limit: number;
       search: string;
-      sort: string;
+      sort: DocumentSortValue;
     }>();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
     vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
@@ -821,7 +821,7 @@ describe("useProjectBundle", () => {
       offset: number;
       limit: number;
       search: string;
-      sort: string;
+      sort: DocumentSortValue;
     }>();
     const resetDeferred = createDeferred<{
       documents: DocumentListItem[];
@@ -830,7 +830,7 @@ describe("useProjectBundle", () => {
       offset: number;
       limit: number;
       search: string;
-      sort: string;
+      sort: DocumentSortValue;
     }>();
     vi.spyOn(api, "getProject").mockResolvedValue(project);
     vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
