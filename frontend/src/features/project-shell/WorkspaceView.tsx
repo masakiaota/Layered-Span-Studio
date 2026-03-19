@@ -32,6 +32,7 @@ import { floatingTooltipSlotProps } from "./projectShellConstants";
 import type { RightTab, SelectionPreview } from "./projectShellTypes";
 import type {
   AnnotationSearchItemRecord,
+  DocumentSortValue,
   DocumentRecord,
   LabelRecord,
   LabelSurfaceGroupRecord,
@@ -125,7 +126,7 @@ export function WorkspaceView({
   pendingDocumentTotal: number;
   documentTotal: number;
   searchQuery: string;
-  sortMode: string;
+  sortMode: DocumentSortValue;
   documentsLoadingMore: boolean;
   documentNextOffset: number;
   documentListScrollRef: React.Ref<HTMLDivElement>;
@@ -155,7 +156,7 @@ export function WorkspaceView({
   saving: boolean;
   onOpenCreateDocument: () => void;
   onSearchQueryChange: (value: string) => void;
-  onSortModeChange: (value: string) => void;
+  onSortModeChange: (value: DocumentSortValue) => void;
   onLoadMoreDocuments: () => void;
   onSelectDocument: (documentId: string) => void;
   onRequestDeleteDocument: (documentId: string) => void;
@@ -250,7 +251,13 @@ export function WorkspaceView({
               ),
             }}
           />
-          <TextField select size="small" label="並び順" value={sortMode} onChange={(event) => onSortModeChange(event.target.value)}>
+          <TextField
+            select
+            size="small"
+            label="並び順"
+            value={sortMode}
+            onChange={(event) => onSortModeChange(event.target.value as DocumentSortValue)}
+          >
             <MenuItem value="created">作成順</MenuItem>
             <MenuItem value="pending">未完了優先</MenuItem>
             <MenuItem value="updated">最終更新順</MenuItem>

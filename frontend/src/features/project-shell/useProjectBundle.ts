@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import type {
+  DocumentSortValue,
   DocumentRecord,
 } from "../../api-contract";
 import type { DocumentListItem, ProjectBundle } from "../../types";
@@ -27,7 +28,7 @@ export function useProjectBundle({
 }: {
   projectId: string;
   searchQuery: string;
-  sortMode: string;
+  sortMode: DocumentSortValue;
   selectedDocId: string | null;
   showToast: ShowToast;
 }) {

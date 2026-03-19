@@ -87,10 +87,11 @@ async function toApiError(response: Response): Promise<ApiError> {
 }
 
 function toRequestPath(url: URL, baseUrl: string) {
-  if (!url.pathname.startsWith(baseUrl)) {
+  const basePath = new URL(baseUrl, window.location.origin).pathname.replace(/\/$/, "");
+  if (!url.pathname.startsWith(basePath)) {
     return url.pathname;
   }
-  const path = url.pathname.slice(baseUrl.length);
+  const path = url.pathname.slice(basePath.length);
   return path.startsWith("/") ? path : `/${path}`;
 }
 

@@ -1,4 +1,5 @@
 import type {
+  ExampleStatusValue,
   LabelListResponse,
   LabelSurfaceGroupsResponse,
   SaveProjectLabelInput,
@@ -39,7 +40,7 @@ export function saveProjectLabels(
 type LabelSurfaceGroupOptions = {
   offset?: number;
   limit?: number;
-  status?: string;
+  status?: ExampleStatusValue;
   contextWindow?: number;
   excludeAnnotationId?: string | null;
 };
@@ -51,14 +52,14 @@ export function listLabelSurfaceGroups(
 ) {
   return unwrapData<LabelSurfaceGroupsResponse>(client.GET("/projects/{project_id}/labels/{label_id}/surface-groups", {
     params: {
-      path: { project_id: projectId, label_id: labelId },
-      query: {
-        offset: options?.offset ?? 0,
-        limit: options?.limit ?? 50,
-        status: (options?.status ?? "verified") as "pending" | "verified" | "all",
-        context_window: options?.contextWindow ?? 20,
-        exclude_annotation_id: options?.excludeAnnotationId ?? undefined,
-      },
+        path: { project_id: projectId, label_id: labelId },
+        query: {
+          offset: options?.offset ?? 0,
+          limit: options?.limit ?? 50,
+          status: options?.status ?? "verified",
+          context_window: options?.contextWindow ?? 20,
+          exclude_annotation_id: options?.excludeAnnotationId ?? undefined,
+        },
     },
   }));
 }

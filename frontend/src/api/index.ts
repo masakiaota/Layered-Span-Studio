@@ -1,6 +1,6 @@
 import { searchAnnotations } from "./annotations";
 import { createSession, deleteSession, getSession } from "./auth";
-import { apiBaseUrl, ApiError } from "./client";
+import { apiBaseUrl } from "./client";
 import {
   createDocument,
   deleteDocument,

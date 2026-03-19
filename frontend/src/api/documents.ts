@@ -1,5 +1,6 @@
 import type {
   CreateDocumentInput,
+  DocumentSortValue,
   DocumentListResponse,
   DocumentRecord,
   SaveDocumentAnnotationInput,
@@ -11,20 +12,20 @@ type DocumentListOptions = {
   offset?: number;
   limit?: number;
   search?: string;
-  sort?: string;
+  sort?: DocumentSortValue;
 };
 
 export function listDocuments(projectId: string, options?: DocumentListOptions) {
   return unwrapData<DocumentListResponse>(client.GET("/projects/{project_id}/documents", {
     params: {
       path: { project_id: projectId },
-      query: {
-        offset: options?.offset ?? 0,
-        limit: options?.limit ?? 100,
-        search: options?.search ?? "",
-        sort: (options?.sort ?? "created") as "created" | "pending" | "updated" | "name",
+        query: {
+          offset: options?.offset ?? 0,
+          limit: options?.limit ?? 100,
+          search: options?.search ?? "",
+          sort: options?.sort ?? "created",
+        },
       },
-    },
   }));
 }
 

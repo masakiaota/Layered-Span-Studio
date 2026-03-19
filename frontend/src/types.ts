@@ -1,7 +1,9 @@
 import type { DocumentRecord, LabelRecord, ProjectRecord } from "./api-contract";
 
 export type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
-export type JsonObject = { [key: string]: unknown };
+export interface JsonObject {
+  [key: string]: JsonValue;
+}
 
 export type DocumentListItem = Omit<DocumentRecord, "annotations">;
 

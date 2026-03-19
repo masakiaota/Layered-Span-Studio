@@ -11,11 +11,11 @@ export function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-export function toJsonObject(value: JsonObject | null | undefined): JsonObject {
+export function toJsonObject(value: Record<string, unknown> | null | undefined): JsonObject {
   return (value ?? {}) as JsonObject;
 }
 
-export function formatAnnotationMetaDraft(value: JsonObject | null | undefined): string {
+export function formatAnnotationMetaDraft(value: Record<string, unknown> | null | undefined): string {
   return value === null ? "null" : JSON.stringify(value ?? {}, null, 2);
 }
 
