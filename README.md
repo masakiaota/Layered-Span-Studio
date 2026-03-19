@@ -59,21 +59,14 @@ npm run dev
 - 選択中の表層テキストに対して、別docにある既存アノテーションを確認可能
 - shortcut で操作が可能 (? ボタンで確認)
 
-## リリース運用
+## 自分のデータで始める
 
-開発初期の公開前段階では、開発版タグとして `v0.1.0-dev1` を採用する。  
-正式版は `v0.1.0` 系で管理する。
-
-運用ルール:
-- タグは `vX.Y.Z` 形式のセマンティックバージョニング。
-- 開発版は `vX.Y.Z-devN` を許容する（必要時のみ）。
-- `-devN` タグは暫定、`vX.Y.Z` が正式版の基点になる。
-- 仕様互換の破壊的変更は `MAJOR` を上げる。
-- 同名タグは push 後に付け替えない。
+自前の文書や annotation データを import 用 JSON に変換したい場合は、[docs/import-your-data.md](./docs/import-your-data.md) を参照。
+新しい project を作る import と、既存 project への追記 import の違いもこの手順書で整理している。
 
 ## リポジトリ構成
 
-詳細は [docs/release.md](/Users/masaki/Documents/GitHub/Layered%20Span%20Studio/docs/release.md) を参照。
+詳細は [docs/release.md](./docs/release.md) を参照。
 
 - `backend/`: サーバ側のAPIとデータ保存、認証、Import/Exportの土台。
 - `frontend/`: アノテーションUI本体（React + Vite）。
