@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import type {
-  DocumentListItem,
+  DocumentSortValue,
   DocumentRecord,
-  ProjectBundle,
-} from "../../types";
+} from "../../api-contract";
+import type { DocumentListItem, ProjectBundle } from "../../types";
 import { deepClone } from "../../utils";
 import { DOCUMENT_PAGE_SIZE } from "./projectShellConstants";
 import {
@@ -28,7 +28,7 @@ export function useProjectBundle({
 }: {
   projectId: string;
   searchQuery: string;
-  sortMode: string;
+  sortMode: DocumentSortValue;
   selectedDocId: string | null;
   showToast: ShowToast;
 }) {

@@ -6,9 +6,10 @@ import type { SelectionPreview } from "../features/project-shell/projectShellTyp
 import type {
   AnnotationRecord,
   AnnotationSearchItemRecord,
+  ExampleStatusValue,
   LabelRecord,
   LabelSurfaceGroupRecord,
-} from "../types";
+} from "../api-contract";
 
 const focusedLabel: LabelRecord = {
   id: "label-1",
@@ -107,7 +108,7 @@ describe("useProjectExamples", () => {
       total: number;
       offset: number;
       limit: number;
-      status: string;
+      status: ExampleStatusValue;
       context_window: number;
       exclude_annotation_id?: string | null;
     }>();
@@ -116,7 +117,7 @@ describe("useProjectExamples", () => {
       total: number;
       offset: number;
       limit: number;
-      status: string;
+      status: ExampleStatusValue;
       context_window: number;
       exclude_annotation_id?: string | null;
     }>();
@@ -191,7 +192,7 @@ describe("useProjectExamples", () => {
       offset: number;
       limit: number;
       text: string;
-      status: string;
+      status: ExampleStatusValue;
       context_window: number;
       label_id?: string | null;
       exclude_annotation_id?: string | null;
@@ -202,7 +203,7 @@ describe("useProjectExamples", () => {
       offset: number;
       limit: number;
       text: string;
-      status: string;
+      status: ExampleStatusValue;
       context_window: number;
       label_id?: string | null;
       exclude_annotation_id?: string | null;

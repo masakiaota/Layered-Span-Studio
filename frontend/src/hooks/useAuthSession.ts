@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../api";
-import type { UserRecord } from "../types";
+import type { UserRecord } from "../api-contract";
 
 function getErrorStatus(error: unknown): number | null {
   if (error instanceof ApiError) {

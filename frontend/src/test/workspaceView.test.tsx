@@ -4,13 +4,15 @@ import { describe, expect, it, vi } from "vitest";
 import { WorkspaceView } from "../features/project-shell/WorkspaceView";
 import type { SelectionPreview } from "../features/project-shell/projectShellTypes";
 import type {
+  DocumentListItem,
+} from "../types";
+import type {
   AnnotationSearchItemRecord,
   DocumentRecord,
-  DocumentListItem,
   LabelRecord,
   LabelSurfaceGroupRecord,
   ProjectRecord,
-} from "../types";
+} from "../api-contract";
 
 type WorkspaceViewProps = ComponentProps<typeof WorkspaceView>;
 

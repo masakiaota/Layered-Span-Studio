@@ -41,10 +41,13 @@ import { LoginPage } from "./pages/LoginPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import type {
   AnnotationRecord,
-  DocumentListItem,
+  DocumentSortValue,
   DocumentRecord,
-  ProjectBundle,
   UserRecord,
+} from "./api-contract";
+import type {
+  DocumentListItem,
+  ProjectBundle,
 } from "./types";
 import {
   deepClone,
@@ -92,7 +95,7 @@ export function ProjectShell({
   const [annotationEditCollapsed, setAnnotationEditCollapsed] = useState(true);
   const [accordionOpen, setAccordionOpen] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortMode, setSortMode] = useState("created");
+  const [sortMode, setSortMode] = useState<DocumentSortValue>("created");
   const [shortcutOpen, setShortcutOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [createDocOpen, setCreateDocOpen] = useState(false);

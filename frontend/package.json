@@ -13,13 +13,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "agentation:mcp": "agentation-mcp server"
+    "agentation:mcp": "agentation-mcp server",
+    "generate:api:schema": "cd ../backend && uv run python scripts/export_openapi.py ../frontend/openapi/layered-span-studio.openapi.json",
+    "generate:api:types": "openapi-typescript ./openapi/layered-span-studio.openapi.json -o ./src/generated/openapi.ts",
+    "generate:api": "npm run generate:api:schema && npm run generate:api:types"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.3.1",
     "@mui/material": "^7.3.1",
+    "openapi-fetch": "^0.17.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.1"
@@ -34,6 +38,7 @@
     "agentation": "^2.3.3",
     "agentation-mcp": "^1.2.0",
     "jsdom": "^28.1.0",
+    "openapi-typescript": "^7.13.0",
     "typescript": "^5.9.2",
     "vite": "^8.0.0",
     "vitest": "^4.1.0"

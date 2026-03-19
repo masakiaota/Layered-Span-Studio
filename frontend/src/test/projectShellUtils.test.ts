@@ -10,7 +10,8 @@ import {
   toLabelDraft,
   trimDocumentWindow,
 } from "../features/project-shell/projectShellUtils";
-import type { DocumentListItem, LabelRecord } from "../types";
+import type { LabelRecord } from "../api-contract";
+import type { DocumentListItem } from "../types";
 
 function makeDocument(id: string): DocumentListItem {
   return {

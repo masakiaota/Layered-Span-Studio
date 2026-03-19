@@ -44,7 +44,7 @@ import {
   describeImportSummary,
   validateImportPayload,
 } from "../importValidation";
-import type { ProjectListItemRecord, UserRecord } from "../types";
+import type { ProjectListItemRecord, UserRecord } from "../api-contract";
 import { normalizeSearchText, readJsonFile } from "../utils";
 
 type ProjectSortKey = "created" | "name" | "documents" | "pendingDocuments";
@@ -120,7 +120,7 @@ function compareProjects(
   return left.id.localeCompare(right.id);
 }
 
-function formatRelativeDate(value: string | null) {
+function formatRelativeDate(value: string | null | undefined) {
   if (!value) {
     return "更新情報なし";
   }

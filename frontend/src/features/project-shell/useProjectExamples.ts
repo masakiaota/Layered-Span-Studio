@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api";
-import type { ToastState } from "../../hooks/useToast";
 import type {
   AnnotationRecord,
   AnnotationSearchItemRecord,
   LabelRecord,
   LabelSurfaceGroupRecord,
-} from "../../types";
+} from "../../api-contract";
+import type { ToastState } from "../../hooks/useToast";
 import { EXAMPLES_BATCH_SIZE } from "./projectShellConstants";
 import type { SelectionPreview } from "./projectShellTypes";
 
