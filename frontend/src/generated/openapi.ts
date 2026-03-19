@@ -462,8 +462,7 @@ export interface components {
             limit: number;
             /** Offset */
             offset: number;
-            /** Status */
-            status: components["schemas"]["AnnotationStatus"] | string;
+            status: components["schemas"]["LabelExamplesStatusFilter"];
             /** Text */
             text: string;
             /** Total */

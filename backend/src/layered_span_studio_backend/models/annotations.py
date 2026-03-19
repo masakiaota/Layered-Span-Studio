@@ -5,6 +5,7 @@ from typing import Optional
 from pydantic import Field
 
 from layered_span_studio_backend.models.common import APIModel, Meta, AnnotationStatus
+from layered_span_studio_backend.models.labels import LabelExamplesStatusFilter
 
 
 class AnnotationCreate(APIModel):
@@ -58,7 +59,7 @@ class AnnotationSearchResponse(APIModel):
     offset: int
     limit: int
     text: str
-    status: AnnotationStatus | str
+    status: LabelExamplesStatusFilter
     context_window: int
     label_id: Optional[str] = None
     exclude_annotation_id: Optional[str] = None

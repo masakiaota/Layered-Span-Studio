@@ -12,8 +12,7 @@ export type LabelRecord = components["schemas"]["LabelOut"];
 export type LabelListResponse = components["schemas"]["LabelListResponse"];
 export type AnnotationRecord = components["schemas"]["AnnotationOut"];
 export type AnnotationSearchItemRecord = components["schemas"]["AnnotationSearchItemOut"];
-export type AnnotationSearchResponse =
-  Omit<components["schemas"]["AnnotationSearchResponse"], "status"> & { status: string };
+export type AnnotationSearchResponse = components["schemas"]["AnnotationSearchResponse"];
 export type DocumentRecord = components["schemas"]["DocumentDetailOut"];
 export type DocumentListResponse = components["schemas"]["DocumentListResponse"];
 export type LabelExampleRecord = components["schemas"]["LabelExampleOut"];

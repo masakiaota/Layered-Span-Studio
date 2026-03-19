@@ -234,15 +234,7 @@
             "type": "integer"
           },
           "status": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AnnotationStatus"
-              },
-              {
-                "type": "string"
-              }
-            ],
-            "title": "Status"
+            "$ref": "#/components/schemas/LabelExamplesStatusFilter"
           },
           "text": {
             "title": "Text",
