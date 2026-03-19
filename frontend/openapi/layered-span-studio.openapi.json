@@ -705,14 +705,16 @@
         "properties": {
           "documents": {
             "items": {
-              "$ref": "#/components/schemas/DocumentDetailOut"
+              "additionalProperties": true,
+              "type": "object"
             },
             "title": "Documents",
             "type": "array"
           },
           "labels": {
             "items": {
-              "$ref": "#/components/schemas/LabelOut"
+              "additionalProperties": true,
+              "type": "object"
             },
             "title": "Labels",
             "type": "array"
@@ -723,7 +725,9 @@
             "type": "object"
           },
           "project": {
-            "$ref": "#/components/schemas/ProjectOut"
+            "additionalProperties": true,
+            "title": "Project",
+            "type": "object"
           }
         },
         "required": [
@@ -1432,7 +1436,9 @@
             "type": "object"
           },
           "project": {
-            "$ref": "#/components/schemas/ProjectOut"
+            "additionalProperties": true,
+            "title": "Project",
+            "type": "object"
           }
         },
         "required": [

@@ -22,7 +22,8 @@ export type LabelSurfaceGroupRepresentativeRecord = components["schemas"]["Label
 export type LabelSurfaceGroupRecord = components["schemas"]["LabelSurfaceGroupOut"];
 export type LabelSurfaceGroupsResponse =
   Omit<components["schemas"]["LabelSurfaceGroupsResponse"], "status"> & { status: string };
-export type ProjectImportResponse = components["schemas"]["ProjectImportResponse"];
+export type ProjectImportResponse =
+  Omit<components["schemas"]["ProjectImportResponse"], "project"> & { project: ProjectRecord };
 export type ImportResponse = components["schemas"]["ImportResponse"];
 export type ExportResponse = components["schemas"]["ExportResponse"];
 export type ImportPayload = components["schemas"]["ImportRequest"];

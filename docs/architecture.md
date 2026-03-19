@@ -354,6 +354,7 @@ uv run uvicorn layered_span_studio_backend.main:app --host 127.0.0.1 --port 8000
 
 開発時の browser から見た入口は frontend dev server の `http://127.0.0.1:3000` に統一する。
 frontend は `/api` を backend `:8000` へ proxy し、same-origin のまま cookie session を扱う。
+frontend の API 境界は `src/api/` 配下に分割し、`client.ts` が transport 共通処理、各 module が resource ごとの facade、`src/api.ts` が互換 export の入口を担う。
 
 ### 本番デプロイ（必要な場合）
 

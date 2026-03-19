@@ -625,14 +625,21 @@ export interface components {
         /** ExportResponse */
         ExportResponse: {
             /** Documents */
-            documents: components["schemas"]["DocumentDetailOut"][];
+            documents: {
+                [key: string]: unknown;
+            }[];
             /** Labels */
-            labels: components["schemas"]["LabelOut"][];
+            labels: {
+                [key: string]: unknown;
+            }[];
             /** Meta */
             meta: {
                 [key: string]: unknown;
             };
-            project: components["schemas"]["ProjectOut"];
+            /** Project */
+            project: {
+                [key: string]: unknown;
+            };
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -880,7 +887,10 @@ export interface components {
             imported: {
                 [key: string]: number;
             };
-            project: components["schemas"]["ProjectOut"];
+            /** Project */
+            project: {
+                [key: string]: unknown;
+            };
         };
         /** ProjectListItemOut */
         ProjectListItemOut: {
