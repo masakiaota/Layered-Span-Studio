@@ -190,6 +190,14 @@ describe("ProjectShell settings label selection", () => {
     expect(screen.getByRole("button", { name: "Add label" })).toBeInTheDocument();
   }, 15000);
 
+  it("shows the import guide link in project settings", async () => {
+    renderProjectSettings();
+
+    await screen.findByRole("heading", { name: "Project Settings" });
+
+    expect(screen.getByRole("link", { name: "手順書" }).getAttribute("href")).toBeTruthy();
+  });
+
   it("keeps the edited or added label selected in the form", async () => {
     const userEventSetup = userEvent.setup();
     renderProjectSettings();

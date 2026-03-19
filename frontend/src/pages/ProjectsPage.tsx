@@ -38,6 +38,7 @@ import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { CreateProjectDialog } from "../features/projects/CreateProjectDialog";
+import { ImportProjectDialog } from "../features/projects/ImportProjectDialog";
 import { useToast } from "../hooks/useToast";
 import {
   buildImportValidationMessage,
@@ -164,6 +165,8 @@ export function ProjectsPage({
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -191,17 +194,11 @@ export function ProjectsPage({
     void refreshProjects();
   }, []);
 
-  async function handleProjectImport(file: File | null, input?: HTMLInputElement | null) {
+  async function handleProjectImport(file: File | null) {
     if (!file) {
-      if (input) {
-        input.value = "";
-      }
       return;
     }
     if (creating) {
-      if (input) {
-        input.value = "";
-      }
       return;
     }
     setImportFeedback(null);
@@ -222,6 +219,8 @@ export function ProjectsPage({
           validation.summary ?? { labelCount: 0, documentCount: 0, annotationCount: 0 },
         )}`,
       });
+      setImportDialogOpen(false);
+      setImportFile(null);
       showToast("Project を import した", "success");
       navigate(`/projects/${response.project.id}`);
     } catch (error) {
@@ -232,9 +231,6 @@ export function ProjectsPage({
       showToast(error instanceof Error ? error.message : "Import に失敗した", "error");
     } finally {
       setImporting(false);
-      if (input) {
-        input.value = "";
-      }
     }
   }
 
@@ -261,18 +257,31 @@ export function ProjectsPage({
     }
   }
 
+  function openImportDialog() {
+    setImportFeedback(null);
+    setImportFile(null);
+    setImportDialogOpen(true);
+  }
+
+  function closeImportDialog() {
+    if (importing) {
+      return;
+    }
+    setImportDialogOpen(false);
+    setImportFile(null);
+    setImportFeedback(null);
+  }
+
   function renderImportButton(label: string, variant: "contained" | "outlined", sx?: ButtonProps["sx"]) {
     return (
-      <Button component="label" variant={variant} startIcon={<UploadFileRoundedIcon />} disabled={mutationBusy} sx={sx}>
+      <Button
+        variant={variant}
+        startIcon={<UploadFileRoundedIcon />}
+        disabled={mutationBusy}
+        sx={sx}
+        onClick={openImportDialog}
+      >
         {label}
-        <input
-          hidden
-          accept=".json,application/json"
-          type="file"
-          onChange={(event) => {
-            void handleProjectImport(event.target.files?.[0] ?? null, event.currentTarget);
-          }}
-        />
       </Button>
     );
   }
@@ -326,7 +335,6 @@ export function ProjectsPage({
 
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <Stack spacing={3}>
-          {importFeedback ? <Alert severity={importFeedback.severity}>{importFeedback.message}</Alert> : null}
           <Box sx={{ pt: { xs: 0.5, md: 1.5 } }}>
             <Box
               sx={{
@@ -598,6 +606,22 @@ export function ProjectsPage({
           setCreateDialogOpen(false);
         }}
         onCreate={() => void handleCreateProject()}
+      />
+      <ImportProjectDialog
+        open={importDialogOpen}
+        importing={importing}
+        selectedFile={importFile}
+        feedback={importDialogOpen ? importFeedback : null}
+        onClose={closeImportDialog}
+        onFileChange={(file) => {
+          setImportFeedback(null);
+          setImportFile(file);
+        }}
+        onFileRejected={(message) => {
+          setImportFile(null);
+          setImportFeedback({ severity: "error", message });
+        }}
+        onImport={() => void handleProjectImport(importFile)}
       />
     </Box>
   );

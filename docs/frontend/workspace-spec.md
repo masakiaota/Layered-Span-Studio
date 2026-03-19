@@ -1,6 +1,6 @@
 # Workspace UI/UX 仕様（初版）
 
-最終更新: 2026-03-17
+最終更新: 2026-03-20
 
 ## 1. 目的
 
@@ -159,6 +159,9 @@
 - `New Project` は Project List 上部から dialog で起動し、`Project name` と `Description` を入力して空の project を作成する。
 - `New Project` 完了後は、作成された project の Project Settings へ遷移する。
 - Project List では `.json` ファイルから新規 project import を行う。
+- Project List の `Import Project` は dialog で起動する。
+- Import dialog は modal dialog とし、drag and drop での `.json` 投下と file 選択ボタンの両方を提供する。`.json` 以外は受け付けない。
+- Import dialog 内に、`自前データを import 用 JSON にする手順` への外部リンクを置く。
 - Project List の Import は backend の `POST /projects/import` の request body と同一形式（`project` / `labels` / `documents` / `meta`）を使う。
 - Project List の Import 完了後は、作成された project の Workspace へ遷移する。
 - Project List の Import で `project.name` が既存と重複した場合は、backend と同じく `"(imported)"`, `"(imported 2)"` ... を付けて自動改名する。

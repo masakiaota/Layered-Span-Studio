@@ -1,6 +1,6 @@
 # Frontend 画面遷移仕様（初版）
 
-最終更新: 2026-03-17
+最終更新: 2026-03-20
 
 ## 1. 遷移方針
 
@@ -72,6 +72,9 @@
 - `New Project` は dialog で `Project name` と `Description` を入力して確定する。
 - `New Project` 完了後は、作成された project の `Project Settings` を開く。
 - Project List の Import は backend の `POST /projects/import` と同じ意味を持ち、export JSON から新規 project を作る。
+- Project List の `Import Project` は file picker 直結ではなく dialog を開く。
+- Import dialog では `.json` ファイルの drag and drop と file 選択の両方を受け付ける。`.json` 以外は受け付けない。
+- Import dialog には「自前データを import 用 JSON にする手順」への外部リンクを表示する。
 - Project List の Import で `project.name` が既存と重複した場合は、backend 仕様に合わせて `"(imported)"`, `"(imported 2)"` ... を付けて自動改名する。
 - Project Settings では、現在 project に対する追記 Import と Export を提供する。
 - 入出力はファイル（`.json`）で扱う。

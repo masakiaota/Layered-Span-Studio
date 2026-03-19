@@ -1,5 +1,5 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
@@ -42,6 +42,10 @@ function renderProjectsPage() {
 
 function createImportFile(payload: unknown) {
   return new File([JSON.stringify(payload)], "import.json", { type: "application/json" });
+}
+
+function createNonJsonFile() {
+  return new File(["plain text"], "import.txt", { type: "text/plain" });
 }
 
 function createProject(overrides: Partial<ProjectListItemRecord>): ProjectListItemRecord {
@@ -115,6 +119,33 @@ describe("ProjectsPage", () => {
     expect(screen.getAllByRole("button", { name: "Import Project" }).length).toBeGreaterThan(0);
   });
 
+  it("opens an import dialog with guide link and dropzone", async () => {
+    const userEventSetup = userEvent.setup();
+    vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
+
+    renderProjectsPage();
+
+    await screen.findByText("Medical NER");
+    await userEventSetup.click(screen.getByRole("button", { name: "Import Project" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Import Project" });
+    expect(within(dialog).getByTestId("import-file-dropzone")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "この手順書" }).getAttribute("href")).toBeTruthy();
+  });
+
+  it("keeps the dropzone separate from the Select JSON button", async () => {
+    const userEventSetup = userEvent.setup();
+    vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
+
+    renderProjectsPage();
+
+    await screen.findByText("Medical NER");
+    await userEventSetup.click(screen.getByRole("button", { name: "Import Project" }));
+    const dialog = await screen.findByRole("dialog", { name: "Import Project" });
+    expect(within(dialog).getByTestId("import-file-dropzone")).not.toHaveAttribute("role", "button");
+    expect(within(dialog).getByRole("button", { name: "Select JSON" })).toBeInTheDocument();
+  });
+
   it("disables the new project entry point while import is in flight", async () => {
     const userEventSetup = userEvent.setup();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
@@ -129,7 +160,9 @@ describe("ProjectsPage", () => {
     renderProjectsPage();
 
     await screen.findByText("Medical NER");
-    const fileInput = document.querySelector('input[type="file"]');
+    await userEventSetup.click(screen.getByRole("button", { name: "Import Project" }));
+    const dialog = await screen.findByRole("dialog", { name: "Import Project" });
+    const fileInput = dialog.querySelector('input[type="file"]');
     if (!(fileInput instanceof HTMLInputElement)) {
       throw new Error("Import file input not found");
     }
@@ -143,14 +176,105 @@ describe("ProjectsPage", () => {
         meta: { format: "layered-span-studio/export", version: "1.0" },
       }),
     );
+    await userEventSetup.click(within(dialog).getByRole("button", { name: "Import" }));
 
-    expect(screen.getByRole("button", { name: "New Project" })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "New Project", hidden: true })[0]).toBeDisabled();
     resolveImport({
       project: { id: "project-2", name: "Imported Project", description: "desc", meta: {}, created_at: "2026-03-10T00:00:00Z" },
       imported: {},
       errors: [],
     });
     await screen.findByText("Project Workspace Route");
+  });
+
+  it("accepts a dropped JSON file in the import dialog", async () => {
+    const userEventSetup = userEvent.setup();
+    vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
+    const importProjectSpy = vi.spyOn(api, "importProjectAsNew").mockResolvedValue({
+      project: { id: "project-2", name: "Imported Project", description: "desc", meta: {}, created_at: "2026-03-10T00:00:00Z" },
+      imported: {},
+      errors: [],
+    });
+
+    renderProjectsPage();
+
+    await screen.findByText("Medical NER");
+    await userEventSetup.click(screen.getByRole("button", { name: "Import Project" }));
+    const dialog = await screen.findByRole("dialog", { name: "Import Project" });
+    const dropzone = within(dialog).getByTestId("import-file-dropzone");
+    const file = createImportFile({
+      project: { name: "Imported Project", description: "desc", meta: {} },
+      labels: [],
+      documents: [],
+      meta: { format: "layered-span-studio/export", version: "1.0" },
+    });
+
+    fireEvent.drop(dropzone, {
+      dataTransfer: {
+        files: [file],
+      },
+    });
+
+    expect(within(dialog).getByText("選択中: import.json")).toBeInTheDocument();
+    await userEventSetup.click(within(dialog).getByRole("button", { name: "Import" }));
+
+    await screen.findByText("Project Workspace Route");
+    expect(importProjectSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects non-json files dropped into the import dialog", async () => {
+    const userEventSetup = userEvent.setup();
+    vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
+
+    renderProjectsPage();
+
+    await screen.findByText("Medical NER");
+    await userEventSetup.click(screen.getByRole("button", { name: "Import Project" }));
+    const dialog = await screen.findByRole("dialog", { name: "Import Project" });
+    const dropzone = within(dialog).getByTestId("import-file-dropzone");
+
+    fireEvent.drop(dropzone, {
+      dataTransfer: {
+        files: [createNonJsonFile()],
+      },
+    });
+
+    expect(
+      within(dialog).getAllByRole("alert").some((node) =>
+        node.textContent?.includes("Import できるのは .json ファイルのみである") ?? false,
+      ),
+    ).toBe(true);
+    expect(within(dialog).getByText("ファイルはまだ選択されていない")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Import" })).toBeDisabled();
+  });
+
+  it("rejects non-json files selected from the picker", async () => {
+    const userEventSetup = userEvent.setup();
+    vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
+
+    renderProjectsPage();
+
+    await screen.findByText("Medical NER");
+    await userEventSetup.click(screen.getByRole("button", { name: "Import Project" }));
+    const dialog = await screen.findByRole("dialog", { name: "Import Project" });
+    const fileInput = dialog.querySelector('input[type="file"]');
+    if (!(fileInput instanceof HTMLInputElement)) {
+      throw new Error("Import file input not found");
+    }
+
+    fireEvent.change(fileInput, {
+      target: {
+        files: [createNonJsonFile()],
+      },
+    });
+
+    expect(
+      within(dialog).getAllByRole("alert").some((node) =>
+        node.textContent?.includes("Import できるのは .json ファイルのみである") ?? false,
+      ),
+    ).toBe(true);
+    expect(within(dialog).getByText("ファイルはまだ選択されていない")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Import" })).toBeDisabled();
   });
 
   it("sorts projects locally and does not refetch when the user changes sort controls", async () => {

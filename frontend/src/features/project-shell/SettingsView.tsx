@@ -5,6 +5,7 @@ import {
   FormControlLabel,
   IconButton,
   InputAdornment,
+  Link,
   List,
   ListItemButton,
   ListItemText,
@@ -23,6 +24,7 @@ import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import type { LabelDraft } from "./projectShellTypes";
 import type { ProjectBundle } from "../../types";
+import { IMPORT_YOUR_DATA_GUIDE_URL } from "../../externalLinks";
 import { getProjectGuideline } from "../../utils";
 
 export function SettingsView({
@@ -258,6 +260,13 @@ export function SettingsView({
                 <Alert severity="info">
                   append 専用である。既存 project 本体は更新しない。構造不正や同名データは import 前または backend 側で失敗として扱う。
                 </Alert>
+                <Typography variant="body2" color="text.secondary">
+                  自前データを import 用 JSON に変換する場合は{" "}
+                  <Link href={IMPORT_YOUR_DATA_GUIDE_URL} target="_blank" rel="noreferrer">
+                    手順書
+                  </Link>{" "}
+                  を参照。
+                </Typography>
                 {importFeedback ? <Alert severity={importFeedback.severity}>{importFeedback.message}</Alert> : null}
                 <Button component="label" variant="outlined" startIcon={<UploadFileRoundedIcon />} disabled={importing}>
                   {settingsImportFile?.name ?? "Select JSON"}
