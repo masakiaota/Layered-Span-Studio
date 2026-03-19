@@ -29,14 +29,13 @@ import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import { DocumentCanvas } from "../../components/DocumentCanvas";
 import { contextSnippet, getDocumentHoverPreview } from "../workspace/workspaceUtils";
 import { floatingTooltipSlotProps } from "./projectShellConstants";
+import type { ProjectExamplesState } from "./useProjectExamples";
 import type { RightTab, SelectionPreview } from "./projectShellTypes";
 import type {
-  AnnotationSearchItemRecord,
   DocumentListItem,
   DocumentRecord,
   JsonObject,
   LabelRecord,
-  LabelSurfaceGroupRecord,
   ProjectBundle,
   StatusValue,
 } from "../../types";
@@ -73,18 +72,9 @@ export function WorkspaceView({
   rightTab,
   annotationEditCollapsed,
   accordionOpen,
-  sameLabelExamples,
-  sameLabelExamplesTotal,
-  sameLabelExamplesOffset,
-  sameLabelExamplesLoadingMore,
-  sameLabelExampleDetails,
+  projectExamples,
   sameLabelExamplesScrollRef,
-  sameSurfaceExamples,
-  sameSurfaceExamplesTotal,
-  sameSurfaceExamplesOffset,
-  sameSurfaceExamplesLoadingMore,
   sameSurfaceExamplesScrollRef,
-  sameSurfaceTargetLabelId,
   getDisplayDocumentStatus,
   dirty,
   saving,
@@ -103,9 +93,6 @@ export function WorkspaceView({
   onSave,
   onSubmit,
   onRightTabChange,
-  onLoadMoreSameLabelExamples,
-  onEnsureSameLabelDetails,
-  onLoadMoreSameSurfaceExamples,
   onToggleAnnotationEditCollapsed,
   onUpdateSelectedAnnotationStatus,
   onUpdateSelectedAnnotationComment,
@@ -136,18 +123,9 @@ export function WorkspaceView({
   rightTab: RightTab;
   annotationEditCollapsed: boolean;
   accordionOpen: Record<string, boolean>;
-  sameLabelExamples: LabelSurfaceGroupRecord[];
-  sameLabelExamplesTotal: number;
-  sameLabelExamplesOffset: number;
-  sameLabelExamplesLoadingMore: boolean;
-  sameLabelExampleDetails: Record<string, AnnotationSearchItemRecord[]>;
+  projectExamples: ProjectExamplesState;
   sameLabelExamplesScrollRef: React.Ref<HTMLDivElement>;
-  sameSurfaceExamples: AnnotationSearchItemRecord[];
-  sameSurfaceExamplesTotal: number;
-  sameSurfaceExamplesOffset: number;
-  sameSurfaceExamplesLoadingMore: boolean;
   sameSurfaceExamplesScrollRef: React.Ref<HTMLDivElement>;
-  sameSurfaceTargetLabelId: string | null;
   getDisplayDocumentStatus: (document: DocumentListItem) => StatusValue;
   dirty: boolean;
   saving: boolean;
@@ -166,9 +144,6 @@ export function WorkspaceView({
   onSave: () => void;
   onSubmit: () => void;
   onRightTabChange: (tab: RightTab) => void;
-  onLoadMoreSameLabelExamples: () => void;
-  onEnsureSameLabelDetails: (surfaceKey: string, surfaceText: string, duplicateCount: number) => void;
-  onLoadMoreSameSurfaceExamples: () => void;
   onToggleAnnotationEditCollapsed: () => void;
   onUpdateSelectedAnnotationStatus: (status: StatusValue) => void;
   onUpdateSelectedAnnotationComment: (comment: string) => void;
@@ -176,6 +151,8 @@ export function WorkspaceView({
   onDeleteSelectedAnnotation: () => void;
   onToggleAnnotationGroup: (labelId: string) => void;
 }) {
+  const sameLabelExamples = projectExamples.sameLabel.items;
+  const sameSurfaceExamples = projectExamples.sameSurface.items;
   const groupedAnnotations = useMemo(
     () => (currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : []),
     [currentDocument, bundle.labels],
@@ -594,17 +571,17 @@ export function WorkspaceView({
                   onScroll={(event) => {
                     const element = event.currentTarget;
                     if (
-                      !sameLabelExamplesLoadingMore &&
-                      sameLabelExamplesOffset < sameLabelExamplesTotal &&
+                      !projectExamples.sameLabel.isFetchingNextPage &&
+                      projectExamples.sameLabel.hasNextPage &&
                       element.scrollTop + element.clientHeight >= element.scrollHeight - 24
                     ) {
-                      onLoadMoreSameLabelExamples();
+                      void projectExamples.sameLabel.fetchNextPage();
                     }
                   }}
                   sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}
                 >
                   {sameLabelExamples.map((item) => {
-                    const detailItems = sameLabelExampleDetails[item.surface_text];
+                    const detailItems = projectExamples.sameLabelDetails[item.surface_text];
                     const representative = item.representative;
                     const emphasisColor = focusedLabel?.color ?? "#1a73e8";
                     return (
@@ -613,7 +590,9 @@ export function WorkspaceView({
                         placement="left-start"
                         arrow
                         slotProps={floatingTooltipSlotProps}
-                        onOpen={() => onEnsureSameLabelDetails(item.surface_text, item.surface_text, item.duplicate_count)}
+                        onOpen={() =>
+                          void projectExamples.ensureSameLabelDetails(item.surface_text, item.surface_text, item.duplicate_count)
+                        }
                         title={
                           <Box sx={{ maxWidth: 460, p: 0.75 }}>
                             <Typography variant="subtitle2">
@@ -681,11 +660,11 @@ export function WorkspaceView({
                       </Tooltip>
                     );
                   })}
-                  {sameLabelExamplesLoadingMore ? (
+                  {projectExamples.sameLabel.isPending || projectExamples.sameLabel.isFetchingNextPage ? (
                     <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
                       さらに読み込み中
                     </Typography>
-                  ) : sameLabelExamples.length > 0 && sameLabelExamplesOffset >= sameLabelExamplesTotal ? (
+                  ) : sameLabelExamples.length > 0 && !projectExamples.sameLabel.hasNextPage ? (
                     <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
                       以上で全て
                     </Typography>
@@ -709,18 +688,19 @@ export function WorkspaceView({
                   onScroll={(event) => {
                     const element = event.currentTarget;
                     if (
-                      !sameSurfaceExamplesLoadingMore &&
-                      sameSurfaceExamplesOffset < sameSurfaceExamplesTotal &&
+                      !projectExamples.sameSurface.isFetchingNextPage &&
+                      projectExamples.sameSurface.hasNextPage &&
                       element.scrollTop + element.clientHeight >= element.scrollHeight - 24
                     ) {
-                      onLoadMoreSameSurfaceExamples();
+                      void projectExamples.sameSurface.fetchNextPage();
                     }
                   }}
                   sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}
                 >
                   {sameSurfaceExamples.map((item) => {
                     const labelColor = item.label_color ?? "#1a73e8";
-                    const highlightDifferentLabel = Boolean(sameSurfaceTargetLabelId) && item.label_id !== sameSurfaceTargetLabelId;
+                    const highlightDifferentLabel =
+                      Boolean(projectExamples.sameSurfaceTargetLabelId) && item.label_id !== projectExamples.sameSurfaceTargetLabelId;
                     return (
                       <Tooltip
                         key={item.annotation_id}
@@ -776,11 +756,11 @@ export function WorkspaceView({
                       </Tooltip>
                     );
                   })}
-                  {sameSurfaceExamplesLoadingMore ? (
+                  {projectExamples.sameSurface.isPending || projectExamples.sameSurface.isFetchingNextPage ? (
                     <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
                       さらに読み込み中
                     </Typography>
-                  ) : sameSurfaceExamples.length > 0 && sameSurfaceExamplesOffset >= sameSurfaceExamplesTotal ? (
+                  ) : sameSurfaceExamples.length > 0 && !projectExamples.sameSurface.hasNextPage ? (
                     <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
                       以上で全て
                     </Typography>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { api } from "../../api";
 import type { ToastState } from "../../hooks/useToast";
@@ -21,13 +21,36 @@ type UseProjectExamplesOptions = {
   showToast: (message: string, severity?: ToastState["severity"]) => void;
 };
 
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
+type ExamplePage<T> = {
+  items: T[];
+  total: number;
+  offset: number;
+};
 
-function getNextOffset(page: { offset: number; items: unknown[]; total: number }) {
+export type ExampleFeedState<T> = {
+  items: T[];
+  total: number;
+  hasNextPage: boolean;
+  isPending: boolean;
+  isFetchingNextPage: boolean;
+  fetchNextPage: () => Promise<void>;
+};
+
+export type ProjectExamplesState = {
+  sameLabel: ExampleFeedState<LabelSurfaceGroupRecord>;
+  sameLabelDetails: Record<string, AnnotationSearchItemRecord[]>;
+  ensureSameLabelDetails: (surfaceKey: string, surfaceText: string, duplicateCount: number) => Promise<void>;
+  sameSurface: ExampleFeedState<AnnotationSearchItemRecord>;
+  sameSurfaceTargetLabelId: string | null;
+};
+
+function getNextOffset<T>(page: ExamplePage<T>) {
   const nextOffset = page.offset + page.items.length;
   return nextOffset < page.total ? nextOffset : undefined;
+}
+
+function flattenItems<T>(pages: Array<{ items: T[] }> | undefined) {
+  return pages?.flatMap((page) => page.items) ?? [];
 }
 
 export function useProjectExamples({
@@ -36,33 +59,31 @@ export function useProjectExamples({
   selectedAnnotation,
   selectionPreview,
   showToast,
-}: UseProjectExamplesOptions) {
-  const [sameLabelExampleDetails, setSameLabelExampleDetails] = useState<Record<string, AnnotationSearchItemRecord[]>>({});
-  const excludedSelectedAnnotationId =
+}: UseProjectExamplesOptions): ProjectExamplesState {
+  const [sameLabelDetails, setSameLabelDetails] = useState<Record<string, AnnotationSearchItemRecord[]>>({});
+  const excludedAnnotationId =
     focusedLabel && selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null;
 
   const sameSurfaceTarget = useMemo(() => {
-    return selectionPreview && selectionPreview.text.trim()
-      ? {
-          text: selectionPreview.text,
-          annotationId: null,
-          labelId: focusedLabel?.id ?? null,
-        }
-      : selectedAnnotation
-        ? {
-            text: selectedAnnotation.span_text,
-            annotationId: selectedAnnotation.id,
-            labelId: selectedAnnotation.label_id,
-          }
-        : null;
+    if (selectionPreview && selectionPreview.text.trim()) {
+      return {
+        text: selectionPreview.text,
+        annotationId: null,
+        labelId: focusedLabel?.id ?? null,
+      };
+    }
+    if (!selectedAnnotation) {
+      return null;
+    }
+    return {
+      text: selectedAnnotation.span_text,
+      annotationId: selectedAnnotation.id,
+      labelId: selectedAnnotation.label_id,
+    };
   }, [focusedLabel?.id, selectedAnnotation, selectionPreview]);
 
-  const sameLabelExamplesQuery = useInfiniteQuery({
-    queryKey: queryKeys.sameLabelExamples(
-      projectId,
-      focusedLabel?.id ?? null,
-      excludedSelectedAnnotationId,
-    ),
+  const sameLabelQuery = useInfiniteQuery({
+    queryKey: queryKeys.sameLabelExamples(projectId, focusedLabel?.id ?? null, excludedAnnotationId),
     enabled: Boolean(projectId && focusedLabel),
     initialPageParam: 0,
     queryFn: async ({ pageParam, signal }) => {
@@ -77,32 +98,25 @@ export function useProjectExamples({
         };
       }
       throwIfAborted(signal);
-      try {
-        const response = await api.listLabelSurfaceGroups(
-          projectId,
-          focusedLabel.id,
-          {
-            offset: pageParam,
-            limit: EXAMPLES_BATCH_SIZE,
-            status: "all",
-            contextWindow: 16,
-            excludeAnnotationId: excludedSelectedAnnotationId,
-          },
-          signal,
-        );
-        throwIfAborted(signal);
-        return response;
-      } catch (error) {
-        if (signal.aborted) {
-          throwIfAborted(signal);
-        }
-        throw error;
-      }
+      const response = await api.listLabelSurfaceGroups(
+        projectId,
+        focusedLabel.id,
+        {
+          offset: pageParam,
+          limit: EXAMPLES_BATCH_SIZE,
+          status: "all",
+          contextWindow: 16,
+          excludeAnnotationId: excludedAnnotationId,
+        },
+        signal,
+      );
+      throwIfAborted(signal);
+      return response;
     },
     getNextPageParam: getNextOffset,
   });
 
-  const sameSurfaceExamplesQuery = useInfiniteQuery({
+  const sameSurfaceQuery = useInfiniteQuery({
     queryKey: queryKeys.sameSurfaceExamples(
       projectId,
       sameSurfaceTarget?.text ?? null,
@@ -126,122 +140,99 @@ export function useProjectExamples({
         };
       }
       throwIfAborted(signal);
-      try {
-        const response = await api.searchAnnotations(
-          projectId,
-          {
-            text: sameSurfaceTarget.text,
-            status: "all",
-            labelId: sameSurfaceTarget.labelId ?? null,
-            excludeAnnotationId: sameSurfaceTarget.annotationId ?? null,
-            offset: pageParam,
-            limit: EXAMPLES_BATCH_SIZE,
-            contextWindow: 16,
-          },
-          signal,
-        );
-        throwIfAborted(signal);
-        return response;
-      } catch (error) {
-        if (signal.aborted) {
-          throwIfAborted(signal);
-        }
-        throw error;
-      }
+      const response = await api.searchAnnotations(
+        projectId,
+        {
+          text: sameSurfaceTarget.text,
+          status: "all",
+          labelId: sameSurfaceTarget.labelId ?? null,
+          excludeAnnotationId: sameSurfaceTarget.annotationId ?? null,
+          offset: pageParam,
+          limit: EXAMPLES_BATCH_SIZE,
+          contextWindow: 16,
+        },
+        signal,
+      );
+      throwIfAborted(signal);
+      return response;
     },
     getNextPageParam: getNextOffset,
   });
 
   useEffect(() => {
-    setSameLabelExampleDetails({});
+    setSameLabelDetails({});
   }, [projectId, focusedLabel?.id, selectedAnnotation?.id]);
 
   useEffect(() => {
-    if (sameLabelExamplesQuery.error instanceof Error) {
-      showToast(sameLabelExamplesQuery.error.message, "error");
+    if (sameLabelQuery.error instanceof Error) {
+      showToast(sameLabelQuery.error.message, "error");
     }
-  }, [sameLabelExamplesQuery.error, sameLabelExamplesQuery.errorUpdatedAt, showToast]);
+  }, [sameLabelQuery.error, sameLabelQuery.errorUpdatedAt, showToast]);
 
   useEffect(() => {
-    if (sameSurfaceExamplesQuery.error instanceof Error) {
-      showToast(sameSurfaceExamplesQuery.error.message, "error");
+    if (sameSurfaceQuery.error instanceof Error) {
+      showToast(sameSurfaceQuery.error.message, "error");
     }
-  }, [sameSurfaceExamplesQuery.error, sameSurfaceExamplesQuery.errorUpdatedAt, showToast]);
+  }, [sameSurfaceQuery.error, sameSurfaceQuery.errorUpdatedAt, showToast]);
 
-  const sameLabelExamples = useMemo(
-    () => sameLabelExamplesQuery.data?.pages.flatMap((page) => page.items) ?? [],
-    [sameLabelExamplesQuery.data],
+  const fetchNextSameLabelPage = useCallback(async () => {
+    if (!sameLabelQuery.hasNextPage || sameLabelQuery.isFetchingNextPage) {
+      return;
+    }
+    await sameLabelQuery.fetchNextPage({ cancelRefetch: true });
+  }, [sameLabelQuery]);
+
+  const fetchNextSameSurfacePage = useCallback(async () => {
+    if (!sameSurfaceQuery.hasNextPage || sameSurfaceQuery.isFetchingNextPage) {
+      return;
+    }
+    await sameSurfaceQuery.fetchNextPage({ cancelRefetch: true });
+  }, [sameSurfaceQuery]);
+
+  const ensureSameLabelDetails = useCallback(
+    async (surfaceKey: string, surfaceText: string, duplicateCount: number) => {
+      if (!projectId || !focusedLabel || sameLabelDetails[surfaceKey]) {
+        return;
+      }
+      try {
+        const response = await api.searchAnnotations(projectId, {
+          text: surfaceText,
+          status: "all",
+          labelId: focusedLabel.id,
+          excludeAnnotationId: excludedAnnotationId,
+          limit: Math.min(Math.max(duplicateCount, EXAMPLES_BATCH_SIZE), EXAMPLES_BATCH_SIZE * 3),
+          contextWindow: 42,
+        });
+        setSameLabelDetails((current) => ({
+          ...current,
+          [surfaceKey]: response.items,
+        }));
+      } catch {
+        // hover 時の補助表示なので失敗は黙って握る
+      }
+    },
+    [excludedAnnotationId, focusedLabel, projectId, sameLabelDetails],
   );
-  const sameSurfaceExamples = useMemo(
-    () => sameSurfaceExamplesQuery.data?.pages.flatMap((page) => page.items) ?? [],
-    [sameSurfaceExamplesQuery.data],
-  );
-  const sameLabelExamplesTotal = sameLabelExamplesQuery.data?.pages[0]?.total ?? 0;
-  const sameSurfaceExamplesTotal = sameSurfaceExamplesQuery.data?.pages[0]?.total ?? 0;
-
-  async function loadSameLabelExamples(reset: boolean) {
-    if (!projectId || !focusedLabel) {
-      return;
-    }
-    if (reset) {
-      await sameLabelExamplesQuery.refetch();
-      return;
-    }
-    if (!sameLabelExamplesQuery.hasNextPage || sameLabelExamplesQuery.isFetchingNextPage) {
-      return;
-    }
-    await sameLabelExamplesQuery.fetchNextPage({ cancelRefetch: true });
-  }
-
-  async function loadSameSurfaceExamples(reset: boolean) {
-    if (!projectId || !sameSurfaceTarget) {
-      return;
-    }
-    if (reset) {
-      await sameSurfaceExamplesQuery.refetch();
-      return;
-    }
-    if (!sameSurfaceExamplesQuery.hasNextPage || sameSurfaceExamplesQuery.isFetchingNextPage) {
-      return;
-    }
-    await sameSurfaceExamplesQuery.fetchNextPage({ cancelRefetch: true });
-  }
-
-  async function ensureSameLabelDetails(surfaceKey: string, surfaceText: string, duplicateCount: number) {
-    if (!projectId || !focusedLabel || sameLabelExampleDetails[surfaceKey]) {
-      return;
-    }
-    try {
-      const response = await api.searchAnnotations(projectId, {
-        text: surfaceText,
-        status: "all",
-        labelId: focusedLabel.id,
-        excludeAnnotationId: excludedSelectedAnnotationId,
-        limit: Math.min(Math.max(duplicateCount, EXAMPLES_BATCH_SIZE), EXAMPLES_BATCH_SIZE * 3),
-        contextWindow: 42,
-      });
-      setSameLabelExampleDetails((current) => ({
-        ...current,
-        [surfaceKey]: response.items,
-      }));
-    } catch {
-      // hover 時の補助表示なので失敗は黙って握る
-    }
-  }
 
   return {
-    sameLabelExamples,
-    sameLabelExamplesTotal,
-    sameLabelExamplesOffset: sameLabelExamples.length,
-    sameLabelExamplesLoadingMore: sameLabelExamplesQuery.isPending || sameLabelExamplesQuery.isFetchingNextPage,
-    sameLabelExampleDetails,
-    sameSurfaceExamples,
-    sameSurfaceExamplesTotal,
-    sameSurfaceExamplesOffset: sameSurfaceExamples.length,
-    sameSurfaceExamplesLoadingMore: sameSurfaceExamplesQuery.isPending || sameSurfaceExamplesQuery.isFetchingNextPage,
-    sameSurfaceTargetLabelId: sameSurfaceTarget?.labelId ?? null,
-    loadSameLabelExamples,
-    loadSameSurfaceExamples,
+    sameLabel: {
+      items: flattenItems(sameLabelQuery.data?.pages),
+      total: sameLabelQuery.data?.pages[0]?.total ?? 0,
+      hasNextPage: Boolean(sameLabelQuery.hasNextPage),
+      isPending: sameLabelQuery.isPending,
+      isFetchingNextPage: sameLabelQuery.isFetchingNextPage,
+      fetchNextPage: fetchNextSameLabelPage,
+    },
+    sameLabelDetails,
     ensureSameLabelDetails,
+    sameSurface: {
+      items: flattenItems(sameSurfaceQuery.data?.pages),
+      total: sameSurfaceQuery.data?.pages[0]?.total ?? 0,
+      hasNextPage: Boolean(sameSurfaceQuery.hasNextPage),
+      isPending: sameSurfaceQuery.isPending,
+      isFetchingNextPage: sameSurfaceQuery.isFetchingNextPage,
+      fetchNextPage: fetchNextSameSurfacePage,
+    },
+    sameSurfaceTargetLabelId: sameSurfaceTarget?.labelId ?? null,
   };
 }

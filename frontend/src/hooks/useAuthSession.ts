@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "../api";
 import { throwIfAborted } from "../query/queryAbort";
 import { queryKeys } from "../query/queryKeys";
-import type { UserRecord } from "../types";
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -29,71 +28,45 @@ async function fetchSession(signal: AbortSignal) {
 export function useAuthSession() {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState("");
-  const [sessionUser, setSessionUser] = useState<UserRecord | null>(null);
-  const [sessionVersion, setSessionVersion] = useState(0);
-  const sessionKey = useMemo(() => queryKeys.session(sessionVersion), [sessionVersion]);
 
-  const sessionQuery = useQuery<UserRecord | null>({
-    queryKey: sessionKey,
+  const sessionQuery = useQuery({
+    queryKey: queryKeys.session(),
     queryFn: ({ signal }) => fetchSession(signal),
   });
 
   const loginMutation = useMutation({
-    mutationFn: async ({
-      username,
-      password,
-    }: {
-      username: string;
-      password: string;
-      targetSessionKey: ReturnType<typeof queryKeys.session>;
-    }) => {
-      return api.createSession(username, password);
-    },
-    onMutate: () => {
+    mutationFn: ({ username, password }: { username: string; password: string }) => api.createSession(username, password),
+    onMutate: async () => {
       setActionError("");
+      await queryClient.cancelQueries({ queryKey: queryKeys.session() });
     },
-    onSuccess: (nextUser, variables) => {
-      queryClient.setQueryData(variables.targetSessionKey, nextUser);
+    onSuccess: (sessionUser) => {
+      queryClient.setQueryData(queryKeys.session(), sessionUser);
     },
-    onError: (error, variables) => {
-      setSessionUser(null);
-      queryClient.setQueryData(variables.targetSessionKey, null);
+    onError: (error) => {
+      queryClient.setQueryData(queryKeys.session(), null);
       setActionError(getErrorMessage(error, "ログインに失敗した"));
     },
   });
 
   const logoutMutation = useMutation({
-    mutationFn: async ({ targetSessionKey }: { targetSessionKey: ReturnType<typeof queryKeys.session> }) => {
-      await api.deleteSession();
-      return targetSessionKey;
-    },
-    onMutate: () => {
+    mutationFn: () => api.deleteSession(),
+    onMutate: async () => {
       setActionError("");
-      setSessionUser(null);
+      await queryClient.cancelQueries({ queryKey: queryKeys.session() });
+      queryClient.setQueryData(queryKeys.session(), null);
     },
     onError: (error) => {
       setActionError(getErrorMessage(error, "ログアウトに失敗した"));
     },
-    onSettled: (_data, _error, variables) => {
-      queryClient.setQueryData(variables.targetSessionKey, null);
+    onSettled: () => {
+      queryClient.setQueryData(queryKeys.session(), null);
     },
   });
 
-  useEffect(() => {
-    if (loginMutation.isPending || logoutMutation.isPending || sessionQuery.isPending) {
-      return;
-    }
-    setSessionUser(sessionQuery.data ?? null);
-  }, [loginMutation.isPending, logoutMutation.isPending, sessionQuery.data, sessionQuery.isPending]);
-
   async function login(username: string, password: string) {
-    const nextSessionVersion = sessionVersion + 1;
-    const targetSessionKey = queryKeys.session(nextSessionVersion);
-    setSessionVersion(nextSessionVersion);
-    await queryClient.cancelQueries({ queryKey: queryKeys.sessionPrefix() });
     try {
-      const nextUser = await loginMutation.mutateAsync({ username, password, targetSessionKey });
-      setSessionUser(nextUser);
+      await loginMutation.mutateAsync({ username, password });
       return true;
     } catch {
       return false;
@@ -101,21 +74,17 @@ export function useAuthSession() {
   }
 
   async function logout() {
-    const nextSessionVersion = sessionVersion + 1;
-    const targetSessionKey = queryKeys.session(nextSessionVersion);
-    setSessionVersion(nextSessionVersion);
-    await queryClient.cancelQueries({ queryKey: queryKeys.sessionPrefix() });
     try {
-      await logoutMutation.mutateAsync({ targetSessionKey });
+      await logoutMutation.mutateAsync();
     } catch {
       // error state is managed by the mutation
     }
   }
 
   return {
-    user: sessionUser,
+    user: sessionQuery.data ?? null,
     loading: sessionQuery.isPending || loginMutation.isPending || logoutMutation.isPending,
-    error: actionError || (sessionUser ? "" : sessionQuery.error instanceof Error ? sessionQuery.error.message : ""),
+    error: actionError || (sessionQuery.error instanceof Error ? sessionQuery.error.message : ""),
     login,
     logout,
   };

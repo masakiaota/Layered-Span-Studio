@@ -123,6 +123,7 @@ const annotationCurrentDocument: DocumentRecord = {
 
 const noDetails: Record<string, AnnotationSearchItemRecord[]> = {};
 const sameLabelExamples: LabelSurfaceGroupRecord[] = [];
+const noopAsync = vi.fn(async () => {});
 
 function createProps(overrides: Partial<WorkspaceViewProps> = {}): WorkspaceViewProps {
   const visibleDocuments = overrides.visibleDocuments ?? initialDocuments;
@@ -152,18 +153,29 @@ function createProps(overrides: Partial<WorkspaceViewProps> = {}): WorkspaceView
     rightTab: "examples",
     annotationEditCollapsed: false,
     accordionOpen: {},
-    sameLabelExamples,
-    sameLabelExamplesTotal: 0,
-    sameLabelExamplesOffset: 0,
-    sameLabelExamplesLoadingMore: false,
-    sameLabelExampleDetails: noDetails,
+    projectExamples: {
+      sameLabel: {
+        items: sameLabelExamples,
+        total: 0,
+        hasNextPage: false,
+        isPending: false,
+        isFetchingNextPage: false,
+        fetchNextPage: noopAsync,
+      },
+      sameLabelDetails: noDetails,
+      ensureSameLabelDetails: noopAsync,
+      sameSurface: {
+        items: [],
+        total: 0,
+        hasNextPage: false,
+        isPending: false,
+        isFetchingNextPage: false,
+        fetchNextPage: noopAsync,
+      },
+      sameSurfaceTargetLabelId: null,
+    },
     sameLabelExamplesScrollRef: { current: null },
-    sameSurfaceExamples: [],
-    sameSurfaceExamplesTotal: 0,
-    sameSurfaceExamplesOffset: 0,
-    sameSurfaceExamplesLoadingMore: false,
     sameSurfaceExamplesScrollRef: { current: null },
-    sameSurfaceTargetLabelId: null,
     getDisplayDocumentStatus: (document: DocumentListItem) => document.status,
     dirty: false,
     saving: false,
@@ -181,9 +193,6 @@ function createProps(overrides: Partial<WorkspaceViewProps> = {}): WorkspaceView
     onSave: vi.fn(),
     onSubmit: vi.fn(),
     onRightTabChange: vi.fn(),
-    onLoadMoreSameLabelExamples: vi.fn(),
-    onEnsureSameLabelDetails: vi.fn(),
-    onLoadMoreSameSurfaceExamples: vi.fn(),
     onToggleAnnotationEditCollapsed: vi.fn(),
     onUpdateSelectedAnnotationStatus: vi.fn(),
     onUpdateSelectedAnnotationComment: vi.fn(),

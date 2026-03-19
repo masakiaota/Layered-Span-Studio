@@ -232,21 +232,7 @@ export function ProjectShell({
     setSelectedAnnotationMetaDraft(formatAnnotationMetaDraft(selectedAnnotation.meta));
     setSelectedAnnotationMetaError(null);
   }, [currentDocument?.id, selectedAnnotation?.id]);
-  const {
-    sameLabelExamples,
-    sameLabelExamplesTotal,
-    sameLabelExamplesOffset,
-    sameLabelExamplesLoadingMore,
-    sameLabelExampleDetails,
-    sameSurfaceExamples,
-    sameSurfaceExamplesTotal,
-    sameSurfaceExamplesOffset,
-    sameSurfaceExamplesLoadingMore,
-    sameSurfaceTargetLabelId,
-    loadSameLabelExamples,
-    loadSameSurfaceExamples,
-    ensureSameLabelDetails,
-  } = useProjectExamples({
+  const projectExamples = useProjectExamples({
     projectId: bundle?.project.id ?? null,
     focusedLabel,
     selectedAnnotation,
@@ -1164,24 +1150,15 @@ export function ProjectShell({
               rightTab={rightTab}
               annotationEditCollapsed={annotationEditCollapsed}
               accordionOpen={accordionOpen}
-              sameLabelExamples={sameLabelExamples}
-              sameLabelExamplesTotal={sameLabelExamplesTotal}
-              sameLabelExamplesOffset={sameLabelExamplesOffset}
-              sameLabelExamplesLoadingMore={sameLabelExamplesLoadingMore}
-              sameLabelExampleDetails={sameLabelExampleDetails}
+              projectExamples={projectExamples}
               sameLabelExamplesScrollRef={sameLabelExamplesScrollRef}
-              sameSurfaceExamples={sameSurfaceExamples}
-              sameSurfaceExamplesTotal={sameSurfaceExamplesTotal}
-              sameSurfaceExamplesOffset={sameSurfaceExamplesOffset}
-              sameSurfaceExamplesLoadingMore={sameSurfaceExamplesLoadingMore}
               sameSurfaceExamplesScrollRef={sameSurfaceExamplesScrollRef}
-            sameSurfaceTargetLabelId={sameSurfaceTargetLabelId}
-            getDisplayDocumentStatus={getDisplayDocumentStatus}
-            dirty={dirty}
-            saving={workspaceBusy}
-            onOpenCreateDocument={() => setCreateDocOpen(true)}
-            onSearchQueryChange={setSearchQuery}
-            onSortModeChange={setSortMode}
+              getDisplayDocumentStatus={getDisplayDocumentStatus}
+              dirty={dirty}
+              saving={workspaceBusy}
+              onOpenCreateDocument={() => setCreateDocOpen(true)}
+              onSearchQueryChange={setSearchQuery}
+              onSortModeChange={setSortMode}
               onLoadMoreDocuments={() => void fetchDocumentPage(false)}
               onSelectDocument={(docId) => {
                 if (workspaceBusy) {
@@ -1202,18 +1179,13 @@ export function ProjectShell({
               onFocusLabel={setFocusedLabelId}
               onSelectAnnotation={setSelectedAnnotationId}
               onCreateAnnotation={handleCreateAnnotation}
-            onClearSelection={() => {
-              clearWorkspaceSelection();
-            }}
-            onSelectionDraftChange={setSelectionPreview}
-            onSave={() => void handleSave()}
-            onSubmit={() => void handleSubmit()}
+              onClearSelection={() => {
+                clearWorkspaceSelection();
+              }}
+              onSelectionDraftChange={setSelectionPreview}
+              onSave={() => void handleSave()}
+              onSubmit={() => void handleSubmit()}
               onRightTabChange={setRightTab}
-              onLoadMoreSameLabelExamples={() => void loadSameLabelExamples(false)}
-              onEnsureSameLabelDetails={(surfaceKey, surfaceText, duplicateCount) =>
-                void ensureSameLabelDetails(surfaceKey, surfaceText, duplicateCount)
-              }
-              onLoadMoreSameSurfaceExamples={() => void loadSameSurfaceExamples(false)}
               onToggleAnnotationEditCollapsed={() => setAnnotationEditCollapsed((current) => !current)}
               onUpdateSelectedAnnotationStatus={handleSelectedAnnotationStatusChange}
               onUpdateSelectedAnnotationComment={handleSelectedAnnotationCommentChange}

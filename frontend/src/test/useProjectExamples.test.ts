@@ -152,17 +152,17 @@ describe("useProjectExamples", () => {
       },
     );
 
-    expect(result.current.sameLabelExamplesLoadingMore).toBe(true);
+    expect(result.current.sameLabel.isPending).toBe(true);
 
     rerender({ label: nextFocusedLabel });
-    expect(result.current.sameLabelExamplesLoadingMore).toBe(true);
+    expect(result.current.sameLabel.isPending).toBe(true);
 
     await act(async () => {
       staleRequest.reject(new Error("stale label examples failed"));
       await staleRequest.promise.catch(() => undefined);
     });
 
-    expect(result.current.sameLabelExamplesLoadingMore).toBe(true);
+    expect(result.current.sameLabel.isPending).toBe(true);
     expect(showToast).not.toHaveBeenCalledWith("stale label examples failed", "error");
 
     latestRequest.resolve({
@@ -179,8 +179,8 @@ describe("useProjectExamples", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.sameLabelExamplesLoadingMore).toBe(false);
-      expect(result.current.sameLabelExamples).toEqual([createLabelSurfaceGroup({ surface_text: "Bob" })]);
+      expect(result.current.sameLabel.isPending).toBe(false);
+      expect(result.current.sameLabel.items).toEqual([createLabelSurfaceGroup({ surface_text: "Bob" })]);
     });
   });
 
@@ -227,17 +227,17 @@ describe("useProjectExamples", () => {
       },
     );
 
-    expect(result.current.sameSurfaceExamplesLoadingMore).toBe(true);
+    expect(result.current.sameSurface.isPending).toBe(true);
 
     rerender({ preview: nextSelectionPreview });
-    expect(result.current.sameSurfaceExamplesLoadingMore).toBe(true);
+    expect(result.current.sameSurface.isPending).toBe(true);
 
     await act(async () => {
       staleRequest.reject(new Error("stale surface examples failed"));
       await staleRequest.promise.catch(() => undefined);
     });
 
-    expect(result.current.sameSurfaceExamplesLoadingMore).toBe(true);
+    expect(result.current.sameSurface.isPending).toBe(true);
     expect(showToast).not.toHaveBeenCalledWith("stale surface examples failed", "error");
 
     latestRequest.resolve({
@@ -257,8 +257,8 @@ describe("useProjectExamples", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.sameSurfaceExamplesLoadingMore).toBe(false);
-      expect(result.current.sameSurfaceExamples).toEqual([
+      expect(result.current.sameSurface.isPending).toBe(false);
+      expect(result.current.sameSurface.items).toEqual([
         createAnnotationSearchItem({ annotation_id: "ann-2", span_text: "Bob" }),
       ]);
     });

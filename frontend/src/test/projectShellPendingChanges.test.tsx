@@ -8,18 +8,24 @@ import type { AnnotationRecord, DocumentRecord, LabelRecord, ProjectRecord, User
 
 vi.mock("../features/project-shell/useProjectExamples", () => ({
   useProjectExamples: () => ({
-    sameLabelExamples: [],
-    sameLabelExamplesTotal: 0,
-    sameLabelExamplesOffset: 0,
-    sameLabelExamplesLoadingMore: false,
-    sameLabelExampleDetails: {},
-    sameSurfaceExamples: [],
-    sameSurfaceExamplesTotal: 0,
-    sameSurfaceExamplesOffset: 0,
-    sameSurfaceExamplesLoadingMore: false,
+    sameLabel: {
+      items: [],
+      total: 0,
+      hasNextPage: false,
+      isPending: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+    },
+    sameLabelDetails: {},
+    sameSurface: {
+      items: [],
+      total: 0,
+      hasNextPage: false,
+      isPending: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+    },
     sameSurfaceTargetLabelId: null,
-    loadSameLabelExamples: vi.fn(),
-    loadSameSurfaceExamples: vi.fn(),
     ensureSameLabelDetails: vi.fn(),
   }),
 }));

@@ -21,6 +21,21 @@ function createDeferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
+function createAbortablePromise<T>(promise: Promise<T>) {
+  return (signal?: AbortSignal) =>
+    new Promise<T>((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new DOMException("The operation was aborted.", "AbortError"));
+        return;
+      }
+      const abortHandler = () => reject(new DOMException("The operation was aborted.", "AbortError"));
+      signal?.addEventListener("abort", abortHandler, { once: true });
+      promise.then(resolve, reject).finally(() => {
+        signal?.removeEventListener("abort", abortHandler);
+      });
+    });
+}
+
 const demoUser: UserRecord = {
   id: "user-1",
   username: "demo_login_user",
@@ -85,7 +100,7 @@ describe("useAuthSession", () => {
   it("does not let a stale bootstrap session check clear a newer login", async () => {
     const staleBootstrap = createDeferred<UserRecord>();
 
-    vi.spyOn(api, "getSession").mockImplementation(() => staleBootstrap.promise);
+    vi.spyOn(api, "getSession").mockImplementation(createAbortablePromise(staleBootstrap.promise));
     vi.spyOn(api, "createSession").mockResolvedValue(demoUser);
 
     const { result } = renderHook(() => useAuthSession(), { wrapper: createQueryWrapper() });
