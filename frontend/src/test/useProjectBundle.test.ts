@@ -2,7 +2,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
 import { useProjectBundle } from "../features/project-shell/useProjectBundle";
-import type { DocumentListItem, DocumentRecord, LabelRecord, ProjectRecord } from "../types";
+import type { DocumentRecord, LabelRecord, ProjectRecord } from "../api-contract";
+import type { DocumentListItem } from "../types";
 
 const project: ProjectRecord = {
   id: "project-1",

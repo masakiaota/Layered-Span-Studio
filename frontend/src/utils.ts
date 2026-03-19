@@ -1,14 +1,11 @@
 import type {
   AnnotationRecord,
   DocumentRecord,
-  DocumentListItem,
-  JsonObject,
-  JsonValue,
   LabelRecord,
-  ProjectBundle,
   ProjectRecord,
   StatusValue,
-} from "./types";
+} from "./api-contract";
+import type { DocumentListItem, JsonObject, JsonValue, ProjectBundle } from "./types";
 
 export function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -91,11 +88,11 @@ export function setProjectGuideline(project: ProjectRecord, guideline: string) {
   };
 }
 
-function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+function isJsonObject(value: unknown): value is JsonObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function jsonValuesEqual(a: JsonValue | undefined, b: JsonValue | undefined): boolean {
+function jsonValuesEqual(a: unknown, b: unknown): boolean {
   if (a === b) {
     return true;
   }
@@ -126,7 +123,7 @@ function jsonValuesEqual(a: JsonValue | undefined, b: JsonValue | undefined): bo
   return false;
 }
 
-export function compareJson(a: JsonValue | undefined, b: JsonValue | undefined): boolean {
+export function compareJson(a: unknown, b: unknown): boolean {
   return jsonValuesEqual(a ?? null, b ?? null);
 }
 

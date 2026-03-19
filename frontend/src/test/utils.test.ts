@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DocumentRecord, ProjectRecord } from "../types";
+import type { DocumentRecord, ProjectRecord } from "../api-contract";
 import {
   documentMatchesSearch,
   getDocumentSnippetParts,

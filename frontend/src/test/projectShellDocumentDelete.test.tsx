@@ -4,7 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
 import { ApiError, api } from "../api";
-import type { AnnotationRecord, DocumentListItem, DocumentRecord, LabelRecord, ProjectRecord, UserRecord } from "../types";
+import type { AnnotationRecord, DocumentRecord, LabelRecord, ProjectRecord, UserRecord } from "../api-contract";
+import type { DocumentListItem } from "../types";
 
 vi.mock("../features/project-shell/useProjectExamples", () => ({
   useProjectExamples: () => ({

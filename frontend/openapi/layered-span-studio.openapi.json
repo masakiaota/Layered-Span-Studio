@@ -1,0 +1,3620 @@
+{
+  "components": {
+    "schemas": {
+      "AnnotationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "default": "",
+            "title": "Comment",
+            "type": "string"
+          },
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "label_id": {
+            "title": "Label Id",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "span_text": {
+            "title": "Span Text",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnnotationStatus"
+          }
+        },
+        "required": [
+          "label_id",
+          "start",
+          "end",
+          "span_text",
+          "status"
+        ],
+        "title": "AnnotationCreate",
+        "type": "object"
+      },
+      "AnnotationOut": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "title": "Comment",
+            "type": "string"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "document_name": {
+            "title": "Document Name",
+            "type": "string"
+          },
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label_id": {
+            "title": "Label Id",
+            "type": "string"
+          },
+          "label_name": {
+            "title": "Label Name",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "span_text": {
+            "title": "Span Text",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnnotationStatus"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "document_name",
+          "label_id",
+          "label_name",
+          "start",
+          "end",
+          "span_text",
+          "comment",
+          "status"
+        ],
+        "title": "AnnotationOut",
+        "type": "object"
+      },
+      "AnnotationSearchItemOut": {
+        "additionalProperties": false,
+        "properties": {
+          "annotation_id": {
+            "title": "Annotation Id",
+            "type": "string"
+          },
+          "context_after": {
+            "title": "Context After",
+            "type": "string"
+          },
+          "context_before": {
+            "title": "Context Before",
+            "type": "string"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "document_name": {
+            "title": "Document Name",
+            "type": "string"
+          },
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "label_color": {
+            "title": "Label Color",
+            "type": "string"
+          },
+          "label_id": {
+            "title": "Label Id",
+            "type": "string"
+          },
+          "label_name": {
+            "title": "Label Name",
+            "type": "string"
+          },
+          "span_text": {
+            "title": "Span Text",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnnotationStatus"
+          }
+        },
+        "required": [
+          "annotation_id",
+          "document_id",
+          "document_name",
+          "label_id",
+          "label_name",
+          "label_color",
+          "start",
+          "end",
+          "span_text",
+          "status",
+          "context_before",
+          "context_after"
+        ],
+        "title": "AnnotationSearchItemOut",
+        "type": "object"
+      },
+      "AnnotationSearchResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "context_window": {
+            "title": "Context Window",
+            "type": "integer"
+          },
+          "exclude_annotation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Annotation Id"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AnnotationSearchItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "label_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Id"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnnotationStatus"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Status"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit",
+          "text",
+          "status",
+          "context_window"
+        ],
+        "title": "AnnotationSearchResponse",
+        "type": "object"
+      },
+      "AnnotationStatus": {
+        "enum": [
+          "pending",
+          "verified"
+        ],
+        "title": "AnnotationStatus",
+        "type": "string"
+      },
+      "AnnotationUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnnotationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "AnnotationUpdate",
+        "type": "object"
+      },
+      "DocumentBundleAnnotationIn": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "default": "",
+            "title": "Comment",
+            "type": "string"
+          },
+          "end": {
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "label_id": {
+            "title": "Label Id",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "span_text": {
+            "title": "Span Text",
+            "type": "string"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnnotationStatus"
+          }
+        },
+        "required": [
+          "label_id",
+          "start",
+          "end",
+          "span_text",
+          "status"
+        ],
+        "title": "DocumentBundleAnnotationIn",
+        "type": "object"
+      },
+      "DocumentBundleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentBundleAnnotationIn"
+            },
+            "title": "Annotations",
+            "type": "array"
+          },
+          "submit": {
+            "default": false,
+            "title": "Submit",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "annotations"
+        ],
+        "title": "DocumentBundleIn",
+        "type": "object"
+      },
+      "DocumentCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "document_name": {
+            "minLength": 1,
+            "title": "Document Name",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_name",
+          "text"
+        ],
+        "title": "DocumentCreate",
+        "type": "object"
+      },
+      "DocumentDetailOut": {
+        "additionalProperties": false,
+        "properties": {
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/AnnotationOut"
+            },
+            "title": "Annotations",
+            "type": "array"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "document_name": {
+            "title": "Document Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnnotationStatus"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "document_name",
+          "text",
+          "status",
+          "created_at",
+          "updated_at",
+          "annotations"
+        ],
+        "title": "DocumentDetailOut",
+        "type": "object"
+      },
+      "DocumentListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentOut"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "pending_total": {
+            "title": "Pending Total",
+            "type": "integer"
+          },
+          "search": {
+            "title": "Search",
+            "type": "string"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/DocumentListSort"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "documents",
+          "total",
+          "pending_total",
+          "offset",
+          "limit",
+          "search",
+          "sort"
+        ],
+        "title": "DocumentListResponse",
+        "type": "object"
+      },
+      "DocumentListSort": {
+        "enum": [
+          "created",
+          "pending",
+          "updated",
+          "name"
+        ],
+        "title": "DocumentListSort",
+        "type": "string"
+      },
+      "DocumentNavigationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "current_document_id": {
+            "title": "Current Document Id",
+            "type": "string"
+          },
+          "next_document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Document Id"
+          },
+          "next_pending_document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Pending Document Id"
+          },
+          "prev_document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Document Id"
+          },
+          "search": {
+            "title": "Search",
+            "type": "string"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/DocumentListSort"
+          }
+        },
+        "required": [
+          "current_document_id",
+          "search",
+          "sort"
+        ],
+        "title": "DocumentNavigationResponse",
+        "type": "object"
+      },
+      "DocumentOut": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "document_name": {
+            "title": "Document Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnnotationStatus"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "document_name",
+          "text",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DocumentOut",
+        "type": "object"
+      },
+      "ExportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "include_pending": {
+            "default": true,
+            "title": "Include Pending",
+            "type": "boolean"
+          },
+          "include_verified": {
+            "default": true,
+            "title": "Include Verified",
+            "type": "boolean"
+          }
+        },
+        "title": "ExportRequest",
+        "type": "object"
+      },
+      "ExportResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentDetailOut"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "labels": {
+            "items": {
+              "$ref": "#/components/schemas/LabelOut"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
+            "type": "object"
+          },
+          "project": {
+            "$ref": "#/components/schemas/ProjectOut"
+          }
+        },
+        "required": [
+          "project",
+          "labels",
+          "documents",
+          "meta"
+        ],
+        "title": "ExportResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ImportPreflightIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "ImportPreflightIssue",
+        "type": "object"
+      },
+      "ImportPreflightResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ImportPreflightIssue"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "imported": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Imported",
+            "type": "object"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "imported",
+          "errors"
+        ],
+        "title": "ImportPreflightResponse",
+        "type": "object"
+      },
+      "ImportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "documents": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "labels": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "project": {
+            "additionalProperties": true,
+            "title": "Project",
+            "type": "object"
+          }
+        },
+        "required": [
+          "project",
+          "labels",
+          "documents"
+        ],
+        "title": "ImportRequest",
+        "type": "object"
+      },
+      "ImportResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "errors": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "imported": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Imported",
+            "type": "object"
+          }
+        },
+        "required": [
+          "imported",
+          "errors"
+        ],
+        "title": "ImportResponse",
+        "type": "object"
+      },
+      "LabelExampleOut": {
+        "additionalProperties": false,
+        "properties": {
+          "annotation_id": {
+            "title": "Annotation Id",
+            "type": "string"
+          },
+          "context_after": {
+            "title": "Context After",
+            "type": "string"
+          },
+          "context_before": {
+            "title": "Context Before",
+            "type": "string"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "document_name": {
+            "title": "Document Name",
+            "type": "string"
+          },
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "span_text": {
+            "title": "Span Text",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnnotationStatus"
+          }
+        },
+        "required": [
+          "annotation_id",
+          "document_id",
+          "document_name",
+          "span_text",
+          "start",
+          "end",
+          "status",
+          "context_before",
+          "context_after"
+        ],
+        "title": "LabelExampleOut",
+        "type": "object"
+      },
+      "LabelExamplesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "context_window": {
+            "title": "Context Window",
+            "type": "integer"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/LabelExampleOut"
+            },
+            "title": "Examples",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset_applied": {
+            "title": "Offset Applied",
+            "type": "integer"
+          },
+          "sample": {
+            "$ref": "#/components/schemas/LabelExamplesSampleMode"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LabelExamplesStatusFilter"
+          },
+          "total_matched": {
+            "title": "Total Matched",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "examples",
+          "total_matched",
+          "offset_applied",
+          "limit",
+          "status",
+          "sample",
+          "context_window"
+        ],
+        "title": "LabelExamplesResponse",
+        "type": "object"
+      },
+      "LabelExamplesSampleMode": {
+        "enum": [
+          "sequential",
+          "random"
+        ],
+        "title": "LabelExamplesSampleMode",
+        "type": "string"
+      },
+      "LabelExamplesStatusFilter": {
+        "enum": [
+          "pending",
+          "verified",
+          "all"
+        ],
+        "title": "LabelExamplesStatusFilter",
+        "type": "string"
+      },
+      "LabelListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "labels": {
+            "items": {
+              "$ref": "#/components/schemas/LabelOut"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "labels",
+          "revision"
+        ],
+        "title": "LabelListResponse",
+        "type": "object"
+      },
+      "LabelOut": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "title": "Color",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "shortcut": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortcut"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "project_name",
+          "name",
+          "color",
+          "description"
+        ],
+        "title": "LabelOut",
+        "type": "object"
+      },
+      "LabelSurfaceGroupOut": {
+        "additionalProperties": false,
+        "properties": {
+          "duplicate_count": {
+            "title": "Duplicate Count",
+            "type": "integer"
+          },
+          "representative": {
+            "$ref": "#/components/schemas/LabelSurfaceGroupRepresentativeOut"
+          },
+          "surface_text": {
+            "title": "Surface Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "surface_text",
+          "duplicate_count",
+          "representative"
+        ],
+        "title": "LabelSurfaceGroupOut",
+        "type": "object"
+      },
+      "LabelSurfaceGroupRepresentativeOut": {
+        "additionalProperties": false,
+        "properties": {
+          "annotation_id": {
+            "title": "Annotation Id",
+            "type": "string"
+          },
+          "context_after": {
+            "title": "Context After",
+            "type": "string"
+          },
+          "context_before": {
+            "title": "Context Before",
+            "type": "string"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "document_name": {
+            "title": "Document Name",
+            "type": "string"
+          },
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "span_text": {
+            "title": "Span Text",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnnotationStatus"
+          }
+        },
+        "required": [
+          "annotation_id",
+          "document_id",
+          "document_name",
+          "span_text",
+          "start",
+          "end",
+          "status",
+          "context_before",
+          "context_after"
+        ],
+        "title": "LabelSurfaceGroupRepresentativeOut",
+        "type": "object"
+      },
+      "LabelSurfaceGroupsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "context_window": {
+            "title": "Context Window",
+            "type": "integer"
+          },
+          "exclude_annotation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Annotation Id"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LabelSurfaceGroupOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LabelExamplesStatusFilter"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit",
+          "status",
+          "context_window"
+        ],
+        "title": "LabelSurfaceGroupsResponse",
+        "type": "object"
+      },
+      "LabelSyncIn": {
+        "additionalProperties": false,
+        "properties": {
+          "base_revision": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Base Revision",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "$ref": "#/components/schemas/LabelSyncItemIn"
+            },
+            "title": "Labels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "base_revision",
+          "labels"
+        ],
+        "title": "LabelSyncIn",
+        "type": "object"
+      },
+      "LabelSyncItemIn": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "title": "Color",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "shortcut": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortcut"
+          }
+        },
+        "required": [
+          "name",
+          "color",
+          "description"
+        ],
+        "title": "LabelSyncItemIn",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "title": "Password",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "MeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username"
+        ],
+        "title": "MeResponse",
+        "type": "object"
+      },
+      "ProjectCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ProjectCreate",
+        "type": "object"
+      },
+      "ProjectImportPreflightResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ImportPreflightIssue"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "imported": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Imported",
+            "type": "object"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "resolved_project_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Project Name"
+          }
+        },
+        "required": [
+          "ok",
+          "imported",
+          "errors"
+        ],
+        "title": "ProjectImportPreflightResponse",
+        "type": "object"
+      },
+      "ProjectImportResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "errors": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "imported": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Imported",
+            "type": "object"
+          },
+          "project": {
+            "$ref": "#/components/schemas/ProjectOut"
+          }
+        },
+        "required": [
+          "project",
+          "imported",
+          "errors"
+        ],
+        "title": "ProjectImportResponse",
+        "type": "object"
+      },
+      "ProjectListItemOut": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ProjectSummaryOut"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "summary"
+        ],
+        "title": "ProjectListItemOut",
+        "type": "object"
+      },
+      "ProjectListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectListItemOut"
+            },
+            "title": "Projects",
+            "type": "array"
+          }
+        },
+        "required": [
+          "projects"
+        ],
+        "title": "ProjectListResponse",
+        "type": "object"
+      },
+      "ProjectOut": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at"
+        ],
+        "title": "ProjectOut",
+        "type": "object"
+      },
+      "ProjectSettingsAtomicOut": {
+        "additionalProperties": false,
+        "properties": {
+          "labels": {
+            "items": {
+              "$ref": "#/components/schemas/LabelOut"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "project": {
+            "$ref": "#/components/schemas/ProjectOut"
+          }
+        },
+        "required": [
+          "project",
+          "labels"
+        ],
+        "title": "ProjectSettingsAtomicOut",
+        "type": "object"
+      },
+      "ProjectSettingsAtomicPut": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "$ref": "#/components/schemas/LabelSyncItemIn"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
+            "type": "object"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "meta",
+          "labels"
+        ],
+        "title": "ProjectSettingsAtomicPut",
+        "type": "object"
+      },
+      "ProjectSettingsPut": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
+            "type": "object"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "meta"
+        ],
+        "title": "ProjectSettingsPut",
+        "type": "object"
+      },
+      "ProjectSummaryOut": {
+        "additionalProperties": false,
+        "properties": {
+          "documents_count": {
+            "title": "Documents Count",
+            "type": "integer"
+          },
+          "labels_count": {
+            "title": "Labels Count",
+            "type": "integer"
+          },
+          "pending_documents_count": {
+            "title": "Pending Documents Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "labels_count",
+          "documents_count",
+          "pending_documents_count"
+        ],
+        "title": "ProjectSummaryOut",
+        "type": "object"
+      },
+      "ProjectUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "ProjectUpdate",
+        "type": "object"
+      },
+      "TokenResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "expires_in": {
+            "title": "Expires In",
+            "type": "integer"
+          },
+          "token_type": {
+            "title": "Token Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in"
+        ],
+        "title": "TokenResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "Layered Span Studio API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/auth/session": {
+      "delete": {
+        "operationId": "delete_session_auth_session_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Delete Session",
+        "tags": [
+          "auth"
+        ]
+      },
+      "get": {
+        "operationId": "get_session_auth_session_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Session",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "create_session_auth_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Session",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/token": {
+      "post": {
+        "operationId": "create_token_auth_token_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Token",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/projects": {
+      "get": {
+        "operationId": "list_projects_projects_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Projects",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "operationId": "create_project_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/import": {
+      "post": {
+        "operationId": "import_project_as_new_projects_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectImportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Project As New",
+        "tags": [
+          "import-export"
+        ]
+      }
+    },
+    "/projects/import/preflight": {
+      "post": {
+        "operationId": "preflight_import_project_as_new_projects_import_preflight_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectImportPreflightResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preflight Import Project As New",
+        "tags": [
+          "import-export"
+        ]
+      }
+    },
+    "/projects/{project_id}": {
+      "delete": {
+        "operationId": "delete_project_projects__project_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Project",
+        "tags": [
+          "projects"
+        ]
+      },
+      "get": {
+        "operationId": "get_project_projects__project_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Project",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "operationId": "update_project_projects__project_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{project_id}/annotations/search": {
+      "get": {
+        "operationId": "search_annotations_projects__project_id__annotations_search_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "text",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Text",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LabelExamplesStatusFilter",
+              "default": "verified"
+            }
+          },
+          {
+            "in": "query",
+            "name": "label_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Label Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exclude_annotation_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exclude Annotation Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "context_window",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 200,
+              "minimum": 0,
+              "title": "Context Window",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationSearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Search Annotations",
+        "tags": [
+          "annotations"
+        ]
+      }
+    },
+    "/projects/{project_id}/documents": {
+      "get": {
+        "operationId": "list_documents_projects__project_id__documents_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Search",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/DocumentListSort",
+              "default": "created"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Documents",
+        "tags": [
+          "documents"
+        ]
+      },
+      "post": {
+        "operationId": "create_document_projects__project_id__documents_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/projects/{project_id}/documents/{document_id}": {
+      "delete": {
+        "operationId": "delete_document_projects__project_id__documents__document_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Document",
+        "tags": [
+          "documents"
+        ]
+      },
+      "get": {
+        "operationId": "get_document_projects__project_id__documents__document_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/projects/{project_id}/documents/{document_id}/annotations": {
+      "post": {
+        "operationId": "create_annotation_projects__project_id__documents__document_id__annotations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Annotation",
+        "tags": [
+          "annotations"
+        ]
+      }
+    },
+    "/projects/{project_id}/documents/{document_id}/annotations/{annotation_id}": {
+      "delete": {
+        "operationId": "delete_annotation_projects__project_id__documents__document_id__annotations__annotation_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "annotation_id",
+            "required": true,
+            "schema": {
+              "title": "Annotation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Annotation",
+        "tags": [
+          "annotations"
+        ]
+      },
+      "get": {
+        "operationId": "get_annotation_projects__project_id__documents__document_id__annotations__annotation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "annotation_id",
+            "required": true,
+            "schema": {
+              "title": "Annotation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Annotation",
+        "tags": [
+          "annotations"
+        ]
+      },
+      "patch": {
+        "operationId": "update_annotation_projects__project_id__documents__document_id__annotations__annotation_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "annotation_id",
+            "required": true,
+            "schema": {
+              "title": "Annotation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Annotation",
+        "tags": [
+          "annotations"
+        ]
+      }
+    },
+    "/projects/{project_id}/documents/{document_id}/bundle": {
+      "put": {
+        "operationId": "save_document_bundle_projects__project_id__documents__document_id__bundle_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentBundleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save Document Bundle",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/projects/{project_id}/documents/{document_id}/navigation": {
+      "get": {
+        "operationId": "get_document_navigation_projects__project_id__documents__document_id__navigation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Search",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/DocumentListSort",
+              "default": "created"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentNavigationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Document Navigation",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/projects/{project_id}/export": {
+      "post": {
+        "operationId": "export_project_projects__project_id__export_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Project",
+        "tags": [
+          "import-export"
+        ]
+      }
+    },
+    "/projects/{project_id}/import": {
+      "post": {
+        "operationId": "import_project_projects__project_id__import_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Project",
+        "tags": [
+          "import-export"
+        ]
+      }
+    },
+    "/projects/{project_id}/import/preflight": {
+      "post": {
+        "operationId": "preflight_import_project_projects__project_id__import_preflight_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreflightResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preflight Import Project",
+        "tags": [
+          "import-export"
+        ]
+      }
+    },
+    "/projects/{project_id}/labels": {
+      "get": {
+        "operationId": "list_labels_projects__project_id__labels_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Labels",
+        "tags": [
+          "labels"
+        ]
+      },
+      "put": {
+        "operationId": "save_labels_projects__project_id__labels_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelSyncIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save Labels",
+        "tags": [
+          "labels"
+        ]
+      }
+    },
+    "/projects/{project_id}/labels/{label_id}/examples": {
+      "get": {
+        "operationId": "list_label_examples_projects__project_id__labels__label_id__examples_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "label_id",
+            "required": true,
+            "schema": {
+              "title": "Label Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LabelExamplesStatusFilter",
+              "default": "verified"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sample",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LabelExamplesSampleMode",
+              "default": "sequential"
+            }
+          },
+          {
+            "in": "query",
+            "name": "seed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Seed"
+            }
+          },
+          {
+            "in": "query",
+            "name": "context_window",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 200,
+              "minimum": 0,
+              "title": "Context Window",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelExamplesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Label Examples",
+        "tags": [
+          "labels"
+        ]
+      }
+    },
+    "/projects/{project_id}/labels/{label_id}/surface-groups": {
+      "get": {
+        "operationId": "list_label_surface_groups_projects__project_id__labels__label_id__surface_groups_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "label_id",
+            "required": true,
+            "schema": {
+              "title": "Label Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LabelExamplesStatusFilter",
+              "default": "verified"
+            }
+          },
+          {
+            "in": "query",
+            "name": "context_window",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 200,
+              "minimum": 0,
+              "title": "Context Window",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exclude_annotation_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exclude Annotation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelSurfaceGroupsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Label Surface Groups",
+        "tags": [
+          "labels"
+        ]
+      }
+    },
+    "/projects/{project_id}/settings": {
+      "put": {
+        "operationId": "put_project_settings_projects__project_id__settings_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectSettingsPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Project Settings",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{project_id}/settings/atomic": {
+      "put": {
+        "operationId": "put_project_settings_atomic_projects__project_id__settings_atomic_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectSettingsAtomicPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSettingsAtomicOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Project Settings Atomic",
+        "tags": [
+          "projects"
+        ]
+      }
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import type { LabelDraft } from "./projectShellTypes";
-import type { DocumentListItem, DocumentListResponse, DocumentRecord, LabelRecord } from "../../types";
+import type { DocumentListResponse, DocumentRecord, LabelRecord } from "../../api-contract";
+import type { DocumentListItem } from "../../types";
 import { DEFAULT_LABEL_COLOR, DOCUMENT_WINDOW_SIZE } from "./projectShellConstants";
 
 export function normalizeHexColor(value: string) {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Box, Button, Paper, Typography, alpha } from "@mui/material";
-import type { AnnotationRecord, DocumentRecord, LabelRecord } from "../types";
+import type { AnnotationRecord, DocumentRecord, LabelRecord } from "../api-contract";
 import { isShortcutBlockedTarget } from "../utils";
 
 type SelectionDraft = {

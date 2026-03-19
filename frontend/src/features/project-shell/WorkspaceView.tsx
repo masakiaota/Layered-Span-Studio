@@ -32,13 +32,15 @@ import { floatingTooltipSlotProps } from "./projectShellConstants";
 import type { RightTab, SelectionPreview } from "./projectShellTypes";
 import type {
   AnnotationSearchItemRecord,
-  DocumentListItem,
   DocumentRecord,
-  JsonObject,
   LabelRecord,
   LabelSurfaceGroupRecord,
-  ProjectBundle,
   StatusValue,
+} from "../../api-contract";
+import type {
+  DocumentListItem,
+  JsonObject,
+  ProjectBundle,
 } from "../../types";
 import { getDocumentSnippetParts, groupAnnotationsByLabel } from "../../utils";
 

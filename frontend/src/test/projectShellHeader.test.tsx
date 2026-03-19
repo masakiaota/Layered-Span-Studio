@@ -2,7 +2,8 @@ import { createRef } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectShellHeader } from "../features/project-shell/ProjectShellHeader";
-import type { ProjectBundle, UserRecord } from "../types";
+import type { UserRecord } from "../api-contract";
+import type { ProjectBundle } from "../types";
 
 const longProjectName =
   "スクリーンショット撮影向けの長文医療記録ダミー。重なりのある複数ラベルを確認しやすくするためにあえて極端に長くした project 名";

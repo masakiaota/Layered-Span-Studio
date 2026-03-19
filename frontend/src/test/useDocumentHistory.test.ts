@@ -1,7 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { useDocumentHistory } from "../features/project-shell/useDocumentHistory";
-import type { DocumentRecord, ProjectBundle } from "../types";
+import type { DocumentRecord } from "../api-contract";
+import type { ProjectBundle } from "../types";
 
 function createDocument(overrides: Partial<DocumentRecord> = {}): DocumentRecord {
   return {

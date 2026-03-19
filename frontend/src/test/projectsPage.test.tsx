@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
 import { ProjectsPage } from "../pages/ProjectsPage";
-import type { ProjectImportResponse, ProjectListItemRecord, UserRecord } from "../types";
+import type { ProjectImportResponse, ProjectListItemRecord, UserRecord } from "../api-contract";
 
 const user: UserRecord = {
   id: "user-1",

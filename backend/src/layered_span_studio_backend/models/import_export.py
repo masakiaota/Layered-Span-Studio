@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from layered_span_studio_backend.models.documents import DocumentDetailOut
+from layered_span_studio_backend.models.labels import LabelOut
 from layered_span_studio_backend.models.common import APIModel
+from layered_span_studio_backend.models.projects import ProjectOut
 
 
 class ExportRequest(APIModel):
@@ -11,9 +14,9 @@ class ExportRequest(APIModel):
 
 
 class ExportResponse(APIModel):
-    project: Dict[str, Any]
-    labels: List[Dict[str, Any]]
-    documents: List[Dict[str, Any]]
+    project: ProjectOut
+    labels: List[LabelOut]
+    documents: List[DocumentDetailOut]
     meta: Dict[str, Any]
 
 
@@ -30,7 +33,7 @@ class ImportResponse(APIModel):
 
 
 class ProjectImportResponse(APIModel):
-    project: Dict[str, Any]
+    project: ProjectOut
     imported: Dict[str, int]
     errors: List[Dict[str, Any]]
 

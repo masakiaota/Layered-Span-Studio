@@ -65,11 +65,14 @@ layered-span-studio/
 │   │   ├── features/        # 機能ごとのモジュール
 │   │   ├── hooks/           # カスタムフック
 │   │   ├── pages/           # 画面単位のコンポーネント
-│   │   ├── api.ts           # API通信
-│   │   ├── types.ts         # TypeScript型定義
+│   │   ├── generated/       # OpenAPI から生成した API 契約型
+│   │   ├── api.ts           # API client 初期化と共通エラーハンドリング
+│   │   ├── api-contract.ts  # generated 契約型の再公開
+│   │   ├── types.ts         # UI ローカル型定義
 │   │   ├── utils.ts         # 共通ユーティリティ
 │   │   └── App.tsx          # 画面全体のルート構成
 │   ├── index.html
+│   ├── openapi/             # backend OpenAPI schema snapshot
 │   └── package.json
 │
 ├── backend/

@@ -41,10 +41,12 @@ import { LoginPage } from "./pages/LoginPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import type {
   AnnotationRecord,
-  DocumentListItem,
   DocumentRecord,
-  ProjectBundle,
   UserRecord,
+} from "./api-contract";
+import type {
+  DocumentListItem,
+  ProjectBundle,
 } from "./types";
 import {
   deepClone,

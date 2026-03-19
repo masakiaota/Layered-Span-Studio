@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import type {
-  DocumentListItem,
   DocumentRecord,
-  ProjectBundle,
-} from "../../types";
+} from "../../api-contract";
+import type { DocumentListItem, ProjectBundle } from "../../types";
 import { deepClone } from "../../utils";
 import { DOCUMENT_PAGE_SIZE } from "./projectShellConstants";
 import {

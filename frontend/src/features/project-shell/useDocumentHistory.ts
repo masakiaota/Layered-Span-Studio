@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import type { DocumentRecord, ProjectBundle } from "../../types";
+import type { DocumentRecord } from "../../api-contract";
+import type { ProjectBundle } from "../../types";
 import { deepClone } from "../../utils";
 
 export type HistoryState = {

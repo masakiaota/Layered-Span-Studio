@@ -4,7 +4,8 @@ import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
-import type { ProjectBundle, UserRecord } from "../../types";
+import type { UserRecord } from "../../api-contract";
+import type { ProjectBundle } from "../../types";
 
 export function ProjectShellHeader({
   bundle,

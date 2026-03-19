@@ -8,7 +8,7 @@ import type {
   AnnotationSearchItemRecord,
   LabelRecord,
   LabelSurfaceGroupRecord,
-} from "../types";
+} from "../api-contract";
 
 const focusedLabel: LabelRecord = {
   id: "label-1",

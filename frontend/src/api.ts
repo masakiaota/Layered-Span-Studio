@@ -1,24 +1,33 @@
+import createClient from "openapi-fetch";
+import type { paths } from "./generated/openapi";
 import type {
   AnnotationRecord,
   AnnotationSearchResponse,
-  DocumentRecord,
+  CreateDocumentInput,
+  CreateProjectInput,
   DocumentListResponse,
+  DocumentRecord,
   ExportResponse,
+  ImportPayload,
   ImportResponse,
-  JsonObject,
   LabelListResponse,
-  LabelSurfaceGroupsResponse,
   LabelRecord,
+  LabelSurfaceGroupsResponse,
   ProjectImportResponse,
   ProjectListItemRecord,
   ProjectRecord,
+  SaveDocumentAnnotationInput,
+  SaveProjectLabelInput,
   UserRecord,
-} from "./types";
+} from "./api-contract";
+import type { JsonObject } from "./types";
 import { toJsonObject } from "./utils";
 
 const DEFAULT_API_BASE_URL = "/api";
 const CSRF_COOKIE_NAME = "lss_csrf";
 const CSRF_HEADER_NAME = "X-CSRF-Token";
+const METHODS_REQUIRING_CSRF = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const CSRF_EXEMPT_ROUTES = new Set(["POST /auth/session", "POST /auth/token"]);
 
 export class ApiError extends Error {
   readonly status: number;
@@ -42,20 +51,6 @@ function readCookie(name: string) {
     }
   }
   return null;
-}
-
-function headers(contentType?: string, includeCsrf = false) {
-  const result = new Headers();
-  if (contentType) {
-    result.set("Content-Type", contentType);
-  }
-  if (includeCsrf) {
-    const csrfToken = readCookie(CSRF_COOKIE_NAME);
-    if (csrfToken) {
-      result.set(CSRF_HEADER_NAME, csrfToken);
-    }
-  }
-  return result;
 }
 
 function formatErrorDetail(detail: unknown): string | null {
@@ -120,19 +115,71 @@ async function toApiError(response: Response): Promise<ApiError> {
   return new ApiError(text || response.statusText || "Request failed", response.status);
 }
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    throw await toApiError(response);
+function toRequestPath(url: URL, baseUrl: string) {
+  if (!url.pathname.startsWith(baseUrl)) {
+    return url.pathname;
   }
-  return (await response.json()) as T;
+  const path = url.pathname.slice(baseUrl.length);
+  return path.startsWith("/") ? path : `/${path}`;
 }
 
-type RequestOptions = {
-  method?: string;
-  body?: BodyInit | null;
-  contentType?: string;
-  includeCsrf?: boolean;
-};
+function shouldAttachCsrf(request: Request, baseUrl: string) {
+  if (!METHODS_REQUIRING_CSRF.has(request.method.toUpperCase())) {
+    return false;
+  }
+  const path = toRequestPath(new URL(request.url, window.location.origin), baseUrl);
+  return !CSRF_EXEMPT_ROUTES.has(`${request.method.toUpperCase()} ${path}`);
+}
+
+const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/$/, "");
+const client = createClient<paths>({
+  baseUrl,
+  credentials: "include",
+});
+
+client.use({
+  onRequest({ request }) {
+    if (typeof document !== "undefined" && shouldAttachCsrf(request, baseUrl)) {
+      const csrfToken = readCookie(CSRF_COOKIE_NAME);
+      if (csrfToken) {
+        request.headers.set(CSRF_HEADER_NAME, csrfToken);
+      }
+    }
+    return request;
+  },
+});
+
+async function unwrapData<T>(result: Promise<{ data?: T; error?: unknown; response: Response }>) {
+  const { data, error, response } = await result;
+  if (!response.ok) {
+    throw await toApiErrorFromResult(response, error);
+  }
+  if (typeof data === "undefined") {
+    throw new ApiError("Response data is missing", 500);
+  }
+  return data;
+}
+
+async function unwrapVoid(result: Promise<{ error?: unknown; response: Response }>) {
+  const { error, response } = await result;
+  if (!response.ok) {
+    throw await toApiErrorFromResult(response, error);
+  }
+}
+
+async function toApiErrorFromResult(response: Response, error: unknown): Promise<ApiError> {
+  if (typeof error !== "undefined") {
+    const detail =
+      error && typeof error === "object" && "detail" in error
+        ? (error as { detail?: unknown }).detail
+        : error;
+    return new ApiError(
+      formatErrorDetail(detail) ?? (response.statusText || "Request failed"),
+      response.status,
+    );
+  }
+  return toApiError(response);
+}
 
 export class ApiClient {
   readonly baseUrl: string;
@@ -141,179 +188,147 @@ export class ApiClient {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
-  private async request(path: string, options: RequestOptions = {}) {
-    return fetch(`${this.baseUrl}${path}`, {
-      method: options.method,
-      body: options.body,
-      headers: headers(options.contentType, options.includeCsrf),
-      credentials: "include",
-    });
-  }
-
   async createSession(username: string, password: string) {
-    const response = await this.request("/auth/session", {
-      method: "POST",
-      contentType: "application/json",
-      body: JSON.stringify({ username, password }),
-    });
-    return parseResponse<UserRecord>(response);
+    return unwrapData<UserRecord>(client.POST("/auth/session", {
+      body: { username, password },
+    }));
   }
 
   async getSession() {
-    const response = await this.request("/auth/session");
-    return parseResponse<UserRecord>(response);
+    return unwrapData<UserRecord>(client.GET("/auth/session"));
   }
 
   async deleteSession() {
-    const response = await this.request("/auth/session", {
-      method: "DELETE",
-      includeCsrf: true,
-    });
-    if (!response.ok) {
-      throw await toApiError(response);
-    }
+    await unwrapVoid(client.DELETE("/auth/session"));
   }
 
   async listProjects() {
-    const response = await this.request("/projects");
-    return parseResponse<{ projects: ProjectListItemRecord[] }>(response);
+    return unwrapData<{ projects: ProjectListItemRecord[] }>(client.GET("/projects"));
   }
 
-  async createProject(project: Pick<ProjectRecord, "name" | "description" | "meta">) {
-    const response = await this.request("/projects", {
-      method: "POST",
-      contentType: "application/json",
-      includeCsrf: true,
-      body: JSON.stringify({
+  async createProject(project: Pick<CreateProjectInput, "name" | "description" | "meta">) {
+    return unwrapData<ProjectRecord>(client.POST("/projects", {
+      body: {
         name: project.name,
         description: project.description ?? "",
-        meta: toJsonObject(project.meta),
-      }),
-    });
-    return parseResponse<ProjectRecord>(response);
+        meta: toJsonObject(project.meta ?? null),
+      },
+    }));
   }
 
   async getProject(projectId: string) {
-    const response = await this.request(`/projects/${projectId}`);
-    return parseResponse<ProjectRecord>(response);
+    return unwrapData<ProjectRecord>(client.GET("/projects/{project_id}", {
+      params: { path: { project_id: projectId } },
+    }));
   }
 
   async deleteProject(projectId: string) {
-    const response = await this.request(`/projects/${projectId}`, {
-      method: "DELETE",
-      includeCsrf: true,
-    });
-    if (!response.ok) {
-      throw await toApiError(response);
-    }
+    await unwrapVoid(client.DELETE("/projects/{project_id}", {
+      params: { path: { project_id: projectId } },
+    }));
   }
 
   async saveProjectSettings(project: ProjectRecord) {
-    const response = await this.request(`/projects/${project.id}/settings`, {
-      method: "PUT",
-      contentType: "application/json",
-      includeCsrf: true,
-      body: JSON.stringify({
+    return unwrapData<ProjectRecord>(client.PUT("/projects/{project_id}/settings", {
+      params: { path: { project_id: project.id } },
+      body: {
         name: project.name,
         description: project.description ?? "",
-        meta: toJsonObject(project.meta),
-      }),
-    });
-    return parseResponse<ProjectRecord>(response);
+        meta: toJsonObject(project.meta ?? null),
+      },
+    }));
   }
 
   async listLabels(projectId: string) {
-    const response = await this.request(`/projects/${projectId}/labels`);
-    return assertLabelListResponseRevision(await parseResponse<LabelListResponse>(response));
+    const payload = await unwrapData<LabelListResponse>(client.GET("/projects/{project_id}/labels", {
+      params: { path: { project_id: projectId } },
+    }));
+    return assertLabelListResponseRevision(payload);
   }
 
   async saveProjectLabels(
     projectId: string,
-    labels: Array<
-      Pick<LabelRecord, "name" | "color" | "description" | "shortcut" | "meta"> & {
-        id: string | null;
-      }
-    >,
+    labels: Array<Pick<SaveProjectLabelInput, "name" | "color" | "description" | "shortcut" | "meta"> & { id: string | null }>,
     baseRevision: string,
   ) {
-    const response = await this.request(`/projects/${projectId}/labels`, {
-      method: "PUT",
-      contentType: "application/json",
-      includeCsrf: true,
-      body: JSON.stringify({
+    const payload = await unwrapData<LabelListResponse>(client.PUT("/projects/{project_id}/labels", {
+      params: { path: { project_id: projectId } },
+      body: {
         base_revision: baseRevision,
         labels: labels.map((label) => ({
           ...label,
-          meta: toJsonObject(label.meta),
+          meta: toJsonObject(label.meta ?? null),
         })),
-      }),
-    });
-    return assertLabelListResponseRevision(await parseResponse<LabelListResponse>(response));
+      },
+    }));
+    return assertLabelListResponseRevision(payload);
   }
 
   async listDocuments(projectId: string, options?: { offset?: number; limit?: number; search?: string; sort?: string }) {
-    const query = new URLSearchParams({
-      offset: String(options?.offset ?? 0),
-      limit: String(options?.limit ?? 100),
-      search: options?.search ?? "",
-      sort: options?.sort ?? "created",
-    });
-    const response = await this.request(`/projects/${projectId}/documents?${query.toString()}`);
-    return parseResponse<DocumentListResponse>(response);
+    return unwrapData<DocumentListResponse>(client.GET("/projects/{project_id}/documents", {
+      params: {
+        path: { project_id: projectId },
+        query: {
+          offset: options?.offset ?? 0,
+          limit: options?.limit ?? 100,
+          search: options?.search ?? "",
+          sort: (options?.sort ?? "created") as "created" | "pending" | "updated" | "name",
+        },
+      },
+    }));
   }
 
   async getDocument(projectId: string, documentId: string) {
-    const response = await this.request(`/projects/${projectId}/documents/${documentId}`);
-    return parseResponse<DocumentRecord>(response);
+    return unwrapData<DocumentRecord>(client.GET("/projects/{project_id}/documents/{document_id}", {
+      params: {
+        path: { project_id: projectId, document_id: documentId },
+      },
+    }));
   }
 
   async saveDocumentBundle(
     projectId: string,
     documentId: string,
     annotations: Array<
-      Pick<AnnotationRecord, "label_id" | "start" | "end" | "span_text" | "comment" | "status" | "meta"> & {
+      Pick<SaveDocumentAnnotationInput, "label_id" | "start" | "end" | "span_text" | "comment" | "status" | "meta"> & {
         id: string | null;
       }
     >,
     submit = false,
   ) {
-    const response = await this.request(`/projects/${projectId}/documents/${documentId}/bundle`, {
-      method: "PUT",
-      contentType: "application/json",
-      includeCsrf: true,
-      body: JSON.stringify({
+    return unwrapData<DocumentRecord>(client.PUT("/projects/{project_id}/documents/{document_id}/bundle", {
+      params: {
+        path: { project_id: projectId, document_id: documentId },
+      },
+      body: {
         submit,
         annotations: annotations.map((annotation) => ({
           ...annotation,
-          meta: toJsonObject(annotation.meta),
+          meta: toJsonObject(annotation.meta ?? null),
         })),
-      }),
-    });
-    return parseResponse<DocumentRecord>(response);
+      },
+    }));
   }
 
-  async createDocument(projectId: string, document: Pick<DocumentRecord, "document_name" | "text" | "meta">) {
-    const response = await this.request(`/projects/${projectId}/documents`, {
-      method: "POST",
-      contentType: "application/json",
-      includeCsrf: true,
-      body: JSON.stringify({
+  async createDocument(projectId: string, document: Pick<CreateDocumentInput, "document_name" | "text" | "meta">) {
+    return unwrapData<Omit<DocumentRecord, "annotations">>(client.POST("/projects/{project_id}/documents", {
+      params: {
+        path: { project_id: projectId },
+      },
+      body: {
         document_name: document.document_name,
         text: document.text,
-        meta: toJsonObject(document.meta),
-      }),
-    });
-    return parseResponse<Omit<DocumentRecord, "annotations">>(response);
+        meta: toJsonObject(document.meta ?? null),
+      },
+    }));
   }
 
   async deleteDocument(projectId: string, documentId: string) {
-    const response = await this.request(`/projects/${projectId}/documents/${documentId}`, {
-      method: "DELETE",
-      includeCsrf: true,
-    });
-    if (!response.ok) {
-      throw await toApiError(response);
-    }
+    await unwrapVoid(client.DELETE("/projects/{project_id}/documents/{document_id}", {
+      params: {
+        path: { project_id: projectId, document_id: documentId },
+      },
+    }));
   }
 
   async listLabelSurfaceGroups(
@@ -321,17 +336,18 @@ export class ApiClient {
     labelId: string,
     options?: { offset?: number; limit?: number; status?: string; contextWindow?: number; excludeAnnotationId?: string | null },
   ) {
-    const query = new URLSearchParams({
-      offset: String(options?.offset ?? 0),
-      limit: String(options?.limit ?? 50),
-      status: options?.status ?? "verified",
-      context_window: String(options?.contextWindow ?? 20),
-    });
-    if (options?.excludeAnnotationId) {
-      query.set("exclude_annotation_id", options.excludeAnnotationId);
-    }
-    const response = await this.request(`/projects/${projectId}/labels/${labelId}/surface-groups?${query.toString()}`);
-    return parseResponse<LabelSurfaceGroupsResponse>(response);
+    return unwrapData<LabelSurfaceGroupsResponse>(client.GET("/projects/{project_id}/labels/{label_id}/surface-groups", {
+      params: {
+        path: { project_id: projectId, label_id: labelId },
+        query: {
+          offset: options?.offset ?? 0,
+          limit: options?.limit ?? 50,
+          status: (options?.status ?? "verified") as "pending" | "verified" | "all",
+          context_window: options?.contextWindow ?? 20,
+          exclude_annotation_id: options?.excludeAnnotationId ?? undefined,
+        },
+      },
+    }));
   }
 
   async searchAnnotations(
@@ -346,54 +362,47 @@ export class ApiClient {
       contextWindow?: number;
     },
   ) {
-    const query = new URLSearchParams({
-      text: options.text,
-      status: options.status ?? "verified",
-      offset: String(options.offset ?? 0),
-      limit: String(options.limit ?? 50),
-      context_window: String(options.contextWindow ?? 20),
-    });
-    if (options.labelId) {
-      query.set("label_id", options.labelId);
-    }
-    if (options.excludeAnnotationId) {
-      query.set("exclude_annotation_id", options.excludeAnnotationId);
-    }
-    const response = await this.request(`/projects/${projectId}/annotations/search?${query.toString()}`);
-    return parseResponse<AnnotationSearchResponse>(response);
+    return unwrapData<AnnotationSearchResponse>(client.GET("/projects/{project_id}/annotations/search", {
+      params: {
+        path: { project_id: projectId },
+        query: {
+          text: options.text,
+          status: (options.status ?? "verified") as "pending" | "verified" | "all",
+          label_id: options.labelId ?? undefined,
+          exclude_annotation_id: options.excludeAnnotationId ?? undefined,
+          offset: options.offset ?? 0,
+          limit: options.limit ?? 50,
+          context_window: options.contextWindow ?? 20,
+        },
+      },
+    }));
   }
 
   async importProjectAsNew(payload: JsonObject) {
-    const response = await this.request("/projects/import", {
-      method: "POST",
-      contentType: "application/json",
-      includeCsrf: true,
-      body: JSON.stringify(payload),
-    });
-    return parseResponse<ProjectImportResponse>(response);
+    return unwrapData<ProjectImportResponse>(client.POST("/projects/import", {
+      body: payload as ImportPayload,
+    }));
   }
 
   async importProject(projectId: string, payload: JsonObject) {
-    const response = await this.request(`/projects/${projectId}/import`, {
-      method: "POST",
-      contentType: "application/json",
-      includeCsrf: true,
-      body: JSON.stringify(payload),
-    });
-    return parseResponse<ImportResponse>(response);
+    return unwrapData<ImportResponse>(client.POST("/projects/{project_id}/import", {
+      params: {
+        path: { project_id: projectId },
+      },
+      body: payload as ImportPayload,
+    }));
   }
 
   async exportProject(projectId: string, includePending: boolean, includeVerified: boolean) {
-    const response = await this.request(`/projects/${projectId}/export`, {
-      method: "POST",
-      contentType: "application/json",
-      includeCsrf: true,
-      body: JSON.stringify({
+    return unwrapData<ExportResponse>(client.POST("/projects/{project_id}/export", {
+      params: {
+        path: { project_id: projectId },
+      },
+      body: {
         include_pending: includePending,
         include_verified: includeVerified,
-      }),
-    });
-    return parseResponse<ExportResponse>(response);
+      },
+    }));
   }
 }
 

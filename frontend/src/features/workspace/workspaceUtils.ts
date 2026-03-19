@@ -1,4 +1,5 @@
-import type { AnnotationRecord, DocumentListItem, DocumentRecord, LabelRecord } from "../../types";
+import type { AnnotationRecord, DocumentRecord, LabelRecord } from "../../api-contract";
+import type { DocumentListItem } from "../../types";
 
 export function contextSnippet(text: string, start: number, end: number, size = 16) {
   return {

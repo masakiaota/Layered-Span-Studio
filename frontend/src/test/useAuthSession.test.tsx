@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api } from "../api";
 import { useAuthSession } from "../hooks/useAuthSession";
-import type { UserRecord } from "../types";
+import type { UserRecord } from "../api-contract";
 
 type Deferred<T> = {
   promise: Promise<T>;
