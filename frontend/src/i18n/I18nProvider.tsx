@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { enMessages } from "./messages/en";
+import { zhCnMessages } from "./messages/zh-CN";
 import { jaMessages, type Messages } from "./messages/ja";
 
-export type Locale = "ja" | "en";
+export type Locale = "ja" | "en" | "zh-CN";
 export type TranslationVariables = Record<string, string | number>;
 
 type MessageNode = string | { [key: string]: MessageNode };
@@ -18,10 +19,11 @@ export const LOCALE_STORAGE_KEY = "layered-span-studio.locale";
 export const dictionaries: Dictionaries = {
   ja: jaMessages,
   en: enMessages,
+  "zh-CN": zhCnMessages,
 };
 
 function isLocale(value: string | null | undefined): value is Locale {
-  return value === "ja" || value === "en";
+  return value === "ja" || value === "en" || value === "zh-CN";
 }
 
 function getMessage(messages: MessageNode, key: string): string | undefined {
@@ -49,7 +51,18 @@ function interpolate(template: string, variables?: TranslationVariables) {
 }
 
 export function detectBrowserLocale(language: string | undefined) {
-  return language?.toLowerCase().startsWith("ja") ? "ja" : "en";
+  const normalized = language?.toLowerCase();
+  if (normalized?.startsWith("ja")) {
+    return "ja";
+  }
+  if (
+    normalized?.startsWith("zh-cn") ||
+    normalized?.startsWith("zh-sg") ||
+    normalized?.startsWith("zh-hans")
+  ) {
+    return "zh-CN";
+  }
+  return "en";
 }
 
 export function resolveInitialLocale(storedLocale: string | null | undefined, browserLanguage: string | undefined): Locale {

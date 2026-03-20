@@ -2,11 +2,15 @@ import ArrowDropDownRoundedIcon from "@mui/icons-material/ArrowDropDownRounded";
 import { Button, Menu, MenuItem, Tooltip, type SxProps, type Theme } from "@mui/material";
 import { useState } from "react";
 import { useI18n } from "../i18n/useI18n";
+import type { Locale } from "../i18n/I18nProvider";
 
 const localeFlags = {
   ja: "🇯🇵",
   en: "🇺🇸",
+  "zh-CN": "🇨🇳",
 } as const;
+
+const localeKeys: Locale[] = ["ja", "en", "zh-CN"];
 
 export function LanguageSwitcher({ sx }: { sx?: SxProps<Theme> }) {
   const { locale, setLocale, t } = useI18n();
@@ -58,34 +62,23 @@ export function LanguageSwitcher({ sx }: { sx?: SxProps<Theme> }) {
           },
         }}
       >
-        <MenuItem
-          selected={locale === "ja"}
-          aria-label={t("shared.language.ja")}
-          onClick={() => {
-            setLocale("ja");
-            setAnchorEl(null);
-          }}
-          sx={{ minWidth: 140, gap: 1.25, fontSize: 16, lineHeight: 1.2 }}
-        >
-          <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>
-            {localeFlags.ja}
-          </span>
-          {t("shared.language.ja")}
-        </MenuItem>
-        <MenuItem
-          selected={locale === "en"}
-          aria-label={t("shared.language.en")}
-          onClick={() => {
-            setLocale("en");
-            setAnchorEl(null);
-          }}
-          sx={{ minWidth: 140, gap: 1.25, fontSize: 16, lineHeight: 1.2 }}
-        >
-          <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>
-            {localeFlags.en}
-          </span>
-          {t("shared.language.en")}
-        </MenuItem>
+        {localeKeys.map((localeKey) => (
+          <MenuItem
+            key={localeKey}
+            selected={locale === localeKey}
+            aria-label={t(`shared.language.${localeKey}`)}
+            onClick={() => {
+              setLocale(localeKey);
+              setAnchorEl(null);
+            }}
+            sx={{ minWidth: 160, gap: 1.25, fontSize: 16, lineHeight: 1.2 }}
+          >
+            <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>
+              {localeFlags[localeKey]}
+            </span>
+            {t(`shared.language.${localeKey}`)}
+          </MenuItem>
+        ))}
       </Menu>
     </>
   );

@@ -12,6 +12,7 @@ import {
 } from "../i18n/I18nProvider";
 import { enMessages } from "../i18n/messages/en";
 import { jaMessages } from "../i18n/messages/ja";
+import { zhCnMessages } from "../i18n/messages/zh-CN";
 import { LoginPage } from "../pages/LoginPage";
 import { ProjectsPage } from "../pages/ProjectsPage";
 import type { UserRecord } from "../api-contract";
@@ -35,11 +36,11 @@ const bundle: ProjectBundle = {
   documents: [],
 };
 
-function renderWithI18n(ui: ReactElement, locale: "ja" | "en" = "ja") {
+function renderWithI18n(ui: ReactElement, locale: "ja" | "en" | "zh-CN" = "ja") {
   return render(<I18nProvider initialLocale={locale}>{ui}</I18nProvider>);
 }
 
-function renderProjectsPage(locale: "ja" | "en") {
+function renderProjectsPage(locale: "ja" | "en" | "zh-CN") {
   return renderWithI18n(
     <MemoryRouter initialEntries={["/projects"]}>
       <Routes>
@@ -60,9 +61,13 @@ describe("i18n locale layer", () => {
 
   it("detects the initial locale from browser language and persisted selection", () => {
     expect(resolveInitialLocale(null, "ja-JP")).toBe("ja");
+    expect(resolveInitialLocale(null, "zh-CN")).toBe("zh-CN");
+    expect(resolveInitialLocale(null, "zh-SG")).toBe("zh-CN");
+    expect(resolveInitialLocale(null, "zh-Hans")).toBe("zh-CN");
     expect(resolveInitialLocale(null, "en-US")).toBe("en");
     expect(resolveInitialLocale("ja", "en-US")).toBe("ja");
     expect(resolveInitialLocale("en", "ja-JP")).toBe("en");
+    expect(resolveInitialLocale("zh-CN", "en-US")).toBe("zh-CN");
   });
 
   it("falls back to ja when an en key is missing", () => {
@@ -82,6 +87,19 @@ describe("i18n locale layer", () => {
     expect(screen.getByText("ログインに失敗した")).toBeInTheDocument();
   });
 
+  it("falls back to ja when a zh-CN key is missing", () => {
+    const partialZh = structuredClone(zhCnMessages) as typeof jaMessages;
+    delete (partialZh.projectShell.header as { logout?: string }).logout;
+
+    expect(
+      translateMessage("zh-CN", "projectShell.header.logout", undefined, {
+        ja: jaMessages,
+        en: enMessages,
+        "zh-CN": partialZh,
+      }),
+    ).toBe(jaMessages.projectShell.header.logout);
+  });
+
   it("switches LoginPage copy between ja and en", async () => {
     const userEventSetup = userEvent.setup();
     renderWithI18n(<LoginPage loading={false} error="" onLogin={vi.fn()} />, "en");
@@ -90,6 +108,16 @@ describe("i18n locale layer", () => {
     await userEventSetup.click(screen.getByRole("button", { name: "Language switcher" }));
     await userEventSetup.click(screen.getByRole("menuitem", { name: "日本語" }));
     expect(screen.getByText("テキストに注釈を付け、ラベルごとに整理しながら確認するためのツールである。ここではアカウントでサインインして、Project 一覧へ進む。")).toBeInTheDocument();
+  });
+
+  it("shows all locales in the language menu", async () => {
+    const userEventSetup = userEvent.setup();
+    renderWithI18n(<LoginPage loading={false} error="" onLogin={vi.fn()} />, "en");
+
+    await userEventSetup.click(screen.getByRole("button", { name: "Language switcher" }));
+    expect(screen.getByRole("menuitem", { name: "日本語" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "English" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "简体中文" })).toBeInTheDocument();
   });
 
   it("switches ProjectsPage copy between ja and en", async () => {
@@ -102,6 +130,22 @@ describe("i18n locale layer", () => {
     await userEventSetup.click(screen.getByRole("button", { name: "Language switcher" }));
     await userEventSetup.click(screen.getByRole("menuitem", { name: "日本語" }));
     expect(await screen.findByText("Project がまだない")).toBeInTheDocument();
+  });
+
+  it("switches ProjectsPage copy to zh-CN and points guide links to zh-CN docs", async () => {
+    const userEventSetup = userEvent.setup();
+    vi.spyOn(api, "listProjects").mockResolvedValue({ projects: [] });
+
+    renderProjectsPage("en");
+
+    await screen.findByText("No project yet");
+    await userEventSetup.click(screen.getByRole("button", { name: "Language switcher" }));
+    await userEventSetup.click(screen.getByRole("menuitem", { name: "简体中文" }));
+    expect(await screen.findByText("还没有项目")).toBeInTheDocument();
+
+    await userEventSetup.click(screen.getAllByRole("button", { name: "导入项目" })[0]);
+    const guideLink = await screen.findByRole("link", { name: "这份指南" });
+    expect(guideLink).toHaveAttribute("href", "https://github.com/masakiaota/Layered-Span-Studio/blob/main/docs/import-your-data-zh-CN.md");
   });
 
   it("switches ProjectShellHeader copy between ja and en", async () => {
@@ -124,5 +168,26 @@ describe("i18n locale layer", () => {
     await userEventSetup.click(screen.getByRole("button", { name: "Language switcher" }));
     await userEventSetup.click(screen.getByRole("menuitem", { name: "日本語" }));
     expect(screen.getByText("説明なし")).toBeInTheDocument();
+  });
+
+  it("switches ProjectShellHeader copy to zh-CN", async () => {
+    const userEventSetup = userEvent.setup();
+    renderWithI18n(
+      <ProjectShellHeader
+        bundle={bundle}
+        user={user}
+        view="settings"
+        shortcutButtonRef={{ current: null }}
+        onBackToProjects={vi.fn()}
+        onChangeView={vi.fn()}
+        onOpenShortcuts={vi.fn()}
+        onLogout={vi.fn()}
+      />,
+      "en",
+    );
+
+    await userEventSetup.click(screen.getByRole("button", { name: "Language switcher" }));
+    await userEventSetup.click(screen.getByRole("menuitem", { name: "简体中文" }));
+    expect(screen.getByText("无说明")).toBeInTheDocument();
   });
 });

@@ -6,6 +6,7 @@ export const enMessages: Messages = {
       switcher: "Language switcher",
       ja: "日本語",
       en: "English",
+      "zh-CN": "简体中文",
     },
   },
   login: {

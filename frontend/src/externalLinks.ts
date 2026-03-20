@@ -6,9 +6,15 @@ const DEFAULT_IMPORT_YOUR_DATA_GUIDE_URL_JA =
 const DEFAULT_IMPORT_YOUR_DATA_GUIDE_URL_EN =
   "https://github.com/masakiaota/Layered-Span-Studio/blob/main/docs/import-your-data-en.md";
 
+const DEFAULT_IMPORT_YOUR_DATA_GUIDE_URL_ZH_CN =
+  "https://github.com/masakiaota/Layered-Span-Studio/blob/main/docs/import-your-data-zh-CN.md";
+
 export function getImportYourDataGuideUrl(locale: Locale) {
   if (locale === "en") {
     return import.meta.env.VITE_IMPORT_YOUR_DATA_GUIDE_URL_EN ?? DEFAULT_IMPORT_YOUR_DATA_GUIDE_URL_EN;
+  }
+  if (locale === "zh-CN") {
+    return import.meta.env.VITE_IMPORT_YOUR_DATA_GUIDE_URL_ZH_CN ?? DEFAULT_IMPORT_YOUR_DATA_GUIDE_URL_ZH_CN;
   }
 
   return import.meta.env.VITE_IMPORT_YOUR_DATA_GUIDE_URL ?? DEFAULT_IMPORT_YOUR_DATA_GUIDE_URL_JA;

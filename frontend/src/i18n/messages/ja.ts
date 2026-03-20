@@ -4,6 +4,7 @@ export const jaMessages = {
       switcher: "言語切替",
       ja: "日本語",
       en: "English",
+      "zh-CN": "简体中文",
     },
   },
   login: {

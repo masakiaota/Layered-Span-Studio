@@ -7,6 +7,7 @@ Layered Span Studio is an annotation tool optimized for workflows where multiple
 - APIs designed with future LLM integration in mind, enabling semi-automatic annotation pipelines.
 
 - 日本語 README: [README.md](./README.md)
+- 中文 README: [README-zh-CN.md](./README-zh-CN.md)
 
 ![Overview](./docs/readme-overview.webp)
 
@@ -64,7 +65,7 @@ npm run dev
 ## Start with your own data
 
 If you want to convert your own documents or annotations into importable JSON, see [docs/import-your-data-en.md](./docs/import-your-data-en.md).
-The Japanese version is also available at [docs/import-your-data.md](./docs/import-your-data.md).
+The Japanese version is also available at [docs/import-your-data.md](./docs/import-your-data.md). The Simplified Chinese version is available at [docs/import-your-data-zh-CN.md](./docs/import-your-data-zh-CN.md).
 
 ## Repository layout
 
