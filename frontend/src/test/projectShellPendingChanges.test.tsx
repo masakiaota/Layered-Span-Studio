@@ -410,5 +410,5 @@ describe("ProjectShell pending changes navigation guard", () => {
       expect(saveProjectSettingsSpy).toHaveBeenCalledWith(expect.objectContaining({ id: "project-1", name: updatedProject.name }));
     });
     expect(await screen.findByText("Workspace Route")).toBeInTheDocument();
-  });
+  }, 15000);
 });

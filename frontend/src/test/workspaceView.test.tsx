@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceView } from "../features/project-shell/WorkspaceView";
 import type { SelectionPreview } from "../features/project-shell/projectShellTypes";
@@ -287,5 +287,24 @@ describe("WorkspaceView", () => {
     } finally {
       window.HTMLElement.prototype.scrollIntoView = original;
     }
+  });
+
+  it("splits the remaining examples area equally between the same-label and same-surface panels", () => {
+    render(<WorkspaceView {...createProps()} />);
+
+    expect(screen.getByTestId("examples-panels-grid")).toHaveStyle({
+      display: "grid",
+      gridTemplateRows: "minmax(0,1fr) minmax(0,1fr)",
+      minHeight: "0",
+      flex: "1 1 0%",
+    });
+    expect(screen.getByTestId("same-label-examples-panel")).toHaveStyle({
+      minHeight: "0",
+      overflow: "hidden",
+    });
+    expect(screen.getByTestId("same-surface-examples-panel")).toHaveStyle({
+      minHeight: "0",
+      overflow: "hidden",
+    });
   });
 });

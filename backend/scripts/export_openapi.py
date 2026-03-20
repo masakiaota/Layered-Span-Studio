@@ -7,10 +7,11 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from layered_span_studio_backend.api.router import router as api_router
+from layered_span_studio_backend.version import get_app_version
 
 
 def build_app() -> FastAPI:
-    app = FastAPI(title="Layered Span Studio API")
+    app = FastAPI(title="Layered Span Studio API", version=get_app_version())
     app.include_router(api_router)
     return app
 

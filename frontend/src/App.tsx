@@ -1123,6 +1123,7 @@ export function ProjectShell({
 
       <Box
         sx={{
+          height: "100%",
           p: 2,
           boxSizing: "border-box",
           overflowX: isWorkspaceView ? "auto" : "hidden",
@@ -1134,7 +1135,8 @@ export function ProjectShell({
           sx={(theme) => ({
             display: "grid",
             gap: WORKSPACE_LAYOUT.gap,
-            minHeight: "100%",
+            height: "100%",
+            minHeight: 0,
             width: "100%",
             minWidth: isWorkspaceView
               ? `calc(${WORKSPACE_LAYOUT.leftPaneWidth}px + ${WORKSPACE_LAYOUT.centerPaneMinWidth}px + ${WORKSPACE_LAYOUT.rightPaneWidth}px + ${theme.spacing(WORKSPACE_LAYOUT.gap * 2)})`

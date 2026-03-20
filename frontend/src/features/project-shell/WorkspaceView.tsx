@@ -222,7 +222,7 @@ export function WorkspaceView({
 
   return (
     <>
-      <Paper sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <Paper sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <Box sx={{ p: 2, display: "grid", gap: 2 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Box sx={{ minWidth: 0 }}>
@@ -277,7 +277,7 @@ export function WorkspaceView({
               onLoadMoreDocuments();
             }
           }}
-          sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1, overflow: "auto" }}
+          sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1, flex: 1, minHeight: 0, overflow: "auto" }}
         >
           {currentHiddenBySearch ? (
             <Alert severity="info">
@@ -476,7 +476,7 @@ export function WorkspaceView({
         </Box>
       </Paper>
 
-      <Box sx={{ display: "grid", gap: 2, height: "100%", minHeight: 0, gridTemplateRows: "auto minmax(0,1fr) auto" }}>
+      <Box sx={{ display: "grid", gap: 2, height: "100%", minHeight: 0, overflow: "hidden", gridTemplateRows: "auto minmax(0,1fr) auto" }}>
         <Paper sx={{ px: 1.5, py: 1.25, display: "flex", gap: 1, overflowX: "auto", minHeight: 58, alignItems: "center" }}>
           {bundle.labels.map((label) => {
             const active = label.id === focusedLabel?.id;
@@ -545,19 +545,19 @@ export function WorkspaceView({
             }}
           />
         ) : currentDocumentLoading ? (
-          <Paper sx={{ p: 4, display: "grid", placeItems: "center", gap: 1.5 }}>
+          <Paper sx={{ p: 4, height: "100%", minHeight: 0, display: "grid", placeItems: "center", gap: 1.5, overflow: "auto" }}>
             <CircularProgress size={28} />
             <Typography variant="body2" color="text.secondary">
               Document を読み込み中
             </Typography>
           </Paper>
         ) : (
-          <Paper sx={{ p: 4 }}>
+          <Paper sx={{ p: 4, height: "100%", minHeight: 0, overflow: "auto" }}>
             <Typography variant="h6">Document がない</Typography>
           </Paper>
         )}
 
-        <Stack direction="row" spacing={1} sx={{ ml: "auto", alignItems: "center", pb: 1 }}>
+        <Stack direction="row" spacing={1} sx={{ ml: "auto", alignItems: "center", pb: 1, flexShrink: 0 }}>
           <Button
             variant="outlined"
             startIcon={<SaveRoundedIcon />}
@@ -579,7 +579,7 @@ export function WorkspaceView({
         </Stack>
       </Box>
 
-      <Paper sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <Paper sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <Tabs value={rightTab} onChange={(_event, value) => onRightTabChange(value)} variant="fullWidth">
           <Tab value="examples" label="関連例" />
           <Tab value="annotations" label="注釈一覧" />
@@ -588,224 +588,242 @@ export function WorkspaceView({
         <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2, flex: 1, minHeight: 0, overflow: "hidden" }}>
           {rightTab === "examples" ? (
             <>
-              <Paper variant="outlined" sx={{ p: 2 }}>
+              <Paper
+                variant="outlined"
+                sx={{ p: 2, display: "flex", flexDirection: "column", flexShrink: 0 }}
+              >
                 <Typography variant="subtitle2">{focusedLabel?.name ?? "Label"} アノテーション基準</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1.2, whiteSpace: "pre-wrap" }}>
                   {focusedLabel?.description || "アノテーション基準未設定"}
                 </Typography>
               </Paper>
-
-              <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
-                <Typography variant="subtitle2">同一ラベルの他アノテーション</Typography>
-                <Stack
-                  ref={sameLabelExamplesScrollRef}
-                  spacing={1.25}
-                  onScroll={(event) => {
-                    const element = event.currentTarget;
-                    if (
-                      !sameLabelExamplesLoadingMore &&
-                      sameLabelExamplesOffset < sameLabelExamplesTotal &&
-                      element.scrollTop + element.clientHeight >= element.scrollHeight - 24
-                    ) {
-                      onLoadMoreSameLabelExamples();
-                    }
-                  }}
-                  sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}
+              <Box
+                data-testid="examples-panels-grid"
+                sx={{ display: "grid", gap: 2, flex: 1, minHeight: 0, gridTemplateRows: "minmax(0,1fr) minmax(0,1fr)" }}
+              >
+                <Paper
+                  data-testid="same-label-examples-panel"
+                  variant="outlined"
+                  sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}
                 >
-                  {sameLabelExamples.map((item) => {
-                    const detailItems = sameLabelExampleDetails[item.surface_text];
-                    const representative = item.representative;
-                    const emphasisColor = focusedLabel?.color ?? "#1a73e8";
-                    return (
-                      <Tooltip
-                        key={item.surface_text}
-                        placement="left-start"
-                        arrow
-                        slotProps={floatingTooltipSlotProps}
-                        onOpen={() => onEnsureSameLabelDetails(item.surface_text, item.surface_text, item.duplicate_count)}
-                        title={
-                          <Box sx={{ maxWidth: 460, p: 0.75 }}>
-                            <Typography variant="subtitle2">
+                  <Typography variant="subtitle2">同一ラベルの他アノテーション</Typography>
+                  <Stack
+                    ref={sameLabelExamplesScrollRef}
+                    spacing={1.25}
+                    onScroll={(event) => {
+                      const element = event.currentTarget;
+                      if (
+                        !sameLabelExamplesLoadingMore &&
+                        sameLabelExamplesOffset < sameLabelExamplesTotal &&
+                        element.scrollTop + element.clientHeight >= element.scrollHeight - 24
+                      ) {
+                        onLoadMoreSameLabelExamples();
+                      }
+                    }}
+                    sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}
+                  >
+                    {sameLabelExamples.map((item) => {
+                      const detailItems = sameLabelExampleDetails[item.surface_text];
+                      const representative = item.representative;
+                      const emphasisColor = focusedLabel?.color ?? "#1a73e8";
+                      return (
+                        <Tooltip
+                          key={item.surface_text}
+                          placement="left-start"
+                          arrow
+                          slotProps={floatingTooltipSlotProps}
+                          onOpen={() => onEnsureSameLabelDetails(item.surface_text, item.surface_text, item.duplicate_count)}
+                          title={
+                            <Box sx={{ maxWidth: 460, p: 0.75 }}>
+                              <Typography variant="subtitle2">
+                                {item.surface_text} / {item.duplicate_count}件の事例
+                              </Typography>
+                              <Stack spacing={1.25} sx={{ mt: 1.25 }}>
+                                {!detailItems ? (
+                                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                    取得中
+                                  </Typography>
+                                ) : null}
+                                {detailItems?.map((detail) => (
+                                  <Box key={detail.annotation_id}>
+                                    <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                      {detail.document_name}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ lineHeight: 1.9, mt: 0.35 }}>
+                                      <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                        {detail.context_before}
+                                      </Box>
+                                      <Box component="span" sx={{ fontWeight: 700 }}>
+                                        {detail.span_text}
+                                      </Box>
+                                      <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                        {detail.context_after}
+                                      </Box>
+                                    </Typography>
+                                  </Box>
+                                ))}
+                              </Stack>
+                            </Box>
+                          }
+                        >
+                          <Paper variant="outlined" sx={{ p: 1.5 }}>
+                            <Stack direction="row" justifyContent="space-between" spacing={1}>
+                              <Typography variant="caption" color="text.secondary">
+                                {representative.document_name}
+                              </Typography>
+                              <Chip size="small" label={representative.status} color={representative.status === "verified" ? "success" : "warning"} />
+                            </Stack>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
                               {item.surface_text} / {item.duplicate_count}件の事例
                             </Typography>
-                            <Stack spacing={1.25} sx={{ mt: 1.25 }}>
-                              {!detailItems ? (
-                                <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.72)" }}>
-                                  取得中
-                                </Typography>
-                              ) : null}
-                              {detailItems?.map((detail) => (
-                                <Box key={detail.annotation_id}>
-                                  <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.72)" }}>
-                                    {detail.document_name}
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ lineHeight: 1.9, mt: 0.35 }}>
-                                    <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
-                                      {detail.context_before}
-                                    </Box>
-                                    <Box component="span" sx={{ fontWeight: 700 }}>
-                                      {detail.span_text}
-                                    </Box>
-                                    <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
-                                      {detail.context_after}
-                                    </Box>
-                                  </Typography>
-                                </Box>
-                              ))}
-                            </Stack>
-                          </Box>
-                        }
-                      >
-                        <Paper variant="outlined" sx={{ p: 1.5 }}>
-                          <Stack direction="row" justifyContent="space-between" spacing={1}>
-                            <Typography variant="caption" color="text.secondary">
-                              {representative.document_name}
+                            <Typography variant="body2" sx={{ mt: 1 }}>
+                              <Box component="span" sx={{ color: "text.secondary" }}>
+                                {representative.context_before}
+                              </Box>
+                              <Box
+                                component="span"
+                                sx={{
+                                  fontWeight: 700,
+                                  px: 0.15,
+                                  py: 0.04,
+                                  borderRadius: 0.75,
+                                  bgcolor: alpha(emphasisColor, 0.18),
+                                }}
+                              >
+                                {representative.span_text}
+                              </Box>
+                              <Box component="span" sx={{ color: "text.secondary" }}>
+                                {representative.context_after}
+                              </Box>
                             </Typography>
-                            <Chip size="small" label={representative.status} color={representative.status === "verified" ? "success" : "warning"} />
-                          </Stack>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                            {item.surface_text} / {item.duplicate_count}件の事例
-                          </Typography>
-                          <Typography variant="body2" sx={{ mt: 1 }}>
-                            <Box component="span" sx={{ color: "text.secondary" }}>
-                              {representative.context_before}
-                            </Box>
-                            <Box
-                              component="span"
-                              sx={{
-                                fontWeight: 700,
-                                px: 0.15,
-                                py: 0.04,
-                                borderRadius: 0.75,
-                                bgcolor: alpha(emphasisColor, 0.18),
-                              }}
-                            >
-                              {representative.span_text}
-                            </Box>
-                            <Box component="span" sx={{ color: "text.secondary" }}>
-                              {representative.context_after}
-                            </Box>
-                          </Typography>
-                        </Paper>
-                      </Tooltip>
-                    );
-                  })}
-                  {sameLabelExamplesLoadingMore ? (
-                    <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
-                      さらに読み込み中
-                    </Typography>
-                  ) : sameLabelExamples.length > 0 && sameLabelExamplesOffset >= sameLabelExamplesTotal ? (
-                    <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
-                      以上で全て
-                    </Typography>
-                  ) : null}
-                  {sameLabelExamples.length === 0 ? <Typography color="text.secondary">該当なし</Typography> : null}
-                </Stack>
-              </Paper>
+                          </Paper>
+                        </Tooltip>
+                      );
+                    })}
+                    {sameLabelExamplesLoadingMore ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
+                        さらに読み込み中
+                      </Typography>
+                    ) : sameLabelExamples.length > 0 && sameLabelExamplesOffset >= sameLabelExamplesTotal ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
+                        以上で全て
+                      </Typography>
+                    ) : null}
+                    {sameLabelExamples.length === 0 ? <Typography color="text.secondary">該当なし</Typography> : null}
+                  </Stack>
+                </Paper>
 
-              <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
-                <Typography variant="subtitle2">同一表層の他アノテーション</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75 }}>
-                  {selectionPreview?.text
-                    ? `選択中: ${selectionPreview.text}`
-                    : selectedAnnotation
-                      ? `対象: ${selectedAnnotation.span_text}`
-                      : "範囲選択または Annotation 選択で表示される"}
-                </Typography>
-                <Stack
-                  ref={sameSurfaceExamplesScrollRef}
-                  spacing={1.25}
-                  onScroll={(event) => {
-                    const element = event.currentTarget;
-                    if (
-                      !sameSurfaceExamplesLoadingMore &&
-                      sameSurfaceExamplesOffset < sameSurfaceExamplesTotal &&
-                      element.scrollTop + element.clientHeight >= element.scrollHeight - 24
-                    ) {
-                      onLoadMoreSameSurfaceExamples();
-                    }
-                  }}
-                  sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}
+                <Paper
+                  data-testid="same-surface-examples-panel"
+                  variant="outlined"
+                  sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}
                 >
-                  {sameSurfaceExamples.map((item) => {
-                    const labelColor = item.label_color ?? "#1a73e8";
-                    const highlightDifferentLabel = Boolean(sameSurfaceTargetLabelId) && item.label_id !== sameSurfaceTargetLabelId;
-                    return (
-                      <Tooltip
-                        key={item.annotation_id}
-                        placement="left-start"
-                        arrow
-                        slotProps={floatingTooltipSlotProps}
-                        title={
-                          <Box sx={{ maxWidth: 460, p: 0.75 }}>
-                            <Typography variant="subtitle2">{item.document_name}</Typography>
-                            <Typography variant="body2" sx={{ mt: 1, lineHeight: 1.9 }}>
-                              <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                  <Typography variant="subtitle2">同一表層の他アノテーション</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75 }}>
+                    {selectionPreview?.text
+                      ? `選択中: ${selectionPreview.text}`
+                      : selectedAnnotation
+                        ? `対象: ${selectedAnnotation.span_text}`
+                        : "範囲選択または Annotation 選択で表示される"}
+                  </Typography>
+                  <Stack
+                    ref={sameSurfaceExamplesScrollRef}
+                    spacing={1.25}
+                    onScroll={(event) => {
+                      const element = event.currentTarget;
+                      if (
+                        !sameSurfaceExamplesLoadingMore &&
+                        sameSurfaceExamplesOffset < sameSurfaceExamplesTotal &&
+                        element.scrollTop + element.clientHeight >= element.scrollHeight - 24
+                      ) {
+                        onLoadMoreSameSurfaceExamples();
+                      }
+                    }}
+                    sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}
+                  >
+                    {sameSurfaceExamples.map((item) => {
+                      const labelColor = item.label_color ?? "#1a73e8";
+                      const highlightDifferentLabel = Boolean(sameSurfaceTargetLabelId) && item.label_id !== sameSurfaceTargetLabelId;
+                      return (
+                        <Tooltip
+                          key={item.annotation_id}
+                          placement="left-start"
+                          arrow
+                          slotProps={floatingTooltipSlotProps}
+                          title={
+                            <Box sx={{ maxWidth: 460, p: 0.75 }}>
+                              <Typography variant="subtitle2">{item.document_name}</Typography>
+                              <Typography variant="body2" sx={{ mt: 1, lineHeight: 1.9 }}>
+                                <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                  {item.context_before}
+                                </Box>
+                                <Box component="span" sx={{ fontWeight: 700 }}>
+                                  {item.span_text}
+                                </Box>
+                                <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                                  {item.context_after}
+                                </Box>
+                              </Typography>
+                            </Box>
+                          }
+                        >
+                          <Paper variant="outlined" sx={{ p: 1.5 }}>
+                            <Stack direction="row" justifyContent="space-between">
+                              <Typography variant="caption" color="text.secondary">
+                                {item.document_name}
+                              </Typography>
+                              <Chip
+                                size="small"
+                                label={item.label_name}
+                                sx={{
+                                  color: labelColor,
+                                  bgcolor: alpha(labelColor, highlightDifferentLabel ? 0.22 : 0.12),
+                                  border: `1px solid ${alpha(labelColor, highlightDifferentLabel ? 0.34 : 0.18)}`,
+                                  fontWeight: highlightDifferentLabel ? 700 : 500,
+                                  boxShadow: highlightDifferentLabel ? `0 0 0 2px ${alpha(labelColor, 0.08)}` : "none",
+                                }}
+                              />
+                            </Stack>
+                            <Typography variant="body2" sx={{ mt: 1 }}>
+                              <Box component="span" sx={{ color: "text.secondary" }}>
                                 {item.context_before}
                               </Box>
                               <Box component="span" sx={{ fontWeight: 700 }}>
                                 {item.span_text}
                               </Box>
-                              <Box component="span" sx={{ color: "rgba(255,255,255,0.72)" }}>
+                              <Box component="span" sx={{ color: "text.secondary" }}>
                                 {item.context_after}
                               </Box>
                             </Typography>
-                          </Box>
-                        }
-                      >
-                        <Paper variant="outlined" sx={{ p: 1.5 }}>
-                          <Stack direction="row" justifyContent="space-between">
-                            <Typography variant="caption" color="text.secondary">
-                              {item.document_name}
-                            </Typography>
-                            <Chip
-                              size="small"
-                              label={item.label_name}
-                              sx={{
-                                color: labelColor,
-                                bgcolor: alpha(labelColor, highlightDifferentLabel ? 0.22 : 0.12),
-                                border: `1px solid ${alpha(labelColor, highlightDifferentLabel ? 0.34 : 0.18)}`,
-                                fontWeight: highlightDifferentLabel ? 700 : 500,
-                                boxShadow: highlightDifferentLabel ? `0 0 0 2px ${alpha(labelColor, 0.08)}` : "none",
-                              }}
-                            />
-                          </Stack>
-                          <Typography variant="body2" sx={{ mt: 1 }}>
-                            <Box component="span" sx={{ color: "text.secondary" }}>
-                              {item.context_before}
-                            </Box>
-                            <Box component="span" sx={{ fontWeight: 700 }}>
-                              {item.span_text}
-                            </Box>
-                            <Box component="span" sx={{ color: "text.secondary" }}>
-                              {item.context_after}
-                            </Box>
-                          </Typography>
-                        </Paper>
-                      </Tooltip>
-                    );
-                  })}
-                  {sameSurfaceExamplesLoadingMore ? (
-                    <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
-                      さらに読み込み中
-                    </Typography>
-                  ) : sameSurfaceExamples.length > 0 && sameSurfaceExamplesOffset >= sameSurfaceExamplesTotal ? (
-                    <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
-                      以上で全て
-                    </Typography>
-                  ) : null}
-                  {!selectionPreview && !selectedAnnotation ? (
-                    <Typography color="text.secondary">範囲選択または Annotation を選択すると同一表層の事例が出る。</Typography>
-                  ) : null}
-                  {(selectionPreview || selectedAnnotation) && sameSurfaceExamples.length === 0 ? (
-                    <Typography color="text.secondary">この表層に一致する他アノテーションはまだない。</Typography>
-                  ) : null}
-                </Stack>
-              </Paper>
+                          </Paper>
+                        </Tooltip>
+                      );
+                    })}
+                    {sameSurfaceExamplesLoadingMore ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
+                        さらに読み込み中
+                      </Typography>
+                    ) : sameSurfaceExamples.length > 0 && sameSurfaceExamplesOffset >= sameSurfaceExamplesTotal ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
+                        以上で全て
+                      </Typography>
+                    ) : null}
+                    {!selectionPreview && !selectedAnnotation ? (
+                      <Typography color="text.secondary">範囲選択または Annotation を選択すると同一表層の事例が出る。</Typography>
+                    ) : null}
+                    {(selectionPreview || selectedAnnotation) && sameSurfaceExamples.length === 0 ? (
+                      <Typography color="text.secondary">この表層に一致する他アノテーションはまだない。</Typography>
+                    ) : null}
+                  </Stack>
+                </Paper>
+              </Box>
             </>
           ) : (
             <>
-              <Paper variant="outlined" sx={{ p: 2 }}>
+              <Paper
+                variant="outlined"
+                sx={{ p: 2, display: "flex", flexDirection: "column", flexShrink: 0 }}
+              >
                 <Stack
                   direction="row"
                   spacing={1}
@@ -862,7 +880,7 @@ export function WorkspaceView({
                 )}
               </Paper>
 
-              <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
+              <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
                 <Typography variant="subtitle2">Doc アノテーション一覧</Typography>
                 <Stack spacing={1.5} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
                   {groupedAnnotations.map(({ label, annotations }) => (
