@@ -555,7 +555,7 @@ export function WorkspaceView({
           </Paper>
         ) : (
           <Paper sx={{ p: 4, height: "100%", minHeight: 0, overflow: "auto" }}>
-<Typography variant="h6">{t("projectShell.workspace.noDocumentTitle")}</Typography>
+            <Typography variant="h6">{t("projectShell.workspace.noDocumentTitle")}</Typography>
           </Paper>
         )}
 
