@@ -44,6 +44,7 @@ import type {
   ProjectBundle,
 } from "../../types";
 import { getDocumentSnippetParts, groupAnnotationsByLabel } from "../../utils";
+import { useI18n } from "../../i18n/useI18n";
 
 function scrollRowIntoView(row: Element | null) {
   if (!row || typeof row.scrollIntoView !== "function") {
@@ -183,6 +184,7 @@ export function WorkspaceView({
     () => (currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : []),
     [currentDocument, bundle.labels],
   );
+  const { t } = useI18n();
   const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
   const [focusedDocumentId, setFocusedDocumentId] = useState<string | null>(null);
   const documentRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -230,7 +232,7 @@ export function WorkspaceView({
                 {pendingDocumentTotal} pending / {documentTotal} docs
               </Typography>
             </Box>
-            <Tooltip title="Create Document">
+            <Tooltip title={t("projectShell.workspace.createDocument")}>
               <span>
                 <IconButton onClick={onOpenCreateDocument} disabled={saving}>
                   <AddRoundedIcon />
@@ -239,7 +241,7 @@ export function WorkspaceView({
             </Tooltip>
           </Stack>
           <TextField
-            placeholder="本文検索"
+            placeholder={t("projectShell.workspace.searchPlaceholder")}
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
             size="small"
@@ -254,14 +256,14 @@ export function WorkspaceView({
           <TextField
             select
             size="small"
-            label="並び順"
+            label={t("projectShell.workspace.sortLabel")}
             value={sortMode}
             onChange={(event) => onSortModeChange(event.target.value as DocumentSortValue)}
           >
-            <MenuItem value="created">作成順</MenuItem>
-            <MenuItem value="pending">未完了優先</MenuItem>
-            <MenuItem value="updated">最終更新順</MenuItem>
-            <MenuItem value="name">document_name 順</MenuItem>
+            <MenuItem value="created">{t("projectShell.workspace.sortOptions.created")}</MenuItem>
+            <MenuItem value="pending">{t("projectShell.workspace.sortOptions.pending")}</MenuItem>
+            <MenuItem value="updated">{t("projectShell.workspace.sortOptions.updated")}</MenuItem>
+            <MenuItem value="name">{t("projectShell.workspace.sortOptions.name")}</MenuItem>
           </TextField>
         </Box>
         <Divider />
@@ -281,23 +283,23 @@ export function WorkspaceView({
         >
           {currentHiddenBySearch ? (
             <Alert severity="info">
-              <Typography variant="body2">現在表示中の Document は検索結果外である。</Typography>
+              <Typography variant="body2">{t("projectShell.workspace.currentOutsideSearch")}</Typography>
               <Button size="small" onClick={() => onSearchQueryChange("")} sx={{ mt: 1, alignSelf: "flex-start", minWidth: "auto", px: 1 }}>
-                検索クリア
+                {t("projectShell.workspace.clearSearch")}
               </Button>
             </Alert>
           ) : null}
           {visibleDocuments.length === 0 ? (
             <Paper variant="outlined" sx={{ p: 2.5 }}>
-              <Typography variant="subtitle2">一致する Document がない</Typography>
+              <Typography variant="subtitle2">{t("projectShell.workspace.noResultsTitle")}</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                検索条件を見直すか、新しい Document を作成する。
+                {t("projectShell.workspace.noResultsDescription")}
               </Typography>
             </Paper>
           ) : null}
           {pinnedCurrentDocument ? (
             <Alert severity="info" sx={{ alignItems: "flex-start" }}>
-              <Typography variant="body2">現在表示中の Document は一覧ウィンドウ外にあるため、先頭に固定表示している。</Typography>
+              <Typography variant="body2">{t("projectShell.workspace.pinnedCurrentDocument")}</Typography>
             </Alert>
           ) : null}
           {visibleDocuments.map((document) => {
@@ -432,7 +434,7 @@ export function WorkspaceView({
                         }}
                       >
                         <IconButton
-                          aria-label={`Delete document ${document.document_name}`}
+                          aria-label={t("projectShell.workspace.deleteDocumentAria", { name: document.document_name })}
                           color="error"
                           size="small"
                           disabled={deleteDisabled}
@@ -465,12 +467,12 @@ export function WorkspaceView({
           })}
           {documentsLoadingMore ? (
             <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.75 }}>
-              さらに読み込み中
+              {t("projectShell.workspace.loadingMore")}
             </Typography>
           ) : null}
           {!documentsLoadingMore && documentNextOffset >= documentTotal && visibleDocuments.length > 0 ? (
             <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.75 }}>
-              以上で全て
+              {t("projectShell.workspace.allLoaded")}
             </Typography>
           ) : null}
         </Box>
@@ -553,7 +555,7 @@ export function WorkspaceView({
           </Paper>
         ) : (
           <Paper sx={{ p: 4, height: "100%", minHeight: 0, overflow: "auto" }}>
-            <Typography variant="h6">Document がない</Typography>
+<Typography variant="h6">{t("projectShell.workspace.noDocumentTitle")}</Typography>
           </Paper>
         )}
 
@@ -581,8 +583,8 @@ export function WorkspaceView({
 
       <Paper sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <Tabs value={rightTab} onChange={(_event, value) => onRightTabChange(value)} variant="fullWidth">
-          <Tab value="examples" label="関連例" />
-          <Tab value="annotations" label="注釈一覧" />
+          <Tab value="examples" label={t("projectShell.workspace.tabs.examples")} />
+          <Tab value="annotations" label={t("projectShell.workspace.tabs.annotations")} />
         </Tabs>
         <Divider />
         <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2, flex: 1, minHeight: 0, overflow: "hidden" }}>
@@ -592,9 +594,13 @@ export function WorkspaceView({
                 variant="outlined"
                 sx={{ p: 2, display: "flex", flexDirection: "column", flexShrink: 0 }}
               >
-                <Typography variant="subtitle2">{focusedLabel?.name ?? "Label"} アノテーション基準</Typography>
+                <Typography variant="subtitle2">
+                  {t("projectShell.workspace.annotationGuideTitle", {
+                    label: focusedLabel?.name ?? t("projectShell.workspace.fallbackLabel"),
+                  })}
+                </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1.2, whiteSpace: "pre-wrap" }}>
-                  {focusedLabel?.description || "アノテーション基準未設定"}
+                  {focusedLabel?.description || t("projectShell.workspace.annotationGuideEmpty")}
                 </Typography>
               </Paper>
               <Box
@@ -606,7 +612,7 @@ export function WorkspaceView({
                   variant="outlined"
                   sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}
                 >
-                  <Typography variant="subtitle2">同一ラベルの他アノテーション</Typography>
+                  <Typography variant="subtitle2">{t("projectShell.workspace.sameLabelExamplesTitle")}</Typography>
                   <Stack
                     ref={sameLabelExamplesScrollRef}
                     spacing={1.25}
@@ -636,12 +642,15 @@ export function WorkspaceView({
                           title={
                             <Box sx={{ maxWidth: 460, p: 0.75 }}>
                               <Typography variant="subtitle2">
-                                {item.surface_text} / {item.duplicate_count}件の事例
+                                {t("projectShell.workspace.sameLabelExamplesCount", {
+                                  surface: item.surface_text,
+                                  count: item.duplicate_count,
+                                })}
                               </Typography>
                               <Stack spacing={1.25} sx={{ mt: 1.25 }}>
                                 {!detailItems ? (
                                   <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.72)" }}>
-                                    取得中
+                                    {t("projectShell.workspace.loading")}
                                   </Typography>
                                 ) : null}
                                 {detailItems?.map((detail) => (
@@ -674,7 +683,10 @@ export function WorkspaceView({
                               <Chip size="small" label={representative.status} color={representative.status === "verified" ? "success" : "warning"} />
                             </Stack>
                             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                              {item.surface_text} / {item.duplicate_count}件の事例
+                              {t("projectShell.workspace.sameLabelExamplesCount", {
+                                surface: item.surface_text,
+                                count: item.duplicate_count,
+                              })}
                             </Typography>
                             <Typography variant="body2" sx={{ mt: 1 }}>
                               <Box component="span" sx={{ color: "text.secondary" }}>
@@ -702,14 +714,14 @@ export function WorkspaceView({
                     })}
                     {sameLabelExamplesLoadingMore ? (
                       <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
-                        さらに読み込み中
+                        {t("projectShell.workspace.loadingMore")}
                       </Typography>
                     ) : sameLabelExamples.length > 0 && sameLabelExamplesOffset >= sameLabelExamplesTotal ? (
                       <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
-                        以上で全て
+                        {t("projectShell.workspace.allLoaded")}
                       </Typography>
                     ) : null}
-                    {sameLabelExamples.length === 0 ? <Typography color="text.secondary">該当なし</Typography> : null}
+                    {sameLabelExamples.length === 0 ? <Typography color="text.secondary">{t("projectShell.workspace.noMatches")}</Typography> : null}
                   </Stack>
                 </Paper>
 
@@ -718,13 +730,13 @@ export function WorkspaceView({
                   variant="outlined"
                   sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}
                 >
-                  <Typography variant="subtitle2">同一表層の他アノテーション</Typography>
+                  <Typography variant="subtitle2">{t("projectShell.workspace.sameSurfaceExamplesTitle")}</Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75 }}>
                     {selectionPreview?.text
-                      ? `選択中: ${selectionPreview.text}`
+                      ? t("projectShell.workspace.selectedRange", { text: selectionPreview.text })
                       : selectedAnnotation
-                        ? `対象: ${selectedAnnotation.span_text}`
-                        : "範囲選択または Annotation 選択で表示される"}
+                        ? t("projectShell.workspace.selectedTarget", { text: selectedAnnotation.span_text })
+                        : t("projectShell.workspace.sameSurfaceIdle")}
                   </Typography>
                   <Stack
                     ref={sameSurfaceExamplesScrollRef}
@@ -801,18 +813,18 @@ export function WorkspaceView({
                     })}
                     {sameSurfaceExamplesLoadingMore ? (
                       <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
-                        さらに読み込み中
+                        {t("projectShell.workspace.loadingMore")}
                       </Typography>
                     ) : sameSurfaceExamples.length > 0 && sameSurfaceExamplesOffset >= sameSurfaceExamplesTotal ? (
                       <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.5 }}>
-                        以上で全て
+                        {t("projectShell.workspace.allLoaded")}
                       </Typography>
                     ) : null}
                     {!selectionPreview && !selectedAnnotation ? (
-                      <Typography color="text.secondary">範囲選択または Annotation を選択すると同一表層の事例が出る。</Typography>
+                      <Typography color="text.secondary">{t("projectShell.workspace.sameSurfacePrompt")}</Typography>
                     ) : null}
                     {(selectionPreview || selectedAnnotation) && sameSurfaceExamples.length === 0 ? (
-                      <Typography color="text.secondary">この表層に一致する他アノテーションはまだない。</Typography>
+                      <Typography color="text.secondary">{t("projectShell.workspace.sameSurfaceNoMatches")}</Typography>
                     ) : null}
                   </Stack>
                 </Paper>
@@ -835,14 +847,14 @@ export function WorkspaceView({
                   <Box sx={{ width: 18, display: "grid", placeItems: "center" }}>
                     <Typography variant="caption">{annotationEditCollapsed ? "▶" : "▼"}</Typography>
                   </Box>
-                  <Typography variant="subtitle2">選択中 Annotation</Typography>
+                  <Typography variant="subtitle2">{t("projectShell.workspace.selectedAnnotationTitle")}</Typography>
                 </Stack>
                 {selectedAnnotation && !annotationEditCollapsed ? (
                   <Stack spacing={1.5} sx={{ mt: 1.5 }}>
                     <Autocomplete
                       options={["pending", "verified"]}
                       value={selectedAnnotation.status}
-                      renderInput={(params) => <TextField {...params} label="Status" size="small" />}
+                      renderInput={(params) => <TextField {...params} label={t("projectShell.workspace.status")} size="small" />}
                       onChange={(_event, value) => {
                         if (value) {
                           onUpdateSelectedAnnotationStatus(value as StatusValue);
@@ -850,14 +862,14 @@ export function WorkspaceView({
                       }}
                     />
                     <TextField
-                      label="Comment"
+                      label={t("projectShell.workspace.comment")}
                       multiline
                       minRows={3}
                       value={selectedAnnotation.comment}
                       onChange={(event) => onUpdateSelectedAnnotationComment(event.target.value)}
                     />
                     <TextField
-                      label="Meta (JSON)"
+                      label={t("projectShell.workspace.meta")}
                       multiline
                       minRows={3}
                       value={selectedAnnotationMetaDraft}
@@ -866,22 +878,22 @@ export function WorkspaceView({
                       helperText={selectedAnnotationMetaError ?? undefined}
                     />
                     <Button color="error" variant="outlined" startIcon={<DeleteOutlineRoundedIcon />} onClick={onDeleteSelectedAnnotation}>
-                      Delete annotation
+                      {t("projectShell.workspace.deleteAnnotation")}
                     </Button>
                   </Stack>
                 ) : selectedAnnotation ? (
                   <Typography color="text.secondary" sx={{ mt: 1.5 }}>
-                    折りたたみ中である。展開すると status / comment / meta を編集できる。
+                    {t("projectShell.workspace.annotationCollapsed")}
                   </Typography>
                 ) : (
                   <Typography color="text.secondary" sx={{ mt: 1.5 }}>
-                    Annotation を選択すると comment / status / meta を編集できる。
+                    {t("projectShell.workspace.annotationHint")}
                   </Typography>
                 )}
               </Paper>
 
               <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
-                <Typography variant="subtitle2">Doc アノテーション一覧</Typography>
+                <Typography variant="subtitle2">{t("projectShell.workspace.documentAnnotationsTitle")}</Typography>
                 <Stack spacing={1.5} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
                   {groupedAnnotations.map(({ label, annotations }) => (
                     <Paper key={label.id} variant="outlined" sx={{ p: 1.5 }}>
@@ -943,7 +955,7 @@ export function WorkspaceView({
                             </Paper>
                           );
                         })}
-                        {annotations.length === 0 ? <Typography color="text.secondary">Annotation なし</Typography> : null}
+                        {annotations.length === 0 ? <Typography color="text.secondary">{t("projectShell.workspace.noAnnotations")}</Typography> : null}
                       </Stack>
                     </Paper>
                   ))}

@@ -1,6 +1,7 @@
 import { Box, ClickAwayListener, Fade, IconButton, Paper, Popper, Stack, Typography } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import { shortcutSections } from "./projectShellConstants";
+import { useI18n } from "../../i18n/useI18n";
+import { buildShortcutSections } from "./projectShellConstants";
 
 export function ShortcutPopover({
   open,
@@ -21,6 +22,9 @@ export function ShortcutPopover({
   onDragMove: (event: React.PointerEvent<HTMLDivElement>) => void;
   onDragEnd: (event: React.PointerEvent<HTMLDivElement>) => void;
 }) {
+  const { t } = useI18n();
+  const shortcutSections = buildShortcutSections(t);
+
   return (
     <Popper
       open={open}
@@ -60,14 +64,14 @@ export function ShortcutPopover({
                       userSelect: "none",
                     }}
                   >
-                    <Typography variant="subtitle1">Keyboard Shortcuts</Typography>
+                    <Typography variant="subtitle1">{t("projectShell.shortcuts.title")}</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.6 }}>
-                      この画面を開いたまま操作可能。ドラッグで移動可能。
+                      {t("projectShell.shortcuts.description")}
                     </Typography>
                   </Box>
                   <IconButton
                     size="small"
-                    aria-label="ショートカット一覧を閉じる"
+                    aria-label={t("projectShell.shortcuts.close")}
                     onClick={onClose}
                     sx={{ mt: -0.5, mr: -0.5 }}
                   >

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Box, Button, Paper, Typography, alpha } from "@mui/material";
 import type { AnnotationRecord, DocumentRecord, LabelRecord } from "../api-contract";
+import { useI18n } from "../i18n/useI18n";
 import { isShortcutBlockedTarget } from "../utils";
 
 type SelectionDraft = {
@@ -169,6 +170,7 @@ export function DocumentCanvas({
   onClearSelection: () => void;
   onSelectionDraftChange: (selection: { start: number; end: number; text: string } | null) => void;
 }) {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const textRef = useRef<HTMLDivElement | null>(null);
   const lastSelectionCommitAtRef = useRef(0);
@@ -457,7 +459,7 @@ export function DocumentCanvas({
         }}
       >
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Drag で選択し、現在ラベルへ span を作成する。注目ラベルは塗り、それ以外は下線で表示する。
+          {t("projectShell.workspace.canvasHint")}
         </Typography>
         <Box
           ref={canvasRef}

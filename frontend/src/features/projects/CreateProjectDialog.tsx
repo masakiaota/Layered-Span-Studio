@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from "@mui/material";
+import { useI18n } from "../../i18n/useI18n";
 
 export function CreateProjectDialog({
   open,
@@ -19,22 +20,17 @@ export function CreateProjectDialog({
   onClose: () => void;
   onCreate: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Create Project</DialogTitle>
+      <DialogTitle>{t("projects.dialogs.create.title")}</DialogTitle>
       <DialogContent sx={{ display: "grid", gap: 2, pt: 2 }}>
-        <Typography color="text.secondary">
-          空の project を作成する。作成後は Project Settings へ移動し、label 定義や import を続けられる。
-        </Typography>
+        <Typography color="text.secondary">{t("projects.dialogs.create.description")}</Typography>
         <Stack spacing={2}>
+          <TextField autoFocus label={t("projects.dialogs.create.projectName")} value={projectName} onChange={(event) => onNameChange(event.target.value)} />
           <TextField
-            autoFocus
-            label="Project name"
-            value={projectName}
-            onChange={(event) => onNameChange(event.target.value)}
-          />
-          <TextField
-            label="Description"
+            label={t("projects.dialogs.create.descriptionField")}
             multiline
             minRows={3}
             value={projectDescription}
@@ -44,10 +40,10 @@ export function CreateProjectDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          {t("projects.dialogs.create.cancel")}
         </Button>
         <Button variant="contained" onClick={onCreate} disabled={saving || !projectName.trim()}>
-          Create
+          {t("projects.dialogs.create.create")}
         </Button>
       </DialogActions>
     </Dialog>

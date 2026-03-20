@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Alert, Box, Button, Card, CardContent, Container, Stack, TextField, Typography } from "@mui/material";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { useI18n } from "../i18n/useI18n";
 
 export function LoginPage({
   loading,
@@ -10,6 +12,7 @@ export function LoginPage({
   error: string;
   onLogin: (username: string, password: string) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [username, setUsername] = useState("demo_login_user");
   const [password, setPassword] = useState("demo_login_pass");
 
@@ -18,14 +21,15 @@ export function LoginPage({
       <Card sx={{ width: "100%", borderRadius: 4 }}>
         <CardContent sx={{ p: 4 }}>
           <Stack spacing={3}>
-            <Box>
-              <Typography variant="h4">
-                Layered Span Studio
-              </Typography>
-              <Typography color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
-                テキストに注釈を付け、ラベルごとに整理しながら確認するためのツールである。ここではアカウントでサインインして、Project 一覧へ進む。
-              </Typography>
-            </Box>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+              <Box>
+                <Typography variant="h4">Layered Span Studio</Typography>
+                <Typography color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
+                  {t("login.description")}
+                </Typography>
+              </Box>
+              <LanguageSwitcher sx={{ flexShrink: 0 }} />
+            </Stack>
             <Stack
               component="form"
               spacing={2}
@@ -34,9 +38,9 @@ export function LoginPage({
                 void onLogin(username, password);
               }}
             >
-              <TextField label="Username" value={username} onChange={(event) => setUsername(event.target.value)} fullWidth />
+              <TextField label={t("login.username")} value={username} onChange={(event) => setUsername(event.target.value)} fullWidth />
               <TextField
-                label="Password"
+                label={t("login.password")}
                 type="password"
                 autoComplete="current-password"
                 value={password}
@@ -45,7 +49,7 @@ export function LoginPage({
               />
               {error ? <Alert severity="error">{error}</Alert> : null}
               <Button type="submit" variant="contained" size="large" disabled={loading}>
-                {loading ? "Signing in..." : "Sign in"}
+                {loading ? t("login.signingIn") : t("login.signIn")}
               </Button>
             </Stack>
           </Stack>

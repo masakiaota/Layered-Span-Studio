@@ -1,3 +1,15 @@
-export const IMPORT_YOUR_DATA_GUIDE_URL =
-  import.meta.env.VITE_IMPORT_YOUR_DATA_GUIDE_URL ??
+import type { Locale } from "./i18n/I18nProvider";
+
+const DEFAULT_IMPORT_YOUR_DATA_GUIDE_URL_JA =
   "https://github.com/masakiaota/Layered-Span-Studio/blob/main/docs/import-your-data.md";
+
+const DEFAULT_IMPORT_YOUR_DATA_GUIDE_URL_EN =
+  "https://github.com/masakiaota/Layered-Span-Studio/blob/main/docs/import-your-data-en.md";
+
+export function getImportYourDataGuideUrl(locale: Locale) {
+  if (locale === "en") {
+    return import.meta.env.VITE_IMPORT_YOUR_DATA_GUIDE_URL_EN ?? DEFAULT_IMPORT_YOUR_DATA_GUIDE_URL_EN;
+  }
+
+  return import.meta.env.VITE_IMPORT_YOUR_DATA_GUIDE_URL ?? DEFAULT_IMPORT_YOUR_DATA_GUIDE_URL_JA;
+}

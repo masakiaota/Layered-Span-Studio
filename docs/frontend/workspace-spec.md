@@ -179,7 +179,7 @@
 
 ## 6.3 Project Settings 画面
 
-- Project scope 共通 header では、左側に project 名と説明文、中央に `Workspace / Project Settings` 切り替え、右側に現在の username と logout 導線をまとめて表示する。
+- Project scope 共通 header では、左側に project 名と説明文、中央に `Workspace / Project Settings` 切り替え、右側に言語切替、現在の username、logout 導線をまとめて表示する。
 - Project 名と説明文を編集可能にする。
 - Label定義管理を行う（追加 / 編集 / 削除）。
 - Label削除時は対応するAnnotationも同時に除去する。
@@ -190,6 +190,7 @@
 - Project 削除は確認ダイアログ必須とし、対象 `project.name`、配下 document / annotation / label も削除されること、元に戻せないことを明示する。
 - Project 削除成功後は Project List へ遷移する。
 - `label.shortcut` は backend / API のデータ項目としては保持するが、現行 frontend では編集 UI と直接割り当て操作を提供しない。将来の操作設計と合わせて検討する。
+- locale は `ja` / `en` の 2 種類を提供し、初回表示時は browser language が `ja*` なら `ja`、それ以外は `en` を既定とする。ユーザーが明示切替した場合は、その選択を localStorage に保存して以後の表示に優先適用する。
 
 ## 7. キーボードショートカット
 

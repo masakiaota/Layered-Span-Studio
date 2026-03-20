@@ -2,6 +2,8 @@
 
 Layered Span Studio は、文字列の任意区間に対して、重なり合う複数ラベルを同時に管理する作業に最適化されたアノテーションツールである。主な特徴は次の通り。
 
+- English README: [README-en.md](./README-en.md)
+
 - 重なり合うラベルを前提にした UI/UX を採用し、複数 span を直感的に編集可能。
 - アノテーションの定義情報や、他の既存アノテーションを即座に確認でき、効率的なアノテーション作業が可能。
 - LLM 連携を見据えたAPIを提供しており、半自動アノテーションの組込が可能。
@@ -62,6 +64,7 @@ npm run dev
 ## 自分のデータで始める
 
 自前の文書や annotation データを import 用 JSON に変換したい場合は、[docs/import-your-data.md](./docs/import-your-data.md) を参照。
+英語版は [docs/import-your-data-en.md](./docs/import-your-data-en.md) にある。
 新しい project を作る import と、既存 project への追記 import の違いもこの手順書で整理している。
 
 ## リポジトリ構成

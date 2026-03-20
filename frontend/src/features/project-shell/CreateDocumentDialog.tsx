@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from "@mui/material";
+import { useI18n } from "../../i18n/useI18n";
 
 export function CreateDocumentDialog({
   open,
@@ -19,17 +20,19 @@ export function CreateDocumentDialog({
   onClose: () => void;
   onCreate: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Create Document</DialogTitle>
+      <DialogTitle>{t("projectShell.dialogs.createDocument.title")}</DialogTitle>
       <DialogContent sx={{ display: "grid", gap: 2, pt: 2 }}>
-        <TextField label="Document name" value={documentName} onChange={(event) => onNameChange(event.target.value)} />
-        <TextField label="Text" multiline minRows={8} value={documentText} onChange={(event) => onTextChange(event.target.value)} />
+        <TextField label={t("projectShell.dialogs.createDocument.documentName")} value={documentName} onChange={(event) => onNameChange(event.target.value)} />
+        <TextField label={t("projectShell.dialogs.createDocument.text")} multiline minRows={8} value={documentText} onChange={(event) => onTextChange(event.target.value)} />
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t("projectShell.dialogs.createDocument.cancel")}</Button>
         <Button variant="contained" onClick={onCreate} disabled={saving}>
-          Create
+          {t("projectShell.dialogs.createDocument.create")}
         </Button>
       </DialogActions>
     </Dialog>
