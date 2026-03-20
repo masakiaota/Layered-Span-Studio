@@ -11,6 +11,7 @@
 - Frontend 仕様ドキュメント: [`docs/frontend/`](docs/frontend/)
 - Frontend 画面遷移仕様: [`docs/frontend/navigation.md`](docs/frontend/navigation.md)
 - Frontend Workspace 仕様: [`docs/frontend/workspace-spec.md`](docs/frontend/workspace-spec.md)
+- リリース運用: [`docs/release.md`](docs/release.md)
 - 全体ドキュメント: [`docs/`](docs/)
 
 ## Backend Python Execution
@@ -29,6 +30,7 @@
 - Frontend の画面遷移、URL、画面間導線の変更は [`docs/frontend/navigation.md`](docs/frontend/navigation.md) を更新する。
 - Frontend の Workspace / Project Settings UI、ショートカット、Import/Export、Annotation 操作仕様の変更は [`docs/frontend/workspace-spec.md`](docs/frontend/workspace-spec.md) を更新する。
 - 横断的な設計変更は [`docs/architecture.md`](docs/architecture.md) と [`docs/requirements.md`](docs/requirements.md) を確認し、必要なら更新する。
+- リリース運用、ブランチ戦略、tag/version の管理方針を変更した場合は [`docs/release.md`](docs/release.md) を更新する。
 
 ## Development Philosophy
 
