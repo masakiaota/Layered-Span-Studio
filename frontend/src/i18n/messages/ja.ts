@@ -249,4 +249,6 @@ export const jaMessages = {
   },
 } as const;
 
-export type Messages = typeof jaMessages;
+type MessageSchema<T> = T extends string ? string : { [K in keyof T]: MessageSchema<T[K]> };
+
+export type Messages = MessageSchema<typeof jaMessages>;

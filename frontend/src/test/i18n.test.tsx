@@ -87,7 +87,8 @@ describe("i18n locale layer", () => {
     renderWithI18n(<LoginPage loading={false} error="" onLogin={vi.fn()} />, "en");
 
     expect(screen.getByText("A tool for annotating text and reviewing it while organizing labels. Sign in here to continue to the project list.")).toBeInTheDocument();
-    await userEventSetup.click(screen.getByRole("button", { name: "日本語" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "Language switcher" }));
+    await userEventSetup.click(screen.getByRole("menuitem", { name: "日本語" }));
     expect(screen.getByText("テキストに注釈を付け、ラベルごとに整理しながら確認するためのツールである。ここではアカウントでサインインして、Project 一覧へ進む。")).toBeInTheDocument();
   });
 
@@ -98,7 +99,8 @@ describe("i18n locale layer", () => {
     renderProjectsPage("en");
 
     await screen.findByText("No project yet");
-    await userEventSetup.click(screen.getByRole("button", { name: "日本語" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "Language switcher" }));
+    await userEventSetup.click(screen.getByRole("menuitem", { name: "日本語" }));
     expect(await screen.findByText("Project がまだない")).toBeInTheDocument();
   });
 
@@ -119,7 +121,8 @@ describe("i18n locale layer", () => {
     );
 
     expect(screen.getByText("No description")).toBeInTheDocument();
-    await userEventSetup.click(screen.getByRole("button", { name: "日本語" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "Language switcher" }));
+    await userEventSetup.click(screen.getByRole("menuitem", { name: "日本語" }));
     expect(screen.getByText("説明なし")).toBeInTheDocument();
   });
 });
