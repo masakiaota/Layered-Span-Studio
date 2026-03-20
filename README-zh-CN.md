@@ -1,9 +1,8 @@
 # Layered Span Studio
 
-Layered Span Studio 是一款针对“在文本任意区间上同时管理多个重叠标签”的工作流而优化的标注工具。它的主要特点如下：
+Languages: [English](./README-en.md) / [日本語](./README.md)
 
-- English README: [README-en.md](./README-en.md)
-- 日本語 README: [README.md](./README.md)
+Layered Span Studio 是一款针对“在文本任意区间上同时管理多个重叠标签”的工作流而优化的标注工具。它的主要特点如下：
 
 - UI/UX 从一开始就围绕重叠标签设计，能够更自然地查看和编辑多个 span。
 - 可以立即查看标注定义信息和已有示例，从而提升标注速度与一致性。

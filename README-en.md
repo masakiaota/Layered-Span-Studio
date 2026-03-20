@@ -1,13 +1,12 @@
 # Layered Span Studio
 
+Languages: [日本語](./README.md) / [中文](./README-zh-CN.md)
+
 Layered Span Studio is an annotation tool optimized for workflows where multiple overlapping labels must be managed on arbitrary spans of text. Its main characteristics are:
 
 - A UI/UX designed around overlapping labels, so multiple spans can be reviewed and edited naturally.
 - Immediate access to annotation definitions and existing examples, making annotation work faster and more consistent.
 - APIs designed with future LLM integration in mind, enabling semi-automatic annotation pipelines.
-
-- 日本語 README: [README.md](./README.md)
-- 中文 README: [README-zh-CN.md](./README-zh-CN.md)
 
 ![Overview](./docs/readme-overview.webp)
 

@@ -1,9 +1,8 @@
 # Layered Span Studio
 
-Layered Span Studio は、文字列の任意区間に対して、重なり合う複数ラベルを同時に管理する作業に最適化されたアノテーションツールである。主な特徴は次の通り。
+Languages: [English](./README-en.md) / [中文](./README-zh-CN.md)
 
-- English README: [README-en.md](./README-en.md)
-- 中文 README: [README-zh-CN.md](./README-zh-CN.md)
+Layered Span Studio は、文字列の任意区間に対して、重なり合う複数ラベルを同時に管理する作業に最適化されたアノテーションツールである。主な特徴は次の通り。
 
 - 重なり合うラベルを前提にした UI/UX を採用し、複数 span を直感的に編集可能。
 - アノテーションの定義情報や、他の既存アノテーションを即座に確認でき、効率的なアノテーション作業が可能。
