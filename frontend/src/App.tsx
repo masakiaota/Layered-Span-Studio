@@ -433,14 +433,14 @@ export function ProjectShell({
       }
       return savedDocument;
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "保存に失敗した", "error");
+      showToast(error instanceof Error ? error.message : t("projectShell.toasts.saveFailed"), "error");
       return null;
     } finally {
       setSaving(false);
     }
   }
 
-  async function saveSettings(successMessage: string | null = "保存した") {
+  async function saveSettings(successMessage: string | null = t("projectShell.toasts.saved")) {
     if (!bundle || !settingsSnapshot) {
       return null;
     }
@@ -541,10 +541,10 @@ export function ProjectShell({
         } catch (error) {
           showToast(
             projectDirty
-              ? "Project は保存したが Labels の保存に失敗した"
+              ? t("projectShell.toasts.projectSavedButLabelsFailed")
               : error instanceof Error
                 ? error.message
-                : "Labels の保存に失敗した",
+                : t("projectShell.toasts.labelsSaveFailed"),
             projectDirty ? "warning" : "error",
           );
           return null;
@@ -559,7 +559,7 @@ export function ProjectShell({
         labels: savedLabels,
       };
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "保存に失敗した", "error");
+      showToast(error instanceof Error ? error.message : t("projectShell.toasts.saveFailed"), "error");
       return null;
     } finally {
       setSaving(false);
@@ -823,7 +823,7 @@ export function ProjectShell({
       await fetchDocumentPage(true, nextSelectedId);
       showToast(t("projectShell.toasts.documentDeleted"), "success");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Document の削除に失敗した";
+      const message = error instanceof Error ? error.message : t("projectShell.toasts.documentDeleteFailed");
       if (error instanceof ApiError && error.status === 404) {
         let nextDocument = existingNextDocument;
         if (deletingCurrent && nextSelectedId && !nextDocument) {
@@ -831,7 +831,7 @@ export function ProjectShell({
         }
         applyDeletionResult({ deletedId, nextSelectedId, deletingCurrent, nextDocument });
         await fetchDocumentPage(true, nextSelectedId);
-        showToast("Document は既に削除されている", "info");
+        showToast(t("projectShell.toasts.documentAlreadyDeleted"), "info");
       } else {
         showToast(message, "error");
       }
@@ -853,7 +853,7 @@ export function ProjectShell({
         navigate("/projects", { replace: true });
         return;
       }
-      showToast(error instanceof Error ? error.message : "Project の削除に失敗した", "error");
+      showToast(error instanceof Error ? error.message : t("projectShell.toasts.projectDeleteFailed"), "error");
     } finally {
       setDeletingProject(false);
       setDeleteProjectDialogOpen(false);
@@ -924,7 +924,7 @@ export function ProjectShell({
         annotation.end > start,
     );
     if (hasOverlap) {
-      showToast("同一ラベル内で重複する span は作成できない", "warning");
+      showToast(t("projectShell.toasts.duplicateSpanInSameLabel"), "warning");
       return;
     }
     const nextAnnotation: AnnotationRecord = {
@@ -988,7 +988,7 @@ export function ProjectShell({
       setNewDocText("");
       requestAction({ type: "doc", docId: createdDocument.id });
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Document の作成に失敗した", "error");
+      showToast(error instanceof Error ? error.message : t("projectShell.toasts.createDocumentFailed"), "error");
     } finally {
       setSaving(false);
     }
@@ -1049,13 +1049,13 @@ export function ProjectShell({
       return;
     }
     if (!labelColorValid) {
-      showToast("Color は #RRGGBB 形式で入力する", "warning");
+      showToast(t("projectShell.settings.invalidColorHelper"), "warning");
       return;
     }
     const existing = findConflictingLabelName(bundle.labels, labelDraft);
     const editingLabel = bundle.labels.find((label) => label.id === labelDraft.id);
     if (existing) {
-      showToast("同名 label は保存できない", "warning");
+      showToast(t("projectShell.toasts.duplicateLabelName"), "warning");
       return;
     }
     const nextLabel = {

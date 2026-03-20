@@ -16,8 +16,6 @@ import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import { useI18n } from "../../i18n/useI18n";
 import { getImportYourDataGuideUrl } from "../../externalLinks";
 
-const INVALID_IMPORT_FILE_MESSAGE = "Import できるのは .json ファイルのみである";
-
 function isJsonImportFile(file: File) {
   const normalizedName = file.name.trim().toLowerCase();
   return normalizedName.endsWith(".json");
@@ -44,6 +42,7 @@ export function ImportProjectDialog({
 }) {
   const { locale, t } = useI18n();
   const guideUrl = getImportYourDataGuideUrl(locale);
+  const invalidImportFileMessage = t("projects.dialogs.import.invalidFile");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -57,7 +56,7 @@ export function ImportProjectDialog({
     const file = event.dataTransfer.files?.[0] ?? null;
     if (file && !isJsonImportFile(file)) {
       onFileChange(null);
-      onFileRejected(INVALID_IMPORT_FILE_MESSAGE);
+      onFileRejected(invalidImportFileMessage);
       return;
     }
     onFileChange(file);
@@ -139,7 +138,7 @@ export function ImportProjectDialog({
                   const file = event.currentTarget.files?.[0] ?? null;
                   if (file && !isJsonImportFile(file)) {
                     onFileChange(null);
-                    onFileRejected(INVALID_IMPORT_FILE_MESSAGE);
+                    onFileRejected(invalidImportFileMessage);
                     event.currentTarget.value = "";
                     return;
                   }

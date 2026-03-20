@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
@@ -146,6 +146,29 @@ describe("i18n locale layer", () => {
     await userEventSetup.click(screen.getAllByRole("button", { name: "导入项目" })[0]);
     const guideLink = await screen.findByRole("link", { name: "这份指南" });
     expect(guideLink).toHaveAttribute("href", "https://github.com/masakiaota/Layered-Span-Studio/blob/main/docs/import-your-data-zh-CN.md");
+  });
+
+  it("localizes the invalid import file validation message in en", async () => {
+    const userEventSetup = userEvent.setup();
+    vi.spyOn(api, "listProjects").mockResolvedValue({ projects: [] });
+
+    renderProjectsPage("en");
+
+    await screen.findByText("No project yet");
+    await userEventSetup.click(screen.getAllByRole("button", { name: "Import Project" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "Import Project" });
+    const dropzone = dialog.querySelector('[data-testid="import-file-dropzone"]');
+    if (!(dropzone instanceof HTMLElement)) {
+      throw new Error("Import file dropzone not found");
+    }
+
+    fireEvent.drop(dropzone, {
+      dataTransfer: {
+        files: [new File(["plain text"], "import.txt", { type: "text/plain" })],
+      },
+    });
+
+    expect(await screen.findByText("Only .json files can be imported")).toBeInTheDocument();
   });
 
   it("switches ProjectShellHeader copy between ja and en", async () => {
