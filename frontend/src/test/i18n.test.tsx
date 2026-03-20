@@ -78,6 +78,7 @@ describe("i18n locale layer", () => {
       translateMessage("en", "projectShell.header.logout", undefined, {
         ja: jaMessages,
         en: partialEn,
+        "zh-CN": zhCnMessages,
       }),
     ).toBe(jaMessages.projectShell.header.logout);
   });
