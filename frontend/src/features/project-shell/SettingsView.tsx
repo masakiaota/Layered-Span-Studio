@@ -24,7 +24,8 @@ import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import type { LabelDraft } from "./projectShellTypes";
 import type { ProjectBundle } from "../../types";
-import { IMPORT_YOUR_DATA_GUIDE_URL } from "../../externalLinks";
+import { getImportYourDataGuideUrl } from "../../externalLinks";
+import { useI18n } from "../../i18n/useI18n";
 import { getProjectGuideline } from "../../utils";
 
 export function SettingsView({
@@ -96,30 +97,33 @@ export function SettingsView({
   onRequestDeleteProject: () => void;
   deletingProject: boolean;
 }) {
+  const { locale, t } = useI18n();
+  const guideUrl = getImportYourDataGuideUrl(locale);
+
   return (
     <Box sx={{ display: "grid", gap: 2, height: "100%", minHeight: 0, gridTemplateRows: "minmax(0,1fr) auto" }}>
       <Paper sx={{ height: "100%", minHeight: 0, overflow: "auto" }}>
         <Box sx={{ p: 3, display: "grid", gap: 3, alignContent: "start" }}>
           <Box>
-            <Typography variant="h5">Project Settings</Typography>
+            <Typography variant="h5">{t("projectShell.settings.title")}</Typography>
             <Typography color="text.secondary" sx={{ mt: 1 }}>
-              Label 定義、ガイドライン、Import / Export をここで管理する。
+              {t("projectShell.settings.description")}
             </Typography>
           </Box>
 
           <Paper variant="outlined" sx={{ p: 2.5 }}>
-            <Typography variant="subtitle1">Project</Typography>
+            <Typography variant="subtitle1">{t("projectShell.settings.projectTitle")}</Typography>
             <Stack spacing={2} sx={{ mt: 2 }}>
-              <TextField label="Project name" value={bundle.project.name} onChange={(event) => onProjectNameChange(event.target.value)} />
+              <TextField label={t("projectShell.settings.projectName")} value={bundle.project.name} onChange={(event) => onProjectNameChange(event.target.value)} />
               <TextField
-                label="Description"
+                label={t("projectShell.settings.descriptionField")}
                 multiline
                 minRows={2}
                 value={bundle.project.description ?? ""}
                 onChange={(event) => onProjectDescriptionChange(event.target.value)}
               />
               <TextField
-                label="Guideline"
+                label={t("projectShell.settings.guideline")}
                 multiline
                 minRows={4}
                 value={getProjectGuideline(bundle.project)}
@@ -129,30 +133,30 @@ export function SettingsView({
           </Paper>
 
           <Paper variant="outlined" sx={{ p: 2.5 }}>
-            <Typography variant="subtitle1">Labels</Typography>
+            <Typography variant="subtitle1">{t("projectShell.settings.labelsTitle")}</Typography>
             <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 2, alignItems: "flex-start" }}>
               <Stack spacing={1.5} sx={{ minWidth: 320, flex: 1 }}>
                 <TextField
-                  label="Name"
+                  label={t("projectShell.settings.name")}
                   value={labelDraft.name}
                   onChange={(event) => onLabelDraftChange({ ...labelDraft, name: event.target.value })}
                 />
                 <TextField
-                  label="Color: 16進カラーコード"
+                  label={t("projectShell.settings.color")}
                   value={labelDraft.color}
                   onChange={(event) => onLabelDraftChange({ ...labelDraft, color: event.target.value })}
                   onBlur={onNormalizeLabelColor}
                   error={labelDraft.color.trim().length > 0 && !labelColorValid}
-                  helperText={labelDraft.color.trim().length > 0 && !labelColorValid ? "Color は #RRGGBB 形式で入力する" : undefined}
+                  helperText={labelDraft.color.trim().length > 0 && !labelColorValid ? t("projectShell.settings.invalidColorHelper") : undefined}
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
                         <Stack direction="row" spacing={1} alignItems="center">
                           <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, letterSpacing: 0.2 }}>
-                            色見本
+                            {t("projectShell.settings.colorPreview")}
                           </Typography>
                           <Box
-                            aria-label="Selected color preview"
+                            aria-label={t("projectShell.settings.selectedColorPreview")}
                             sx={{
                               width: 28,
                               height: 28,
@@ -169,16 +173,16 @@ export function SettingsView({
                 />
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
                   <Button variant="outlined" startIcon={<PaletteRoundedIcon />} onClick={onOpenColorPicker} sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}>
-                    色を選ぶ
+                    {t("projectShell.settings.pickColorButton")}
                   </Button>
                   <Typography variant="caption" color="text.secondary" sx={{ minHeight: 20, display: "flex", alignItems: "center" }}>
-                    {labelColorValid ? `現在の色: ${normalizedLabelColor}` : "有効なカラーコードを入力すると色見本に反映される"}
+                    {labelColorValid ? t("projectShell.settings.currentColor", { color: normalizedLabelColor }) : t("projectShell.settings.invalidColor")}
                   </Typography>
                   <Box
                     component="input"
                     ref={labelColorInputRef}
                     type="color"
-                    aria-label="Pick label color"
+                    aria-label={t("projectShell.settings.pickColor")}
                     value={labelColorPreview}
                     onChange={(event) => onPickLabelColor(event.target.value)}
                     sx={{
@@ -195,7 +199,7 @@ export function SettingsView({
                   />
                 </Stack>
                 <TextField
-                  label="Description"
+                  label={t("projectShell.settings.labelDescription")}
                   multiline
                   minRows={3}
                   value={labelDraft.description}
@@ -203,10 +207,10 @@ export function SettingsView({
                 />
                 <Stack direction="row" spacing={1}>
                   <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={onSubmitLabelDraft} disabled={!labelDraft.name.trim() || !labelColorValid}>
-                    {labelDraft.id ? "Update label" : "Add label"}
+                    {labelDraft.id ? t("projectShell.settings.updateLabel") : t("projectShell.settings.addLabel")}
                   </Button>
                   <Button variant="outlined" onClick={onResetLabelDraft}>
-                    Clear
+                    {t("projectShell.settings.clear")}
                   </Button>
                 </Stack>
               </Stack>
@@ -238,7 +242,7 @@ export function SettingsView({
                     <IconButton
                       edge="end"
                       color="error"
-                      aria-label={`${label.name} を削除`}
+                      aria-label={t("projectShell.settings.deleteLabel", { name: label.name })}
                       onClick={(event) => {
                         event.stopPropagation();
                         onDeleteLabel(label.id);
@@ -253,23 +257,23 @@ export function SettingsView({
           </Paper>
 
           <Paper variant="outlined" sx={{ p: 2.5 }}>
-            <Typography variant="subtitle1">Import / Export</Typography>
+            <Typography variant="subtitle1">{t("projectShell.settings.importExportTitle")}</Typography>
             <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 2 }}>
               <Stack spacing={1.5} sx={{ flex: 1 }}>
-                <Typography variant="subtitle2">現在 project への追記 import</Typography>
+                <Typography variant="subtitle2">{t("projectShell.settings.importTitle")}</Typography>
                 <Alert severity="info">
-                  append 専用である。既存 project 本体は更新しない。構造不正や同名データは import 前または backend 側で失敗として扱う。
+                  {t("projectShell.settings.importInfo")}
                 </Alert>
                 <Typography variant="body2" color="text.secondary">
-                  自前データを import 用 JSON に変換する場合は{" "}
-                  <Link href={IMPORT_YOUR_DATA_GUIDE_URL} target="_blank" rel="noreferrer">
-                    手順書
+                  {t("projectShell.settings.importGuidePrefix")}{" "}
+                  <Link href={guideUrl} target="_blank" rel="noreferrer">
+                    {t("projectShell.settings.importGuideLink")}
                   </Link>{" "}
-                  を参照。
+                  {t("projectShell.settings.importGuideSuffix")}
                 </Typography>
                 {importFeedback ? <Alert severity={importFeedback.severity}>{importFeedback.message}</Alert> : null}
                 <Button component="label" variant="outlined" startIcon={<UploadFileRoundedIcon />} disabled={importing}>
-                  {settingsImportFile?.name ?? "Select JSON"}
+                  {settingsImportFile?.name ?? t("projectShell.settings.selectJson")}
                   <input
                     hidden
                     type="file"
@@ -281,15 +285,15 @@ export function SettingsView({
                   />
                 </Button>
                 <Button variant="contained" onClick={onImport} disabled={!settingsImportFile || importing}>
-                  {importing ? "Importing..." : "Import"}
+                  {importing ? t("projectShell.settings.importing") : t("projectShell.settings.import")}
                 </Button>
               </Stack>
               <Stack spacing={1.5} sx={{ flex: 1 }}>
-                <Typography variant="subtitle2">Export</Typography>
-                <FormControlLabel control={<Switch checked={exportPending} onChange={(event) => onExportPendingChange(event.target.checked)} />} label="Include pending" />
-                <FormControlLabel control={<Switch checked={exportVerified} onChange={(event) => onExportVerifiedChange(event.target.checked)} />} label="Include verified" />
+                <Typography variant="subtitle2">{t("projectShell.settings.exportTitle")}</Typography>
+                <FormControlLabel control={<Switch checked={exportPending} onChange={(event) => onExportPendingChange(event.target.checked)} />} label={t("projectShell.settings.includePending")} />
+                <FormControlLabel control={<Switch checked={exportVerified} onChange={(event) => onExportVerifiedChange(event.target.checked)} />} label={t("projectShell.settings.includeVerified")} />
                 <Button variant="outlined" startIcon={<DownloadRoundedIcon />} onClick={onExport}>
-                  Export JSON
+                  {t("projectShell.settings.exportJson")}
                 </Button>
               </Stack>
             </Stack>
@@ -304,10 +308,10 @@ export function SettingsView({
             }}
           >
             <Typography variant="subtitle1" color="error.main">
-              Danger Zone
+              {t("projectShell.settings.dangerZone")}
             </Typography>
             <Typography color="text.secondary" sx={{ mt: 1 }}>
-              Project 全体を削除する。配下の document、annotation、label もすべて失われる。
+              {t("projectShell.settings.dangerDescription")}
             </Typography>
             <Button
               color="error"
@@ -316,7 +320,7 @@ export function SettingsView({
               onClick={onRequestDeleteProject}
               disabled={saving || importing || deletingProject}
             >
-              Project を削除
+              {t("projectShell.settings.deleteProject")}
             </Button>
           </Paper>
         </Box>
@@ -330,7 +334,7 @@ export function SettingsView({
           disabled={!dirty || saving}
           sx={{ minWidth: 148, minHeight: 40, px: 2.5, borderRadius: 1.5 }}
         >
-          Save changes
+          {t("projectShell.settings.saveChanges")}
         </Button>
       </Stack>
     </Box>

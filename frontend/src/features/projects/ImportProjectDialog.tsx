@@ -13,9 +13,8 @@ import {
   alpha,
 } from "@mui/material";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
-import { IMPORT_YOUR_DATA_GUIDE_URL } from "../../externalLinks";
-
-const INVALID_IMPORT_FILE_MESSAGE = "Import できるのは .json ファイルのみである";
+import { useI18n } from "../../i18n/useI18n";
+import { getImportYourDataGuideUrl } from "../../externalLinks";
 
 function isJsonImportFile(file: File) {
   const normalizedName = file.name.trim().toLowerCase();
@@ -41,6 +40,9 @@ export function ImportProjectDialog({
   onFileRejected: (message: string) => void;
   onImport: () => void;
 }) {
+  const { locale, t } = useI18n();
+  const guideUrl = getImportYourDataGuideUrl(locale);
+  const invalidImportFileMessage = t("projects.dialogs.import.invalidFile");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -54,7 +56,7 @@ export function ImportProjectDialog({
     const file = event.dataTransfer.files?.[0] ?? null;
     if (file && !isJsonImportFile(file)) {
       onFileChange(null);
-      onFileRejected(INVALID_IMPORT_FILE_MESSAGE);
+      onFileRejected(invalidImportFileMessage);
       return;
     }
     onFileChange(file);
@@ -62,22 +64,18 @@ export function ImportProjectDialog({
 
   return (
     <Dialog open={open} onClose={importing ? undefined : onClose} fullWidth maxWidth="md">
-      <DialogTitle>Import Project</DialogTitle>
+      <DialogTitle>{t("projects.dialogs.import.title")}</DialogTitle>
       <DialogContent sx={{ display: "grid", gap: 2, pt: 2 }}>
-        <Typography color="text.secondary">
-          export JSON から新しい project を作成する。JSON ファイルをドラッグするか、ファイル選択から読み込む。
-        </Typography>
+        <Typography color="text.secondary">{t("projects.dialogs.import.description")}</Typography>
         <Alert severity="info">
           <Stack spacing={0.75}>
+            <Typography variant="body2">{t("projects.dialogs.import.acceptedJson")}</Typography>
             <Typography variant="body2">
-              受け付ける JSON は top-level に `project` / `labels` / `documents` を持つ。
-            </Typography>
-            <Typography variant="body2">
-              自前データから import 用 JSON を作りたい場合は{" "}
-              <Link href={IMPORT_YOUR_DATA_GUIDE_URL} target="_blank" rel="noreferrer">
-                この手順書
+              {t("projects.dialogs.import.guidePrefix")}{" "}
+              <Link href={guideUrl} target="_blank" rel="noreferrer">
+                {t("projects.dialogs.import.guideLink")}
               </Link>{" "}
-              を参照。
+              {t("projects.dialogs.import.guideSuffix")}
             </Typography>
           </Stack>
         </Alert>
@@ -127,16 +125,10 @@ export function ImportProjectDialog({
             >
               <UploadFileRoundedIcon />
             </Box>
-            <Typography variant="h6">ここに JSON をドラッグ</Typography>
-            <Typography color="text.secondary">
-              または下のボタンからファイルを選択する
-            </Typography>
-            <Button
-              component="label"
-              variant="outlined"
-              startIcon={<UploadFileRoundedIcon />}
-            >
-              Select JSON
+            <Typography variant="h6">{t("projects.dialogs.import.dragJson")}</Typography>
+            <Typography color="text.secondary">{t("projects.dialogs.import.selectFile")}</Typography>
+            <Button component="label" variant="outlined" startIcon={<UploadFileRoundedIcon />}>
+              {t("projects.dialogs.import.selectJson")}
               <input
                 ref={inputRef}
                 hidden
@@ -146,7 +138,7 @@ export function ImportProjectDialog({
                   const file = event.currentTarget.files?.[0] ?? null;
                   if (file && !isJsonImportFile(file)) {
                     onFileChange(null);
-                    onFileRejected(INVALID_IMPORT_FILE_MESSAGE);
+                    onFileRejected(invalidImportFileMessage);
                     event.currentTarget.value = "";
                     return;
                   }
@@ -158,15 +150,15 @@ export function ImportProjectDialog({
           </Stack>
         </Box>
         <Typography variant="body2" color="text.secondary">
-          {selectedFile ? `選択中: ${selectedFile.name}` : "ファイルはまだ選択されていない"}
+          {selectedFile ? t("projects.dialogs.import.selectedFile", { fileName: selectedFile.name }) : t("projects.dialogs.import.noFile")}
         </Typography>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={importing}>
-          Cancel
+          {t("projects.dialogs.import.cancel")}
         </Button>
         <Button variant="contained" onClick={onImport} disabled={importing || !selectedFile}>
-          {importing ? "Importing..." : "Import"}
+          {importing ? t("projects.dialogs.import.importing") : t("projects.dialogs.import.import")}
         </Button>
       </DialogActions>
     </Dialog>

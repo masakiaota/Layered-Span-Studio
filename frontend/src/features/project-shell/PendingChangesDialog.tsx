@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from "@mui/material";
+import { useI18n } from "../../i18n/useI18n";
 
 export function PendingChangesDialog({
   open,
@@ -13,17 +14,19 @@ export function PendingChangesDialog({
   onDiscard: () => void;
   onSave: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <Dialog open={open} onClose={onClose}>
-      <DialogTitle>未保存の変更がある</DialogTitle>
+      <DialogTitle>{t("projectShell.dialogs.pendingChanges.title")}</DialogTitle>
       <DialogContent>
-        <Typography>保存して移動するか、変更を破棄して移動するかを選ぶ。</Typography>
+        <Typography>{t("projectShell.dialogs.pendingChanges.description")}</Typography>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>キャンセル</Button>
-        <Button onClick={onDiscard}>破棄して移動</Button>
+        <Button onClick={onClose}>{t("projectShell.dialogs.pendingChanges.cancel")}</Button>
+        <Button onClick={onDiscard}>{t("projectShell.dialogs.pendingChanges.discard")}</Button>
         <Button ref={confirmButtonRef} variant="outlined" onClick={onSave}>
-          保存して移動 ↵
+          {t("projectShell.dialogs.pendingChanges.save")}
         </Button>
       </DialogActions>
     </Dialog>

@@ -4,6 +4,8 @@ import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
+import { LanguageSwitcher } from "../../components/LanguageSwitcher";
+import { useI18n } from "../../i18n/useI18n";
 import type { UserRecord } from "../../api-contract";
 import type { ProjectBundle } from "../../types";
 
@@ -26,11 +28,13 @@ export function ProjectShellHeader({
   onOpenShortcuts: () => void;
   onLogout: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <AppBar position="sticky" color="transparent" elevation={0} sx={{ backdropFilter: "blur(10px)", borderBottom: "1px solid #d7e2f0" }}>
       <Toolbar sx={{ gap: 2, minWidth: 0, overflow: "hidden" }}>
         <Button color="inherit" startIcon={<ArrowBackRoundedIcon />} onClick={onBackToProjects} sx={{ flexShrink: 0 }}>
-          Projects
+          {t("projectShell.header.backToProjects")}
         </Button>
         <Stack sx={{ minWidth: 0, width: 0, maxWidth: "100%", flexGrow: 1, flexShrink: 1, flexBasis: 0, overflow: "hidden" }}>
           <Typography variant="h6" noWrap sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -43,15 +47,16 @@ export function ProjectShellHeader({
             noWrap
             sx={{ minWidth: 0, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
           >
-            {bundle.project.description || "説明なし"}
+            {bundle.project.description || t("projectShell.header.noDescription")}
           </Typography>
         </Stack>
         <Tabs value={view} onChange={(_event, nextView) => onChangeView(nextView)} sx={{ minHeight: 0, flexShrink: 0 }}>
-          <Tab value="workspace" label="Workspace" icon={<WorkspacesRoundedIcon />} iconPosition="start" />
-          <Tab value="settings" label="Project Settings" icon={<SettingsRoundedIcon />} iconPosition="start" />
+          <Tab value="workspace" label={t("projectShell.header.workspace")} icon={<WorkspacesRoundedIcon />} iconPosition="start" />
+          <Tab value="settings" label={t("projectShell.header.settings")} icon={<SettingsRoundedIcon />} iconPosition="start" />
         </Tabs>
-        <Tooltip title="ショートカット一覧">
-          <IconButton ref={shortcutButtonRef} onClick={onOpenShortcuts} sx={{ flexShrink: 0 }}>
+        <LanguageSwitcher sx={{ flexShrink: 0 }} />
+        <Tooltip title={t("projectShell.header.shortcuts")}>
+          <IconButton ref={shortcutButtonRef} aria-label={t("projectShell.header.shortcuts")} onClick={onOpenShortcuts} sx={{ flexShrink: 0 }}>
             <HelpOutlineRoundedIcon />
           </IconButton>
         </Tooltip>
@@ -77,7 +82,7 @@ export function ProjectShellHeader({
             startIcon={<LogoutRoundedIcon />}
             sx={{ flexShrink: 0, minWidth: "auto", px: 1, py: 0.5, borderRadius: 999, lineHeight: 1 }}
           >
-            Logout
+            {t("projectShell.header.logout")}
           </Button>
         </Stack>
       </Toolbar>

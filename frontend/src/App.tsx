@@ -37,6 +37,7 @@ import { sortAnnotationsInPanelOrder } from "./features/workspace/workspaceUtils
 import { WorkspaceView } from "./features/project-shell/WorkspaceView";
 import { useAuthSession } from "./hooks/useAuthSession";
 import { useToast } from "./hooks/useToast";
+import { useI18n } from "./i18n/useI18n";
 import { LoginPage } from "./pages/LoginPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import type {
@@ -82,6 +83,7 @@ export function ProjectShell({
   const { projectId = "" } = useParams();
   const view: "workspace" | "settings" = location.pathname.endsWith("/settings") ? "settings" : "workspace";
   const isWorkspaceView = view === "workspace";
+  const { t } = useI18n();
   const { toast, showToast, closeToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
@@ -400,7 +402,7 @@ export function ProjectShell({
     }));
   }
 
-  async function saveCurrentDocument(successMessage: string | null = "保存した", forceVerified = false) {
+  async function saveCurrentDocument(successMessage: string | null = t("projectShell.toasts.saved"), forceVerified = false) {
     if (!bundle || !currentDocument) {
       return null;
     }
@@ -431,14 +433,14 @@ export function ProjectShell({
       }
       return savedDocument;
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "保存に失敗した", "error");
+      showToast(error instanceof Error ? error.message : t("projectShell.toasts.saveFailed"), "error");
       return null;
     } finally {
       setSaving(false);
     }
   }
 
-  async function saveSettings(successMessage: string | null = "保存した") {
+  async function saveSettings(successMessage: string | null = t("projectShell.toasts.saved")) {
     if (!bundle || !settingsSnapshot) {
       return null;
     }
@@ -539,10 +541,10 @@ export function ProjectShell({
         } catch (error) {
           showToast(
             projectDirty
-              ? "Project は保存したが Labels の保存に失敗した"
+              ? t("projectShell.toasts.projectSavedButLabelsFailed")
               : error instanceof Error
                 ? error.message
-                : "Labels の保存に失敗した",
+                : t("projectShell.toasts.labelsSaveFailed"),
             projectDirty ? "warning" : "error",
           );
           return null;
@@ -557,7 +559,7 @@ export function ProjectShell({
         labels: savedLabels,
       };
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "保存に失敗した", "error");
+      showToast(error instanceof Error ? error.message : t("projectShell.toasts.saveFailed"), "error");
       return null;
     } finally {
       setSaving(false);
@@ -596,7 +598,7 @@ export function ProjectShell({
         return;
       }
     }
-    showToast(pendingOnly ? "移動先の pending doc がない" : "移動先の doc がない", "info");
+    showToast(pendingOnly ? t("projectShell.toasts.noPendingDestination") : t("projectShell.toasts.noDestination"), "info");
   }
 
   function moveLabelByDirection(direction: number) {
@@ -632,7 +634,7 @@ export function ProjectShell({
     const orderedAll = sortAnnotationsInPanelOrder(currentDocument, bundle.labels);
     const ordered = orderedAll.filter((annotation) => annotation.label_id === focusedLabelId);
     if (!allowCrossGroup && ordered.length === 0) {
-      showToast("現在 Label に Annotation がない", "info");
+      showToast(t("projectShell.toasts.noAnnotationInLabel"), "info");
       return;
     }
     const current = currentDocument.annotations.find((annotation) => annotation.id === selectedAnnotationId) ?? null;
@@ -704,7 +706,7 @@ export function ProjectShell({
     if (nextId) {
       activateDocument(nextId);
     }
-    showToast("Document を submit した", "success");
+    showToast(t("projectShell.toasts.submitted"), "success");
   }
 
   function executePendingAction(action: PendingAction) {
@@ -819,9 +821,9 @@ export function ProjectShell({
 
       applyDeletionResult({ deletedId, nextSelectedId, deletingCurrent, nextDocument });
       await fetchDocumentPage(true, nextSelectedId);
-      showToast("Document を削除した", "success");
+      showToast(t("projectShell.toasts.documentDeleted"), "success");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Document の削除に失敗した";
+      const message = error instanceof Error ? error.message : t("projectShell.toasts.documentDeleteFailed");
       if (error instanceof ApiError && error.status === 404) {
         let nextDocument = existingNextDocument;
         if (deletingCurrent && nextSelectedId && !nextDocument) {
@@ -829,7 +831,7 @@ export function ProjectShell({
         }
         applyDeletionResult({ deletedId, nextSelectedId, deletingCurrent, nextDocument });
         await fetchDocumentPage(true, nextSelectedId);
-        showToast("Document は既に削除されている", "info");
+        showToast(t("projectShell.toasts.documentAlreadyDeleted"), "info");
       } else {
         showToast(message, "error");
       }
@@ -851,7 +853,7 @@ export function ProjectShell({
         navigate("/projects", { replace: true });
         return;
       }
-      showToast(error instanceof Error ? error.message : "Project の削除に失敗した", "error");
+      showToast(error instanceof Error ? error.message : t("projectShell.toasts.projectDeleteFailed"), "error");
     } finally {
       setDeletingProject(false);
       setDeleteProjectDialogOpen(false);
@@ -922,7 +924,7 @@ export function ProjectShell({
         annotation.end > start,
     );
     if (hasOverlap) {
-      showToast("同一ラベル内で重複する span は作成できない", "warning");
+      showToast(t("projectShell.toasts.duplicateSpanInSameLabel"), "warning");
       return;
     }
     const nextAnnotation: AnnotationRecord = {
@@ -986,7 +988,7 @@ export function ProjectShell({
       setNewDocText("");
       requestAction({ type: "doc", docId: createdDocument.id });
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Document の作成に失敗した", "error");
+      showToast(error instanceof Error ? error.message : t("projectShell.toasts.createDocumentFailed"), "error");
     } finally {
       setSaving(false);
     }
@@ -1047,13 +1049,13 @@ export function ProjectShell({
       return;
     }
     if (!labelColorValid) {
-      showToast("Color は #RRGGBB 形式で入力する", "warning");
+      showToast(t("projectShell.settings.invalidColorHelper"), "warning");
       return;
     }
     const existing = findConflictingLabelName(bundle.labels, labelDraft);
     const editingLabel = bundle.labels.find((label) => label.id === labelDraft.id);
     if (existing) {
-      showToast("同名 label は保存できない", "warning");
+      showToast(t("projectShell.toasts.duplicateLabelName"), "warning");
       return;
     }
     const nextLabel = {

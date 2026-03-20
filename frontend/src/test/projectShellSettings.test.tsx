@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
 import { api } from "../api";
 import type { ProjectRecord, LabelRecord, UserRecord } from "../api-contract";
+import { I18nProvider } from "../i18n/I18nProvider";
 
 vi.mock("../features/project-shell/useProjectExamples", () => ({
   useProjectExamples: () => ({
@@ -90,7 +91,7 @@ function getLabelRow(name: string) {
   return row;
 }
 
-function renderProjectSettings() {
+function renderProjectSettings(locale: "ja" | "en" | "zh-CN" = "ja") {
   vi.spyOn(api, "getProject").mockResolvedValue(project);
   vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
   vi.spyOn(api, "listDocuments").mockResolvedValue({
@@ -104,11 +105,13 @@ function renderProjectSettings() {
   });
 
   return render(
-    <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
-      <Routes>
-        <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
-      </Routes>
-    </MemoryRouter>,
+    <I18nProvider initialLocale={locale}>
+      <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
+        <Routes>
+          <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
   );
 }
 
@@ -196,6 +199,17 @@ describe("ProjectShell settings label selection", () => {
     await screen.findByRole("heading", { name: "Project Settings" });
 
     expect(screen.getByRole("link", { name: "手順書" }).getAttribute("href")).toBeTruthy();
+  });
+
+  it("uses the zh-CN import guide link in project settings", async () => {
+    renderProjectSettings("zh-CN");
+
+    await screen.findByRole("heading", { name: "项目设置" });
+
+    expect(screen.getByRole("link", { name: "指南" })).toHaveAttribute(
+      "href",
+      "https://github.com/masakiaota/Layered-Span-Studio/blob/main/docs/import-your-data-zh-CN.md",
+    );
   });
 
   it("keeps the edited or added label selected in the form", async () => {

@@ -326,14 +326,14 @@ describe("ProjectsPage", () => {
     await userEventSetup.click(screen.getByRole("option", { name: "名前順" }));
     expect(getRenderedProjectNames()).toEqual(["Zeta Corpus", "Medical NER", "Alpha Suite"]);
 
-    await userEventSetup.click(screen.getByRole("button", { name: "昇順" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "↑ 昇順" }));
     expect(getRenderedProjectNames()).toEqual(["Alpha Suite", "Medical NER", "Zeta Corpus"]);
 
     await userEventSetup.click(screen.getByLabelText("並び順"));
     await userEventSetup.click(screen.getByRole("option", { name: "未確定ドキュメント数順" }));
     expect(getRenderedProjectNames()).toEqual(["Alpha Suite", "Zeta Corpus", "Medical NER"]);
 
-    await userEventSetup.click(screen.getByRole("button", { name: "降順" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "↓ 降順" }));
     expect(getRenderedProjectNames()).toEqual(["Medical NER", "Zeta Corpus", "Alpha Suite"]);
 
     await userEventSetup.type(screen.getByPlaceholderText("Project 名や説明で検索"), "suite");
@@ -368,7 +368,7 @@ describe("ProjectsPage", () => {
     await screen.findByText("Fractional Second");
     expect(getRenderedProjectNames()).toEqual(["Fractional Second", "Whole Second", "No Timestamp"]);
 
-    await userEventSetup.click(screen.getByRole("button", { name: "昇順" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "↑ 昇順" }));
     expect(getRenderedProjectNames()).toEqual(["Whole Second", "Fractional Second", "No Timestamp"]);
   });
 });

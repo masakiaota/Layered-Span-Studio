@@ -5,6 +5,8 @@ export const DEFAULT_LABEL_COLOR = "#1a73e8";
 
 const FLOATING_TOOLTIP_BG = "#646872";
 
+type Translate = (key: string) => string;
+
 export const floatingTooltipSlotProps = {
   tooltip: {
     sx: {
@@ -21,34 +23,36 @@ export const floatingTooltipSlotProps = {
   },
 } as const;
 
-export const shortcutSections = [
-  {
-    title: "保存と補助",
-    items: [
-      ["Cmd+S", "Save"],
-      ["Cmd+Enter", "Submit"],
-      ["Cmd+Z", "Undo"],
-      ["Cmd+Y / Cmd+Shift+Z", "Redo"],
-      ["?", "Shortcut確認のトグル"],
-    ],
-  },
-  {
-    title: "移動",
-    items: [
-      ["J / K", "Doc 移動"],
-      ["Shift+J / Shift+K", "pending Doc 移動"],
-      ["H / L / ← / →", "Label 移動"],
-      ["N / P", "現在 Label 内で Annotation 移動"],
-      ["↑ / ↓", "一覧順で Annotation 移動"],
-      ["[ / ]", "右ペインタブ切り替え"],
-    ],
-  },
-  {
-    title: "選択と編集",
-    items: [
-      ["Enter", "範囲選択中なら annotation 追加"],
-      ["Esc", "選択中 annotation を解除"],
-      ["Delete / Backspace", "選択中 annotation を削除"],
-    ],
-  },
-] as const;
+export function buildShortcutSections(t: Translate) {
+  return [
+    {
+      title: t("projectShell.shortcuts.sections.saveAndAssist"),
+      items: [
+        ["Cmd+S", t("projectShell.shortcuts.items.save")],
+        ["Cmd+Enter", t("projectShell.shortcuts.items.submit")],
+        ["Cmd+Z", t("projectShell.shortcuts.items.undo")],
+        ["Cmd+Y / Cmd+Shift+Z", t("projectShell.shortcuts.items.redo")],
+        ["?", t("projectShell.shortcuts.items.toggleShortcuts")],
+      ],
+    },
+    {
+      title: t("projectShell.shortcuts.sections.navigation"),
+      items: [
+        ["J / K", t("projectShell.shortcuts.items.docMove")],
+        ["Shift+J / Shift+K", t("projectShell.shortcuts.items.pendingDocMove")],
+        ["H / L / ← / →", t("projectShell.shortcuts.items.labelMove")],
+        ["N / P", t("projectShell.shortcuts.items.annotationInLabelMove")],
+        ["↑ / ↓", t("projectShell.shortcuts.items.annotationListMove")],
+        ["[ / ]", t("projectShell.shortcuts.items.rightPaneTabs")],
+      ],
+    },
+    {
+      title: t("projectShell.shortcuts.sections.selectionAndEdit"),
+      items: [
+        ["Enter", t("projectShell.shortcuts.items.addAnnotation")],
+        ["Esc", t("projectShell.shortcuts.items.clearAnnotation")],
+        ["Delete / Backspace", t("projectShell.shortcuts.items.deleteAnnotation")],
+      ],
+    },
+  ] as const;
+}

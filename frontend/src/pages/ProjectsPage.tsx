@@ -37,9 +37,11 @@ import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { CreateProjectDialog } from "../features/projects/CreateProjectDialog";
 import { ImportProjectDialog } from "../features/projects/ImportProjectDialog";
 import { useToast } from "../hooks/useToast";
+import { useI18n } from "../i18n/useI18n";
 import {
   buildImportValidationMessage,
   describeImportSummary,
@@ -50,13 +52,16 @@ import { normalizeSearchText, readJsonFile } from "../utils";
 
 type ProjectSortKey = "created" | "name" | "documents" | "pendingDocuments";
 type ProjectSortDirection = "asc" | "desc";
+type Translate = (key: string, variables?: Record<string, string | number>) => string;
 
-const PROJECT_SORT_OPTIONS: Array<{ value: ProjectSortKey; label: string }> = [
-  { value: "created", label: "作成順" },
-  { value: "name", label: "名前順" },
-  { value: "documents", label: "ドキュメント数順" },
-  { value: "pendingDocuments", label: "未確定ドキュメント数順" },
-];
+function buildProjectSortOptions(t: Translate): Array<{ value: ProjectSortKey; label: string }> {
+  return [
+    { value: "created", label: t("projects.sortOptions.created") },
+    { value: "name", label: t("projects.sortOptions.name") },
+    { value: "documents", label: t("projects.sortOptions.documents") },
+    { value: "pendingDocuments", label: t("projects.sortOptions.pendingDocuments") },
+  ];
+}
 
 function compareText(left: string, right: string) {
   return left.localeCompare(right, "ja");
@@ -159,6 +164,7 @@ export function ProjectsPage({
   onLogout: () => void;
 }) {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const { toast, showToast, closeToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [projects, setProjects] = useState<ProjectListItemRecord[]>([]);
@@ -172,6 +178,7 @@ export function ProjectsPage({
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<ProjectSortKey>("created");
   const [sortDirection, setSortDirection] = useState<ProjectSortDirection>("desc");
+  const projectSortOptions = useMemo(() => buildProjectSortOptions(t), [t]);
   const mutationBusy = importing || creating;
   const [importFeedback, setImportFeedback] = useState<{
     severity: "success" | "info" | "warning" | "error";
@@ -221,7 +228,7 @@ export function ProjectsPage({
       });
       setImportDialogOpen(false);
       setImportFile(null);
-      showToast("Project を import した", "success");
+      showToast(t("projects.toasts.importSuccess"), "success");
       navigate(`/projects/${response.project.id}`);
     } catch (error) {
       setImportFeedback({
@@ -245,7 +252,7 @@ export function ProjectsPage({
         description: newProjectDescription,
         meta: {},
       });
-      showToast("Project を作成した", "success");
+      showToast(t("projects.toasts.createSuccess"), "success");
       setCreateDialogOpen(false);
       setNewProjectName("");
       setNewProjectDescription("");
@@ -312,7 +319,7 @@ export function ProjectsPage({
                 Layered Span Studio
               </Typography>
               <Typography variant="body2" color="text.secondary" noWrap>
-                Signed in as {user.username}
+                {t("projects.signedInAs", { username: user.username })}
               </Typography>
             </Box>
           </Stack>
@@ -323,12 +330,13 @@ export function ProjectsPage({
               onClick={() => setCreateDialogOpen(true)}
               disabled={mutationBusy}
             >
-              New Project
+              {t("projects.actions.newProject")}
             </Button>
-            {renderImportButton("Import Project", "contained")}
+            {renderImportButton(t("projects.actions.importProject"), "contained")}
           </Stack>
+          <LanguageSwitcher sx={{ flexShrink: 0 }} />
           <Button color="inherit" startIcon={<LogoutRoundedIcon />} onClick={onLogout}>
-            Logout
+            {t("projects.actions.logout")}
           </Button>
         </Toolbar>
       </AppBar>
@@ -344,14 +352,14 @@ export function ProjectsPage({
                 alignItems: "center",
                 gridTemplateColumns: {
                   xs: "1fr",
-                  md: "minmax(0, 1fr) 220px 180px",
+                  md: "minmax(0, 1fr) 220px 160px",
                 },
               }}
             >
               <TextField
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Project 名や説明で検索"
+                placeholder={t("projects.searchPlaceholder")}
                 size="small"
                 sx={{
                   width: "100%",
@@ -372,11 +380,11 @@ export function ProjectsPage({
                 }}
               />
               <FormControl size="small" sx={{ minWidth: 0 }}>
-                <InputLabel id="project-sort-label">並び順</InputLabel>
+                <InputLabel id="project-sort-label">{t("projects.sortLabel")}</InputLabel>
                 <Select
                   labelId="project-sort-label"
                   value={sortKey}
-                  label="並び順"
+                  label={t("projects.sortLabel")}
                   onChange={(event) => setSortKey(event.target.value as ProjectSortKey)}
                   sx={{
                     height: 58,
@@ -385,7 +393,7 @@ export function ProjectsPage({
                     boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
                   }}
                 >
-                  {PROJECT_SORT_OPTIONS.map((option) => (
+                  {projectSortOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
                     </MenuItem>
@@ -400,9 +408,10 @@ export function ProjectsPage({
                     setSortDirection(value);
                   }
                 }}
-                aria-label="並び方向"
+                aria-label={t("projects.sortDirectionLabel")}
                 size="small"
                 sx={{
+                  minWidth: 160,
                   height: 58,
                   bgcolor: "#fff",
                   borderRadius: 4,
@@ -412,6 +421,7 @@ export function ProjectsPage({
                     flex: 1,
                     border: "none",
                     px: 2,
+                    whiteSpace: "nowrap",
                   },
                   "& .MuiToggleButtonGroup-grouped:first-of-type": {
                     borderTopLeftRadius: 16,
@@ -423,11 +433,11 @@ export function ProjectsPage({
                   },
                 }}
               >
-                <ToggleButton value="desc" aria-label="降順">
-                  降順
+                <ToggleButton value="desc" aria-label={t("projects.sortDirections.desc")}>
+                  {t("projects.sortDirections.desc")}
                 </ToggleButton>
-                <ToggleButton value="asc" aria-label="昇順">
-                  昇順
+                <ToggleButton value="asc" aria-label={t("projects.sortDirections.asc")}>
+                  {t("projects.sortDirections.asc")}
                 </ToggleButton>
               </ToggleButtonGroup>
             </Box>
@@ -450,12 +460,12 @@ export function ProjectsPage({
               <Avatar sx={{ mx: "auto", mb: 2, width: 56, height: 56, bgcolor: alpha("#1a73e8", 0.12), color: "primary.main" }}>
                 <UploadFileRoundedIcon />
               </Avatar>
-              <Typography variant="h5">Project がまだない</Typography>
+              <Typography variant="h5">{t("projects.empty.title")}</Typography>
               <Typography color="text.secondary" sx={{ mt: 1.5, maxWidth: 520, mx: "auto" }}>
-                空の project を作成するか、export JSON を import して注釈対象の project を追加する。
+                {t("projects.empty.description")}
               </Typography>
               <Alert severity="info" sx={{ mt: 3, textAlign: "left" }}>
-                top-level に `project` / `labels` / `documents` を持つ export JSON を受け付ける。
+                {t("projects.empty.importFormat")}
               </Alert>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="center" sx={{ mt: 3 }}>
                 <Button
@@ -466,17 +476,17 @@ export function ProjectsPage({
                 >
                   New Project
                 </Button>
-                {renderImportButton("Import Project", "contained")}
+                {renderImportButton(t("projects.actions.importProject"), "contained")}
               </Stack>
             </Paper>
           ) : visibleProjects.length === 0 ? (
             <Paper sx={{ p: 6, borderRadius: 4, textAlign: "center" }}>
-              <Typography variant="h6">一致する project がない</Typography>
+              <Typography variant="h6">{t("projects.noResults.title")}</Typography>
               <Typography color="text.secondary" sx={{ mt: 1 }}>
-                検索語を見直すか、Import して新しい project を追加する。
+                {t("projects.noResults.description")}
               </Typography>
               <Button sx={{ mt: 2 }} onClick={() => setSearchQuery("")}>
-                検索をクリア
+                {t("projects.actions.clearSearch")}
               </Button>
             </Paper>
           ) : (
@@ -535,7 +545,7 @@ export function ProjectsPage({
                       </Stack>
 
                       <Typography color="text.secondary" sx={{ minHeight: 66, lineHeight: 1.6 }}>
-                        {project.description || "説明が未設定の project である。Project Settings から補足説明を追加できる。"}
+                        {project.description || t("projects.card.noDescription")}
                       </Typography>
 
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -566,14 +576,14 @@ export function ProjectsPage({
                         startIcon={<WorkspacesRoundedIcon />}
                         onClick={() => navigate(`/projects/${project.id}`)}
                       >
-                        Open Workspace
+                        {t("projects.actions.openWorkspace")}
                       </Button>
                       <Button
                         variant="text"
                         startIcon={<SettingsRoundedIcon />}
                         onClick={() => navigate(`/projects/${project.id}/settings`)}
                       >
-                        Settings
+                        {t("projects.actions.settings")}
                       </Button>
                     </CardActions>
                   </Card>
