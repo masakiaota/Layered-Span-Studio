@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from layered_span_studio_backend.core.config import Settings
-from layered_span_studio_backend.repositories import annotations as annotations_repo
+from layered_span_studio_backend.repositories import bulk_import as bulk_import_repo
 from layered_span_studio_backend.repositories import documents as documents_repo
 from layered_span_studio_backend.repositories import labels as labels_repo
 from layered_span_studio_backend.repositories import projects as projects_repo
@@ -273,54 +273,13 @@ def _import_entities(
     incoming_labels: List[Dict[str, Any]],
     incoming_documents: List[Dict[str, Any]],
 ) -> Dict[str, int]:
-    label_id_by_name: Dict[str, str] = {
-        name: label["id"] for name, label in existing_label_by_name.items()
-    }
-    for label in incoming_labels:
-        created = labels_repo.create_label(
-            settings,
-            project_id,
-            label["name"],
-            label["color"],
-            label["description"],
-            label.get("shortcut"),
-            label.get("meta"),
-        )
-        label_id_by_name[created["name"]] = created["id"]
-
-    for doc in incoming_documents:
-        created_doc = documents_repo.create_document_with_system_fields(
-            settings,
-            project_id,
-            doc["document_name"],
-            doc["text"],
-            doc.get("meta"),
-            status=doc["status"],
-            created_at=doc["created_at"],
-            updated_at=doc["updated_at"],
-        )
-        for ann in doc.get("annotations", []):
-            annotations_repo.create_annotation(
-                settings,
-                project_id,
-                created_doc["id"],
-                label_id_by_name[ann["label_name"]],
-                ann["start"],
-                ann["end"],
-                ann["span_text"],
-                ann.get("comment", ""),
-                ann["status"],
-                ann.get("meta"),
-            )
-        documents_repo.set_document_system_fields(
-            settings,
-            project_id,
-            created_doc["id"],
-            status=doc["status"],
-            created_at=doc["created_at"],
-            updated_at=doc["updated_at"],
-        )
-
+    bulk_import_repo.import_entities(
+        settings,
+        project_id,
+        existing_label_by_name,
+        incoming_labels,
+        incoming_documents,
+    )
     return _build_import_counts(incoming_labels, incoming_documents)
 
 
