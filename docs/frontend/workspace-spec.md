@@ -59,7 +59,7 @@
 ## 4. 中央ペイン仕様（Annotation Canvas）
 
 - 上部に Label Selector を置く。
-- Label Selector は横スクロール可能とする。
+- Label Selector は幅に応じて最大 3 行まで折り返し、3 行を超える場合は領域内で縦スクロール可能とする。
 - Label は単一選択とする（注目ラベルは1つ）。
 - 中央ペインは現在選択中 Document の本文と annotations を表示対象とし、左ペインの仮想化や古い行の破棄とは独立して保持する。
 - 本文フォントサイズは `18px` とする。

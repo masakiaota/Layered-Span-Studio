@@ -274,6 +274,19 @@ describe("WorkspaceView", () => {
     }
   });
 
+  it("wraps the label selector up to three rows and scrolls vertically", () => {
+    render(<WorkspaceView {...createProps()} />);
+
+    expect(screen.getByTestId("label-selector")).toHaveStyle({
+      display: "flex",
+      flexWrap: "wrap",
+      maxHeight: "126px",
+      overflowX: "hidden",
+      overflowY: "auto",
+      alignContent: "flex-start",
+    });
+  });
+
   it("scrolls the selected annotation row when selection changes or the tab becomes visible", () => {
     const scrollIntoView = vi.fn();
     const original = window.HTMLElement.prototype.scrollIntoView;
