@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceView } from "../features/project-shell/WorkspaceView";
 import type { SelectionPreview } from "../features/project-shell/projectShellTypes";
@@ -344,6 +344,42 @@ describe("WorkspaceView", () => {
     } finally {
       window.HTMLElement.prototype.scrollIntoView = original;
     }
+  });
+
+  it("hides label groups without annotations in the document annotation list", () => {
+    render(
+      <WorkspaceView
+        {...createProps({
+          bundle: { project, labels: [label, secondaryLabel], documents: [] },
+          currentDocument: annotationCurrentDocument,
+          rightTab: "annotations",
+        })}
+      />,
+    );
+
+    const annotationList = within(screen.getByTestId("document-annotation-list"));
+
+    expect(annotationList.getByText("主訴")).toBeInTheDocument();
+    expect(annotationList.queryByText("所見")).not.toBeInTheDocument();
+    expect(annotationList.queryByText("Annotation なし")).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state when the current document has no annotations", () => {
+    render(
+      <WorkspaceView
+        {...createProps({
+          bundle: { project, labels: [label, secondaryLabel], documents: [] },
+          currentDocument: { ...annotationCurrentDocument, annotations: [] },
+          rightTab: "annotations",
+        })}
+      />,
+    );
+
+    const annotationList = within(screen.getByTestId("document-annotation-list"));
+
+    expect(annotationList.getByText("Annotation なし")).toBeInTheDocument();
+    expect(annotationList.queryByText("主訴")).not.toBeInTheDocument();
+    expect(annotationList.queryByText("所見")).not.toBeInTheDocument();
   });
 
   it("splits the remaining examples area equally between the same-label and same-surface panels", () => {

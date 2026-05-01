@@ -184,6 +184,10 @@ export function WorkspaceView({
     () => (currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : []),
     [currentDocument, bundle.labels],
   );
+  const visibleAnnotationGroups = useMemo(
+    () => groupedAnnotations.filter((group) => group.annotations.length > 0),
+    [groupedAnnotations],
+  );
   const { t } = useI18n();
   const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
   const [focusedDocumentId, setFocusedDocumentId] = useState<string | null>(null);
@@ -924,8 +928,11 @@ export function WorkspaceView({
 
               <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
                 <Typography variant="subtitle2">{t("projectShell.workspace.documentAnnotationsTitle")}</Typography>
-                <Stack spacing={1.5} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
-                  {groupedAnnotations.map(({ label, annotations }) => (
+                <Stack data-testid="document-annotation-list" spacing={1.5} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
+                  {currentDocument && visibleAnnotationGroups.length === 0 ? (
+                    <Typography color="text.secondary">{t("projectShell.workspace.noAnnotations")}</Typography>
+                  ) : null}
+                  {visibleAnnotationGroups.map(({ label, annotations }) => (
                     <Paper key={label.id} variant="outlined" sx={{ p: 1.5 }}>
                       <Stack
                         direction="row"
@@ -985,7 +992,6 @@ export function WorkspaceView({
                             </Paper>
                           );
                         })}
-                        {annotations.length === 0 ? <Typography color="text.secondary">{t("projectShell.workspace.noAnnotations")}</Typography> : null}
                       </Stack>
                     </Paper>
                   ))}

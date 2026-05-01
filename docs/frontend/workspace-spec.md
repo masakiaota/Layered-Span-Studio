@@ -119,6 +119,8 @@
   - Comment / Meta カード: 「選択中 Annotation」に紐づく `status` / `comment` / `meta` を表示・編集する。必要に応じて折りたたみ可能とし、開閉 UI は Doc アノテーション一覧と同系統の三角アコーディオン表現で統一する。
   - Doc アノテーション一覧カード: 現在選択中 Doc の Annotation を Label ごとに表示する。
 - Doc アノテーション一覧は Label ごとのアコーディオン形式とする。
+- Doc アノテーション一覧には、現在選択中 Doc に Annotation が存在する Label のみ表示する。
+- 現在選択中 Doc に Annotation が存在しない場合は、一覧カード内に空状態を表示する。
 - 各 Label グループ内の Annotation は `start`（span の開始 index）昇順で表示し、同一 `start` の場合は `end` 昇順で扱う。
 - 各 Annotation 行には `status` バッジを表示する。
 - 文脈表示は前後 10 文字固定で生成し、`span_text` 以外（前後文脈）は灰色で表示する。
