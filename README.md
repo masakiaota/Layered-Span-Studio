@@ -67,6 +67,15 @@ npm run dev
 英語版は [docs/import-your-data-en.md](./docs/import-your-data-en.md) にある。中国語版は [docs/import-your-data-zh-CN.md](./docs/import-your-data-zh-CN.md) にある。
 新しい project を作る import と、既存 project への追記 import の違いもこの手順書で整理している。
 
+規模の大きめな日本語NERデータで試したい場合は、[script/build_stockmark_ner_import.py](./script/build_stockmark_ner_import.py) で
+[Stockmark ner-wikipedia-dataset](https://github.com/stockmarkteam/ner-wikipedia-dataset) を import 用 JSON に変換できる。
+
+```bash
+uv run --script script/build_stockmark_ner_import.py --output data/stockmark-ner-wikipedia-import.json
+```
+
+生成物をそのまま backend に取り込む場合は `--import-backend` を付ける。元データは Wikipedia 日本語版由来で、Stockmark dataset は CC BY-SA 3.0 に従うため、生成 JSON や取り込んだ project を再配布・公開する場合はライセンス継承と帰属表示に注意すること。
+
 ## リポジトリ構成
 
 - `backend/`: サーバ側のAPIとデータ保存、認証、Import/Exportの土台。
