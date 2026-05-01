@@ -188,7 +188,9 @@ export function WorkspaceView({
   const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
   const [focusedDocumentId, setFocusedDocumentId] = useState<string | null>(null);
   const documentRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const labelChipRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const annotationRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const labelOrderKey = useMemo(() => bundle.labels.map((label) => label.id).join("|"), [bundle.labels]);
   const annotationOrderKey = useMemo(() => {
     return groupedAnnotations
       .map(
@@ -214,6 +216,13 @@ export function WorkspaceView({
     }
     scrollRowIntoView(documentRowRefs.current[selectedDocumentId]);
   }, [selectedDocumentId, selectedDocumentVisible]);
+
+  useEffect(() => {
+    if (!focusedLabel) {
+      return;
+    }
+    scrollRowIntoView(labelChipRefs.current[focusedLabel.id]);
+  }, [focusedLabel?.id, labelOrderKey]);
 
   useEffect(() => {
     if (!selectedAnnotationId || rightTab !== "annotations") {
@@ -479,12 +488,30 @@ export function WorkspaceView({
       </Paper>
 
       <Box sx={{ display: "grid", gap: 2, height: "100%", minHeight: 0, overflow: "hidden", gridTemplateRows: "auto minmax(0,1fr) auto" }}>
-        <Paper sx={{ px: 1.5, py: 1.25, display: "flex", gap: 1, overflowX: "auto", minHeight: 58, alignItems: "center" }}>
+        <Paper
+          data-testid="label-selector"
+          sx={{
+            px: 1.5,
+            py: 1.25,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 1,
+            overflowX: "hidden",
+            overflowY: "auto",
+            minHeight: 58,
+            maxHeight: 126,
+            alignItems: "center",
+            alignContent: "flex-start",
+          }}
+        >
           {bundle.labels.map((label) => {
             const active = label.id === focusedLabel?.id;
             return (
               <Chip
                 key={label.id}
+                ref={(element) => {
+                  labelChipRefs.current[label.id] = element;
+                }}
                 label={label.name}
                 onClick={(event) => {
                   onFocusLabel(label.id);
@@ -494,6 +521,7 @@ export function WorkspaceView({
                 sx={{
                   height: 30,
                   px: 0.25,
+                  maxWidth: "100%",
                   color: active ? "#fff" : label.color,
                   backgroundColor: active ? label.color : alpha(label.color, 0.08),
                   border: `1px solid ${alpha(label.color, active ? 0.4 : 0.24)}`,
@@ -515,6 +543,8 @@ export function WorkspaceView({
                     px: 1,
                     fontWeight: 600,
                     fontSize: 13,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
                   },
                 }}
               />

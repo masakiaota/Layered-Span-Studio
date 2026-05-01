@@ -59,7 +59,7 @@
 ## 4. 中央ペイン仕様（Annotation Canvas）
 
 - 上部に Label Selector を置く。
-- Label Selector は横スクロール可能とする。
+- Label Selector は幅に応じて最大 3 行まで折り返し、3 行を超える場合は領域内で縦スクロール可能とする。
 - Label は単一選択とする（注目ラベルは1つ）。
 - 中央ペインは現在選択中 Document の本文と annotations を表示対象とし、左ペインの仮想化や古い行の破棄とは独立して保持する。
 - 本文フォントサイズは `18px` とする。
@@ -226,6 +226,7 @@
   - `input` / `textarea` / `select` フォーカス中はショートカットを無効化する。
   - Doc 検索中の `J/K/Shift+J/Shift+K` は、検索結果一覧の中だけを移動対象にする。
   - `J/K`、`Shift+J/Shift+K`、`N/P`、`↑/↓` の移動後は、対象リスト上で選択アイテム（Doc/Annotation）が最小移動で可視域内に入ることを保証する。
+  - `H/L/←/→` の移動後は、Label Selector 上で注目 Label が最小移動で可視域内に入ることを保証する。
   - `H/L/←/→` によるLabel切り替え時は、Annotation選択をリセットする。
   - `[ / ]` は右ペインのタブ切り替えに使い、選択中 Annotation は維持する。
   - `N/P` は現在選択中Label内のみを対象とし、未選択状態では先頭（`N`）/末尾（`P`）から開始する。
