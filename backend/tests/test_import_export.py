@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from conftest import create_label_via_sync
+from layered_span_studio_backend.repositories import bulk_import as bulk_import_repo
 
 JSONDict = dict[str, Any]
 
@@ -209,6 +210,75 @@ def test_existing_import_appends_without_updating_project_metadata(
     assert target_detail.json()["name"] == "Project C"
     assert target_detail.json()["description"] == "target desc"
     assert target_detail.json()["meta"] == {"keep": "yes"}
+
+
+def test_existing_import_rolls_back_bulk_persistence_failure(
+    client: TestClient, auth_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target_project = client.post(
+        "/projects",
+        json={"name": "Project Import Rollback", "description": "desc"},
+        headers=auth_headers,
+    ).json()
+    payload = {
+        "project": {"name": "Project Import Rollback", "description": "desc", "meta": {}},
+        "labels": [
+            {
+                "name": "LabelRollback",
+                "color": "#AA1122",
+                "description": "desc",
+                "shortcut": None,
+                "meta": {},
+            }
+        ],
+        "documents": [
+            _import_document_payload(
+                "DocRollback",
+                "Hello world",
+                [
+                    {
+                        "label_name": "LabelRollback",
+                        "start": 0,
+                        "end": 5,
+                        "span_text": "Hello",
+                        "comment": "",
+                        "status": "verified",
+                        "meta": {},
+                    },
+                    {
+                        "label_name": "LabelRollback",
+                        "start": 6,
+                        "end": 11,
+                        "span_text": "world",
+                        "comment": "",
+                        "status": "verified",
+                        "meta": {},
+                    }
+                ],
+                status="verified",
+            )
+        ],
+        "meta": {"format": "layered-span-studio/export", "version": "1.0"},
+    }
+    ids = iter(["label-id", "document-id", "annotation-id", "annotation-id"])
+    monkeypatch.setattr(bulk_import_repo, "_new_id", lambda: next(ids))
+
+    with TestClient(client.app, raise_server_exceptions=False) as unsafe_client:
+        response = unsafe_client.post(
+            f"/projects/{target_project['id']}/import", json=payload, headers=auth_headers
+        )
+
+    assert response.status_code >= 400
+    labels_response = client.get(
+        f"/projects/{target_project['id']}/labels", headers=auth_headers
+    )
+    documents_response = client.get(
+        f"/projects/{target_project['id']}/documents", headers=auth_headers
+    )
+    assert labels_response.status_code == 200
+    assert documents_response.status_code == 200
+    assert labels_response.json()["labels"] == []
+    assert documents_response.json()["documents"] == []
 
 
 def test_export_filters_by_status(client: TestClient, auth_headers: dict[str, str]) -> None:
