@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
+import { DOCUMENT_PAGE_SIZE, DOCUMENT_WINDOW_SIZE } from "../features/project-shell/projectShellConstants";
 import { useProjectBundle } from "../features/project-shell/useProjectBundle";
 import type { DocumentRecord, DocumentSortValue, LabelRecord, ProjectRecord } from "../api-contract";
 import type { DocumentListItem } from "../types";
@@ -376,6 +377,177 @@ describe("useProjectBundle", () => {
     await waitFor(() => {
       expect(result.current.documentList.length).toBeGreaterThan(1);
     });
+  });
+
+  it("reloads the previous page after older document rows are trimmed from the window", async () => {
+    const makePage = (offset: number) =>
+      Array.from({ length: DOCUMENT_PAGE_SIZE }, (_, index) =>
+        createDocumentListItem({
+          id: `doc-${offset + index}`,
+          document_name: `Doc ${offset + index}`,
+          created_at: `2026-01-${String((offset + index) % 28 + 1).padStart(2, "0")}T00:00:00Z`,
+          updated_at: `2026-01-${String((offset + index) % 28 + 1).padStart(2, "0")}T00:00:00Z`,
+        }),
+      );
+
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+    const listDocumentsSpy = vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: makePage(0),
+        total: DOCUMENT_WINDOW_SIZE + DOCUMENT_PAGE_SIZE,
+        pending_total: DOCUMENT_WINDOW_SIZE + DOCUMENT_PAGE_SIZE,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: makePage(40),
+        total: DOCUMENT_WINDOW_SIZE + DOCUMENT_PAGE_SIZE,
+        pending_total: DOCUMENT_WINDOW_SIZE + DOCUMENT_PAGE_SIZE,
+        offset: 40,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: makePage(80),
+        total: DOCUMENT_WINDOW_SIZE + DOCUMENT_PAGE_SIZE,
+        pending_total: DOCUMENT_WINDOW_SIZE + DOCUMENT_PAGE_SIZE,
+        offset: 80,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: makePage(120),
+        total: DOCUMENT_WINDOW_SIZE + DOCUMENT_PAGE_SIZE,
+        pending_total: DOCUMENT_WINDOW_SIZE + DOCUMENT_PAGE_SIZE,
+        offset: 120,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: makePage(0),
+        total: DOCUMENT_WINDOW_SIZE + DOCUMENT_PAGE_SIZE,
+        pending_total: DOCUMENT_WINDOW_SIZE + DOCUMENT_PAGE_SIZE,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument").mockResolvedValue(createDocument({ id: "doc-0", document_name: "Doc 0" }));
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast: makeShowToast(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+    await act(async () => {
+      await result.current.fetchDocumentPage(false);
+    });
+    await act(async () => {
+      await result.current.fetchDocumentPage(false);
+    });
+    await act(async () => {
+      await result.current.fetchDocumentPage(false);
+    });
+
+    expect(result.current.documentList).toHaveLength(DOCUMENT_WINDOW_SIZE);
+    expect(result.current.documentWindowStartOffset).toBe(40);
+    expect(result.current.documentList.some((document) => document.id === "doc-0")).toBe(false);
+
+    await act(async () => {
+      await result.current.fetchDocumentPage("previous");
+    });
+
+    expect(listDocumentsSpy).toHaveBeenLastCalledWith("project-1", {
+      offset: 0,
+      limit: DOCUMENT_PAGE_SIZE,
+      search: "",
+      sort: "created",
+    });
+    expect(result.current.documentWindowStartOffset).toBe(0);
+    expect(result.current.documentList.some((document) => document.id === "doc-0")).toBe(true);
+    expect(result.current.documentList.some((document) => document.id === "doc-159")).toBe(false);
+  });
+
+  it("focuses the document list window on a document outside the current page", async () => {
+    const makePage = (offset: number) =>
+      Array.from({ length: DOCUMENT_PAGE_SIZE }, (_, index) =>
+        createDocumentListItem({
+          id: `doc-${offset + index}`,
+          document_name: `Doc ${offset + index}`,
+        }),
+      );
+
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+    const listDocumentsSpy = vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: makePage(0),
+        total: 120,
+        pending_total: 120,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: makePage(0),
+        total: 120,
+        pending_total: 120,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: makePage(40),
+        total: 120,
+        pending_total: 120,
+        offset: 40,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument").mockResolvedValue(createDocument({ id: "doc-0", document_name: "Doc 0" }));
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast: makeShowToast(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+    await act(async () => {
+      await result.current.focusDocumentListWindow("doc-42");
+    });
+
+    expect(listDocumentsSpy).toHaveBeenLastCalledWith("project-1", {
+      offset: 40,
+      limit: DOCUMENT_PAGE_SIZE,
+      search: "",
+      sort: "created",
+    });
+    expect(result.current.documentWindowStartOffset).toBe(40);
+    expect(result.current.documentList.some((document) => document.id === "doc-42")).toBe(true);
   });
 
   it("keeps loading true while a newer loadBundle call is still pending", async () => {

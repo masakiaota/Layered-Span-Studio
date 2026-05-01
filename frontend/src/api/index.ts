@@ -5,6 +5,7 @@ import {
   createDocument,
   deleteDocument,
   getDocument,
+  getDocumentNavigation,
   listDocuments,
   saveDocumentBundle,
 } from "./documents";
@@ -34,6 +35,7 @@ export const api = {
   saveProjectLabels,
   listDocuments,
   getDocument,
+  getDocumentNavigation,
   saveDocumentBundle,
   createDocument,
   deleteDocument,

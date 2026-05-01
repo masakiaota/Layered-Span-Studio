@@ -15,6 +15,7 @@ export type AnnotationSearchItemRecord = components["schemas"]["AnnotationSearch
 export type AnnotationSearchResponse = components["schemas"]["AnnotationSearchResponse"];
 export type DocumentRecord = components["schemas"]["DocumentDetailOut"];
 export type DocumentListResponse = components["schemas"]["DocumentListResponse"];
+export type DocumentNavigationResponse = components["schemas"]["DocumentNavigationResponse"];
 export type LabelExampleRecord = components["schemas"]["LabelExampleOut"];
 export type LabelSurfaceGroupRepresentativeRecord = components["schemas"]["LabelSurfaceGroupRepresentativeOut"];
 export type LabelSurfaceGroupRecord = components["schemas"]["LabelSurfaceGroupOut"];

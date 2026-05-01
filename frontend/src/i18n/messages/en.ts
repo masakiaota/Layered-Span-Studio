@@ -149,7 +149,7 @@ export const enMessages: Messages = {
       clearSearch: "Clear search",
       noResultsTitle: "No matching document",
       noResultsDescription: "Adjust the search conditions or create a new document.",
-      pinnedCurrentDocument: "The current document is pinned to the top because it is outside the current list window.",
+      returnToSelectedDocument: "Return to selected document",
       noDocumentTitle: "No document",
       tabs: {
         examples: "Examples",

@@ -147,7 +147,7 @@ export const zhCnMessages: Messages = {
       clearSearch: "清除搜索",
       noResultsTitle: "没有匹配的文档",
       noResultsDescription: "请调整搜索条件，或创建新的文档。",
-      pinnedCurrentDocument: "当前文档不在当前列表窗口中，因此已固定到顶部。",
+      returnToSelectedDocument: "返回选中文档",
       noDocumentTitle: "没有文档",
       tabs: {
         examples: "示例",

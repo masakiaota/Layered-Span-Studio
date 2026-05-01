@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -53,6 +53,38 @@ function scrollRowIntoView(row: Element | null) {
   row.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
+type DocumentScrollAnchor = {
+  documentId: string;
+  top: number;
+};
+
+function getDocumentRows(element: HTMLElement) {
+  return Array.from(element.querySelectorAll<HTMLElement>("[data-document-row='true']"));
+}
+
+function findDocumentRow(element: HTMLElement, documentId: string) {
+  return getDocumentRows(element).find((row) => row.dataset.documentId === documentId) ?? null;
+}
+
+function getDocumentScrollAnchor(element: HTMLElement): DocumentScrollAnchor | null {
+  const containerTop = element.getBoundingClientRect().top;
+  const row =
+    getDocumentRows(element).find((candidate) => candidate.getBoundingClientRect().bottom > containerTop) ?? null;
+  if (!row || !row.dataset.documentId) {
+    return null;
+  }
+  return {
+    documentId: row.dataset.documentId,
+    top: row.getBoundingClientRect().top,
+  };
+}
+
+function isDocumentRowOutsideViewport(row: HTMLElement, element: HTMLElement) {
+  const containerRect = element.getBoundingClientRect();
+  const rowRect = row.getBoundingClientRect();
+  return rowRect.bottom <= containerRect.top || rowRect.top >= containerRect.bottom;
+}
+
 export function WorkspaceView({
   bundle,
   currentDocument,
@@ -60,12 +92,13 @@ export function WorkspaceView({
   currentDocumentLoading,
   currentHiddenBySearch,
   visibleDocuments,
-  pinnedCurrentDocument,
+  currentDocumentOutsideWindow,
   pendingDocumentTotal,
   documentTotal,
   searchQuery,
   sortMode,
   documentsLoadingMore,
+  documentWindowStartOffset,
   documentNextOffset,
   documentListScrollRef,
   focusedLabel,
@@ -95,6 +128,8 @@ export function WorkspaceView({
   onOpenCreateDocument,
   onSearchQueryChange,
   onSortModeChange,
+  onReturnToSelectedDocument,
+  onLoadPreviousDocuments,
   onLoadMoreDocuments,
   onSelectDocument,
   onRequestDeleteDocument,
@@ -123,12 +158,13 @@ export function WorkspaceView({
   currentDocumentLoading: boolean;
   currentHiddenBySearch: boolean;
   visibleDocuments: DocumentListItem[];
-  pinnedCurrentDocument: DocumentListItem | null;
+  currentDocumentOutsideWindow: boolean;
   pendingDocumentTotal: number;
   documentTotal: number;
   searchQuery: string;
   sortMode: DocumentSortValue;
   documentsLoadingMore: boolean;
+  documentWindowStartOffset: number;
   documentNextOffset: number;
   documentListScrollRef: React.Ref<HTMLDivElement>;
   focusedLabel: LabelRecord | null;
@@ -158,7 +194,9 @@ export function WorkspaceView({
   onOpenCreateDocument: () => void;
   onSearchQueryChange: (value: string) => void;
   onSortModeChange: (value: DocumentSortValue) => void;
-  onLoadMoreDocuments: () => void;
+  onReturnToSelectedDocument: () => Promise<unknown> | unknown;
+  onLoadPreviousDocuments: () => Promise<unknown> | unknown;
+  onLoadMoreDocuments: () => Promise<unknown> | unknown;
   onSelectDocument: (documentId: string) => void;
   onRequestDeleteDocument: (documentId: string) => void;
   deleteDisabled?: boolean;
@@ -191,6 +229,9 @@ export function WorkspaceView({
   const { t } = useI18n();
   const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
   const [focusedDocumentId, setFocusedDocumentId] = useState<string | null>(null);
+  const [selectedDocumentOutsideViewport, setSelectedDocumentOutsideViewport] = useState(false);
+  const documentListElementRef = useRef<HTMLDivElement | null>(null);
+  const pendingDocumentScrollAnchorRef = useRef<DocumentScrollAnchor | null>(null);
   const documentRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const labelChipRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const annotationRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -221,6 +262,20 @@ export function WorkspaceView({
     scrollRowIntoView(documentRowRefs.current[selectedDocumentId]);
   }, [selectedDocumentId, selectedDocumentVisible]);
 
+  const updateSelectedDocumentOutsideViewport = useCallback(() => {
+    if (currentDocumentOutsideWindow) {
+      setSelectedDocumentOutsideViewport(true);
+      return;
+    }
+    if (!selectedDocumentId) {
+      setSelectedDocumentOutsideViewport(false);
+      return;
+    }
+    const element = documentListElementRef.current;
+    const row = documentRowRefs.current[selectedDocumentId];
+    setSelectedDocumentOutsideViewport(Boolean(element && row && isDocumentRowOutsideViewport(row, element)));
+  }, [currentDocumentOutsideWindow, selectedDocumentId]);
+
   useEffect(() => {
     if (!focusedLabel) {
       return;
@@ -234,6 +289,45 @@ export function WorkspaceView({
     }
     scrollRowIntoView(annotationRowRefs.current[selectedAnnotationId]);
   }, [annotationOrderKey, rightTab, selectedAnnotationId]);
+
+  useLayoutEffect(() => {
+    const anchor = pendingDocumentScrollAnchorRef.current;
+    const element = documentListElementRef.current;
+    if (!anchor || !element) {
+      return;
+    }
+    const row = findDocumentRow(element, anchor.documentId);
+    pendingDocumentScrollAnchorRef.current = null;
+    if (!row) {
+      return;
+    }
+    element.scrollTop += row.getBoundingClientRect().top - anchor.top;
+  }, [visibleDocuments]);
+
+  useLayoutEffect(() => {
+    updateSelectedDocumentOutsideViewport();
+  }, [updateSelectedDocumentOutsideViewport, visibleDocuments]);
+
+  const setDocumentListElement = useCallback((element: HTMLDivElement | null) => {
+    documentListElementRef.current = element;
+    if (typeof documentListScrollRef === "function") {
+      documentListScrollRef(element);
+      return;
+    }
+    if (documentListScrollRef) {
+      (documentListScrollRef as React.MutableRefObject<HTMLDivElement | null>).current = element;
+    }
+  }, [documentListScrollRef]);
+
+  function handleReturnToSelectedDocument() {
+    const selectedRow = selectedDocumentId ? documentRowRefs.current[selectedDocumentId] : null;
+    if (selectedRow) {
+      scrollRowIntoView(selectedRow);
+      setSelectedDocumentOutsideViewport(false);
+      return;
+    }
+    void onReturnToSelectedDocument();
+  }
 
   return (
     <>
@@ -280,20 +374,28 @@ export function WorkspaceView({
           </TextField>
         </Box>
         <Divider />
-        <Box
-          ref={documentListScrollRef}
-          onScroll={(event) => {
-            const element = event.currentTarget;
-            if (
-              !documentsLoadingMore &&
-              documentNextOffset < documentTotal &&
-              element.scrollTop + element.clientHeight >= element.scrollHeight - 32
-            ) {
-              onLoadMoreDocuments();
-            }
-          }}
-          sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1, flex: 1, minHeight: 0, overflow: "auto" }}
-        >
+        <Box sx={{ position: "relative", flex: 1, minHeight: 0 }}>
+          <Box
+            data-testid="document-list-scroll"
+            ref={setDocumentListElement}
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              updateSelectedDocumentOutsideViewport();
+              if (!documentsLoadingMore && documentWindowStartOffset > 0 && element.scrollTop <= 32) {
+                pendingDocumentScrollAnchorRef.current = getDocumentScrollAnchor(element);
+                onLoadPreviousDocuments();
+                return;
+              }
+              if (
+                !documentsLoadingMore &&
+                documentNextOffset < documentTotal &&
+                element.scrollTop + element.clientHeight >= element.scrollHeight - 32
+              ) {
+                onLoadMoreDocuments();
+              }
+            }}
+            sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1, height: "100%", minHeight: 0, overflow: "auto" }}
+          >
           {currentHiddenBySearch ? (
             <Alert severity="info">
               <Typography variant="body2">{t("projectShell.workspace.currentOutsideSearch")}</Typography>
@@ -309,11 +411,6 @@ export function WorkspaceView({
                 {t("projectShell.workspace.noResultsDescription")}
               </Typography>
             </Paper>
-          ) : null}
-          {pinnedCurrentDocument ? (
-            <Alert severity="info" sx={{ alignItems: "flex-start" }}>
-              <Typography variant="body2">{t("projectShell.workspace.pinnedCurrentDocument")}</Typography>
-            </Alert>
           ) : null}
           {visibleDocuments.map((document) => {
             const deleteButtonVisible =
@@ -335,6 +432,8 @@ export function WorkspaceView({
                 }
               >
                 <ListItemButton
+                  data-document-id={document.id}
+                  data-document-row="true"
                   ref={(element) => {
                     if (element) {
                       documentRowRefs.current[document.id] = element;
@@ -487,6 +586,39 @@ export function WorkspaceView({
             <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", py: 0.75 }}>
               {t("projectShell.workspace.allLoaded")}
             </Typography>
+          ) : null}
+          </Box>
+          {selectedDocumentOutsideViewport ? (
+            <Paper
+              variant="outlined"
+              square
+              sx={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                zIndex: 2,
+                px: 0.5,
+                py: 0.25,
+                minHeight: 30,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                bgcolor: "background.paper",
+                borderColor: alpha("#1a73e8", 0.16),
+                borderLeft: 0,
+                borderRight: 0,
+                boxShadow: "none",
+              }}
+            >
+              <Button
+                size="small"
+                onClick={handleReturnToSelectedDocument}
+                sx={{ minWidth: "auto", minHeight: 24, px: 1, py: 0, lineHeight: 1.2 }}
+              >
+                {t("projectShell.workspace.returnToSelectedDocument")}
+              </Button>
+            </Paper>
           ) : null}
         </Box>
       </Paper>
