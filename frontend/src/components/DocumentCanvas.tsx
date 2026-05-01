@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Box, Button, Paper, Typography, alpha } from "@mui/material";
-import type { AnnotationRecord, DocumentRecord, LabelRecord } from "../api-contract";
+import type { DocumentRecord, LabelRecord } from "../api-contract";
 import { useI18n } from "../i18n/useI18n";
 import { isShortcutBlockedTarget } from "../utils";
+import {
+  UNDERLINE_HIT_HEIGHT,
+  UNDERLINE_LANE_BASE,
+  UNDERLINE_LANE_PITCH,
+  buildAnnotationById,
+  buildRectsByAnnotationId,
+  buildSegments,
+  buildUnderlineLaneByAnnotation,
+  isBoxInViewport,
+  mergeInlineRects,
+  mixColorWithBlack,
+  getSelectionOffset,
+} from "./documentCanvasLayout";
 
 type SelectionDraft = {
   start: number;
@@ -12,141 +25,19 @@ type SelectionDraft = {
   left: number;
 };
 
-const UNDERLINE_LANE_BASE = 5.0;
-const UNDERLINE_LANE_PITCH = 4.4;
-const UNDERLINE_PADDING_TAIL = 5;
-const UNDERLINE_HIT_HEIGHT = 5;
+type MarkerBox = { annotationId: string; left: number; top: number; width: number; height: number; color: string };
+type OverlayLine = { annotationId: string; left: number; top: number; width: number; color: string };
+type SelectionBox = { left: number; top: number; width: number; height: number; color: string };
 
-function getSelectionOffset(container: HTMLElement, node: Node, offset: number) {
-  let total = 0;
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  while (walker.nextNode()) {
-    const currentNode = walker.currentNode;
-    const length = currentNode.textContent?.length ?? 0;
-    if (currentNode === node) {
-      return total + offset;
-    }
-    total += length;
+function areOverlayItemsEqual<T extends object>(left: T[], right: T[]) {
+  if (left.length !== right.length) {
+    return false;
   }
-  return total;
-}
-
-function mixColorWithBlack(hexColor: string, ratio = 0.5) {
-  const normalized = hexColor.replace("#", "");
-  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
-    return "#1d1d1d";
-  }
-  const channels = [0, 2, 4].map((offset) => Number.parseInt(normalized.slice(offset, offset + 2), 16));
-  const mixed = channels.map((channel) => Math.round(channel * (1 - ratio)));
-  return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
-}
-
-function buildSegments(
-  text: string,
-  annotations: AnnotationRecord[],
-  focusedLabelId: string | null,
-  selectedAnnotationId: string | null,
-) {
-  const boundaries = new Set<number>([0, text.length]);
-  annotations.forEach((annotation) => {
-    boundaries.add(annotation.start);
-    boundaries.add(annotation.end);
+  return left.every((leftItem, index) => {
+    const rightItem = right[index];
+    const keys = Object.keys(leftItem) as Array<keyof T>;
+    return keys.every((key) => leftItem[key] === rightItem[key]);
   });
-  const sorted = [...boundaries].sort((a, b) => a - b);
-  const segments: Array<{
-    id: string;
-    text: string;
-    covers: AnnotationRecord[];
-    focused: AnnotationRecord[];
-    selected: boolean;
-  }> = [];
-
-  for (let index = 0; index < sorted.length - 1; index += 1) {
-    const start = sorted[index];
-    const end = sorted[index + 1];
-    if (start === end) {
-      continue;
-    }
-    const cover = annotations.filter((annotation) => annotation.start < end && annotation.end > start);
-    segments.push({
-      id: `${start}-${end}`,
-      text: text.slice(start, end),
-      covers: cover,
-      focused: cover.filter((annotation) => annotation.label_id === focusedLabelId),
-      selected: cover.some((annotation) => annotation.id === selectedAnnotationId),
-    });
-  }
-
-  return segments;
-}
-
-function buildUnderlineLaneByAnnotation(
-  annotations: AnnotationRecord[],
-  labels: LabelRecord[],
-  focusedLabelId: string | null,
-) {
-  const labelOrderById = new Map(labels.map((label, index) => [label.id, index]));
-  const laneEnds: number[] = [];
-  const laneByAnnotationId: Record<string, number> = {};
-  let maxLane = -1;
-  annotations
-    .filter((annotation) => annotation.label_id !== focusedLabelId)
-    .sort((left, right) => {
-      if (left.start !== right.start) {
-        return left.start - right.start;
-      }
-      if (left.end !== right.end) {
-        return left.end - right.end;
-      }
-      const labelDiff = (labelOrderById.get(left.label_id) ?? 0) - (labelOrderById.get(right.label_id) ?? 0);
-      if (labelDiff !== 0) {
-        return labelDiff;
-      }
-      return left.id.localeCompare(right.id);
-    })
-    .forEach((annotation) => {
-      let laneIndex = 0;
-      while (laneIndex < laneEnds.length && laneEnds[laneIndex] > annotation.start) {
-        laneIndex += 1;
-      }
-      laneEnds[laneIndex] = annotation.end;
-      laneByAnnotationId[annotation.id] = laneIndex;
-      maxLane = Math.max(maxLane, laneIndex);
-    });
-
-  return {
-    laneByAnnotationId,
-    reserveBottom:
-      maxLane >= 0 ? UNDERLINE_LANE_BASE + maxLane * UNDERLINE_LANE_PITCH + UNDERLINE_PADDING_TAIL : 0,
-  };
-}
-
-function mergeInlineRects(
-  rects: Array<{ left: number; right: number; top: number; bottom: number; width: number; height: number }>,
-) {
-  const sorted = [...rects]
-    .filter((rect) => rect.width > 0 && rect.height > 0)
-    .sort((left, right) => (left.top !== right.top ? left.top - right.top : left.left - right.left));
-  const merged: Array<{ left: number; right: number; top: number; bottom: number }> = [];
-  sorted.forEach((rect) => {
-    const last = merged[merged.length - 1];
-    const isSameLine =
-      last &&
-      Math.abs(last.top - rect.top) <= 1 &&
-      Math.abs(last.bottom - rect.bottom) <= 1 &&
-      rect.left <= last.right + 2;
-    if (isSameLine) {
-      last.right = Math.max(last.right, rect.right);
-      return;
-    }
-    merged.push({
-      left: rect.left,
-      right: rect.right,
-      top: rect.top,
-      bottom: rect.bottom,
-    });
-  });
-  return merged;
 }
 
 export function DocumentCanvas({
@@ -182,16 +73,11 @@ export function DocumentCanvas({
   const [markerTooltip, setMarkerTooltip] = useState<{ text: string; color: string; top: number; left: number } | null>(
     null,
   );
-  const [markerBoxes, setMarkerBoxes] = useState<
-    Array<{ annotationId: string; left: number; top: number; width: number; height: number; color: string }>
-  >([]);
-  const [overlayLines, setOverlayLines] = useState<
-    Array<{ annotationId: string; left: number; top: number; width: number; color: string }>
-  >([]);
-  const [selectionBoxes, setSelectionBoxes] = useState<
-    Array<{ left: number; top: number; width: number; height: number; color: string }>
-  >([]);
+  const [markerBoxes, setMarkerBoxes] = useState<MarkerBox[]>([]);
+  const [overlayLines, setOverlayLines] = useState<OverlayLine[]>([]);
+  const [selectionBoxes, setSelectionBoxes] = useState<SelectionBox[]>([]);
   const [layoutRevision, setLayoutRevision] = useState(0);
+  const annotationById = useMemo(() => buildAnnotationById(document.annotations), [document.annotations]);
   const labelsById = useMemo(() => new Map(labels.map((label) => [label.id, label])), [labels]);
   const underlineLayout = useMemo(
     () => buildUnderlineLaneByAnnotation(document.annotations, labels, focusedLabelId),
@@ -291,25 +177,14 @@ export function DocumentCanvas({
     const baseRect = canvas?.getBoundingClientRect() ?? root.getBoundingClientRect();
     const canvasScrollLeft = canvas?.scrollLeft ?? 0;
     const canvasScrollTop = canvas?.scrollTop ?? 0;
-    const rectsByAnnotationId: Record<
-      string,
-      Array<{ left: number; right: number; top: number; bottom: number; width: number; height: number }>
-    > = {};
-    const segmentsWithCover = root.querySelectorAll<HTMLElement>("[data-cover-ann-ids]");
-    segmentsWithCover.forEach((element) => {
-      const coverIds = (element.dataset.coverAnnIds ?? "").split(",").filter(Boolean);
-      const rects = Array.from(element.getClientRects()).map((rect) => ({
-        left: rect.left,
-        right: rect.right,
-        top: rect.top,
-        bottom: rect.bottom,
-        width: rect.width,
-        height: rect.height,
-      }));
-      coverIds.forEach((annotationId) => {
-        rectsByAnnotationId[annotationId] = [...(rectsByAnnotationId[annotationId] ?? []), ...rects];
-      });
-    });
+    const rectsByAnnotationId = buildRectsByAnnotationId(root, document.annotations);
+    const viewportOverscan = 400;
+    const viewport = {
+      left: canvasScrollLeft - viewportOverscan,
+      top: canvasScrollTop - viewportOverscan,
+      right: canvasScrollLeft + (canvas?.clientWidth ?? Number.POSITIVE_INFINITY) + viewportOverscan,
+      bottom: canvasScrollTop + (canvas?.clientHeight ?? Number.POSITIVE_INFINITY) + viewportOverscan,
+    };
 
     const nextMarkerBoxes = document.annotations
       .filter((annotation) => annotation.label_id === focusedLabelId)
@@ -325,7 +200,7 @@ export function DocumentCanvas({
           height: Math.max(18, rect.bottom - rect.top + 2),
         }));
       })
-      .filter((box) => box.width > 0);
+      .filter((box) => box.width > 0 && isBoxInViewport(box, viewport));
 
     const nextOverlayLines = document.annotations
       .filter((annotation) => annotation.label_id !== focusedLabelId)
@@ -345,11 +220,11 @@ export function DocumentCanvas({
             (UNDERLINE_LANE_BASE + (laneIndex ?? 0) * UNDERLINE_LANE_PITCH - UNDERLINE_HIT_HEIGHT / 2),
         }));
       })
-      .filter((line) => line.width > 0);
+      .filter((line) => line.width > 0 && isBoxInViewport({ ...line, height: UNDERLINE_HIT_HEIGHT }, viewport));
 
     const nextSelectionBoxes = selectedAnnotationId
       ? mergeInlineRects(rectsByAnnotationId[selectedAnnotationId] ?? []).map((rect) => {
-          const selectedAnnotation = document.annotations.find((item) => item.id === selectedAnnotationId);
+          const selectedAnnotation = annotationById.get(selectedAnnotationId);
           const selectedLabel = selectedAnnotation ? labelsById.get(selectedAnnotation.label_id) : null;
           return {
             left: rect.left - baseRect.left + canvasScrollLeft,
@@ -359,15 +234,25 @@ export function DocumentCanvas({
             color: mixColorWithBlack(selectedLabel?.color ?? "#1a73e8", 0.5),
           };
         })
+        .filter((box) => isBoxInViewport(box, viewport))
       : [];
 
-    setMarkerBoxes(nextMarkerBoxes);
-    setOverlayLines(nextOverlayLines);
-    setSelectionBoxes(nextSelectionBoxes);
-  }, [document, focusedLabelId, layoutRevision, labelsById, selectedAnnotationId, segments, underlineLayout]);
+    setMarkerBoxes((current) => (areOverlayItemsEqual(current, nextMarkerBoxes) ? current : nextMarkerBoxes));
+    setOverlayLines((current) => (areOverlayItemsEqual(current, nextOverlayLines) ? current : nextOverlayLines));
+    setSelectionBoxes((current) => (areOverlayItemsEqual(current, nextSelectionBoxes) ? current : nextSelectionBoxes));
+  }, [
+    annotationById,
+    document.annotations,
+    focusedLabelId,
+    labelsById,
+    layoutRevision,
+    selectedAnnotationId,
+    segments,
+    underlineLayout,
+  ]);
 
   const moveLaneTooltip = (annotationId: string, clientX: number, clientY: number) => {
-    const annotation = document.annotations.find((item) => item.id === annotationId);
+    const annotation = annotationById.get(annotationId);
     const label = annotation ? labelsById.get(annotation.label_id) : null;
     if (!annotation || !label) {
       setLaneTooltip(null);
@@ -382,7 +267,7 @@ export function DocumentCanvas({
   };
 
   const moveMarkerTooltip = (annotationId: string) => {
-    const annotation = document.annotations.find((item) => item.id === annotationId);
+    const annotation = annotationById.get(annotationId);
     const label = annotation ? labelsById.get(annotation.label_id) : null;
     const canvas = canvasRef.current;
     const rootRect = canvas?.getBoundingClientRect() ?? textRef.current?.getBoundingClientRect();
@@ -510,7 +395,6 @@ export function DocumentCanvas({
                   key={segment.id}
                   component="span"
                   data-primary-ann-id={primaryFocused?.id ?? ""}
-                  data-cover-ann-ids={segment.covers.map((annotation) => annotation.id).join(",")}
                   onClick={(event) => {
                     event.stopPropagation();
                     if (selectionJustCommitted()) {
@@ -590,7 +474,7 @@ export function DocumentCanvas({
                   onMouseMove={(event) => moveLaneTooltip(line.annotationId, event.clientX, event.clientY)}
                   onClick={(event) => {
                     event.stopPropagation();
-                    const annotation = document.annotations.find((item) => item.id === line.annotationId);
+                    const annotation = annotationById.get(line.annotationId);
                     if (!annotation) {
                       return;
                     }
