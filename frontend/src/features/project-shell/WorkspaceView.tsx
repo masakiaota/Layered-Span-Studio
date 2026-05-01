@@ -938,15 +938,17 @@ export function WorkspaceView({
                         direction="row"
                         spacing={1}
                         alignItems="center"
-                        sx={{ cursor: "pointer", width: "fit-content" }}
+                        sx={{ cursor: "pointer", width: "100%", minWidth: 0 }}
                         onClick={() => onToggleAnnotationGroup(label.id)}
                       >
-                        <Box sx={{ width: 18, display: "grid", placeItems: "center" }}>
+                        <Box sx={{ width: 18, flexShrink: 0, display: "grid", placeItems: "center" }}>
                           <Typography variant="caption">{accordionOpen[label.id] ?? true ? "▼" : "▶"}</Typography>
                         </Box>
-                        <LabelRoundedIcon sx={{ color: label.color, fontSize: 18 }} />
-                        <Typography variant="subtitle2">{label.name}</Typography>
-                        <Chip size="small" label={annotations.length} />
+                        <LabelRoundedIcon sx={{ color: label.color, flexShrink: 0, fontSize: 18 }} />
+                        <Typography variant="subtitle2" noWrap sx={{ minWidth: 0, flex: 1 }}>
+                          {label.name}
+                        </Typography>
+                        <Chip size="small" label={annotations.length} sx={{ flexShrink: 0 }} />
                       </Stack>
                       <Stack spacing={1} sx={{ mt: 1.25, display: accordionOpen[label.id] ?? true ? "flex" : "none" }}>
                         {annotations.map((annotation) => {
