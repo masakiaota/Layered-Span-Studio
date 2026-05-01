@@ -188,7 +188,9 @@ export function WorkspaceView({
   const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
   const [focusedDocumentId, setFocusedDocumentId] = useState<string | null>(null);
   const documentRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const labelChipRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const annotationRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const labelOrderKey = useMemo(() => bundle.labels.map((label) => label.id).join("|"), [bundle.labels]);
   const annotationOrderKey = useMemo(() => {
     return groupedAnnotations
       .map(
@@ -214,6 +216,13 @@ export function WorkspaceView({
     }
     scrollRowIntoView(documentRowRefs.current[selectedDocumentId]);
   }, [selectedDocumentId, selectedDocumentVisible]);
+
+  useEffect(() => {
+    if (!focusedLabel) {
+      return;
+    }
+    scrollRowIntoView(labelChipRefs.current[focusedLabel.id]);
+  }, [focusedLabel?.id, labelOrderKey]);
 
   useEffect(() => {
     if (!selectedAnnotationId || rightTab !== "annotations") {
@@ -485,6 +494,9 @@ export function WorkspaceView({
             return (
               <Chip
                 key={label.id}
+                ref={(element) => {
+                  labelChipRefs.current[label.id] = element;
+                }}
                 label={label.name}
                 onClick={(event) => {
                   onFocusLabel(label.id);

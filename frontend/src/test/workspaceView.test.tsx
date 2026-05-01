@@ -35,6 +35,17 @@ const label: LabelRecord = {
   meta: {},
 };
 
+const secondaryLabel: LabelRecord = {
+  id: "label-2",
+  project_id: "project-1",
+  project_name: "Medical NER",
+  name: "所見",
+  color: "#2f80ed",
+  description: "desc",
+  shortcut: "2",
+  meta: {},
+};
+
 const initialDocuments: DocumentListItem[] = [
   {
     id: "doc-1",
@@ -225,6 +236,39 @@ describe("WorkspaceView", () => {
       );
       expect(scrollIntoView).toHaveBeenCalledTimes(2);
       expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest", inline: "nearest" });
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
+
+  it("scrolls the focused label chip when focus changes", () => {
+    const scrollIntoView = vi.fn();
+    const original = window.HTMLElement.prototype.scrollIntoView;
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      const labels = [label, secondaryLabel];
+      const { rerender } = render(
+        <WorkspaceView
+          {...createProps({
+            bundle: { project, labels, documents: [] },
+            focusedLabel: label,
+          })}
+        />,
+      );
+
+      scrollIntoView.mockClear();
+      rerender(
+        <WorkspaceView
+          {...createProps({
+            bundle: { project, labels, documents: [] },
+            focusedLabel: secondaryLabel,
+          })}
+        />,
+      );
+
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
     } finally {
       window.HTMLElement.prototype.scrollIntoView = original;
     }
