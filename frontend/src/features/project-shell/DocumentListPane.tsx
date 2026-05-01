@@ -180,7 +180,7 @@ function useDocumentListScroll({
     setSelectedDocumentOutsideViewport(Boolean(element && row && isDocumentRowOutsideViewport(row, element)));
   }, [currentDocumentOutsideWindow, selectedDocumentId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!selectedDocumentId || !selectedDocumentVisible) {
       return;
     }

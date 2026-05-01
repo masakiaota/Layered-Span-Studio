@@ -307,6 +307,45 @@ describe("WorkspaceView", () => {
     }
   });
 
+  it("does not flash the return banner while scrolling a newly selected visible document into view", () => {
+    const originalScrollIntoView = window.HTMLElement.prototype.scrollIntoView;
+    const originalGetBoundingClientRect = Object.getOwnPropertyDescriptor(
+      window.HTMLElement.prototype,
+      "getBoundingClientRect",
+    );
+    let doc2Top = 480;
+
+    window.HTMLElement.prototype.scrollIntoView = function scrollIntoView(this: HTMLElement) {
+      if (this.dataset.documentId === "doc-2") {
+        doc2Top = 120;
+      }
+    };
+    Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", {
+      value: function getBoundingClientRect(this: HTMLElement) {
+        if (this.dataset.documentId === "doc-2") {
+          return { top: doc2Top, bottom: doc2Top + 80, left: 0, right: 320, width: 320, height: 80, x: 0, y: doc2Top, toJSON: () => null };
+        }
+        return { top: 0, bottom: 400, left: 0, right: 320, width: 320, height: 400, x: 0, y: 0, toJSON: () => null };
+      },
+      configurable: true,
+    });
+
+    try {
+      const { rerender } = render(
+        <WorkspaceView {...createProps({ selectedDocumentId: "doc-1", visibleDocuments: initialDocuments })} />,
+      );
+
+      rerender(<WorkspaceView {...createProps({ selectedDocumentId: "doc-2", visibleDocuments: initialDocuments })} />);
+
+      expect(screen.queryByRole("button", { name: "選択中Documentへ戻る" })).not.toBeInTheDocument();
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+      if (originalGetBoundingClientRect) {
+        Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", originalGetBoundingClientRect);
+      }
+    }
+  });
+
   it("keeps the first visible document anchored after previous rows are prepended", async () => {
     const previousDocuments: DocumentListItem[] = [
       { ...initialDocuments[0], id: "doc-0", document_name: "Doc 0" },
