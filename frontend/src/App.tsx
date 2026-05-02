@@ -1076,6 +1076,7 @@ export function ProjectShell({
           id: nextAnnotationId,
           label_id: label.id,
           label_name: label.name,
+          status: "pending",
         };
       }
     });

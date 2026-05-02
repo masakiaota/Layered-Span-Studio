@@ -237,7 +237,7 @@ describe("ProjectShell submit behavior", () => {
 
   it("saves selected annotation label changes as replacement annotations", async () => {
     const userEventSetup = userEvent.setup();
-    const annotation = createAnnotation();
+    const annotation = createAnnotation({ status: "verified" });
     const initialDocument = createDocument({ annotations: [annotation] });
     const savedAnnotation = createAnnotation({ id: "annotation-2", label_id: "label-2", label_name: "所見" });
     const savedDocument = createDocument({
@@ -274,6 +274,7 @@ describe("ProjectShell submit behavior", () => {
     await userEventSetup.click(screen.getByText("0-5"));
     await userEventSetup.click(screen.getByRole("combobox", { name: "Label" }));
     await userEventSetup.click(await screen.findByRole("option", { name: "所見" }));
+    expect(within(screen.getByTestId("selected-annotation-dock")).getByText("pending")).toBeInTheDocument();
     await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
