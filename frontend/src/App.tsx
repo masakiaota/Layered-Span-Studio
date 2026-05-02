@@ -682,17 +682,22 @@ export function ProjectShell({
     if (!currentDocument || !bundle) {
       return;
     }
-    const pendingAnnotations = sortAnnotationsInPanelOrder(currentDocument, bundle.labels).filter(
-      (annotation) => annotation.status === "pending",
-    );
+    const orderedAnnotations = sortAnnotationsInPanelOrder(currentDocument, bundle.labels);
+    const pendingAnnotations = orderedAnnotations.filter((annotation) => annotation.status === "pending");
     if (pendingAnnotations.length === 0) {
       showToast(t("projectShell.toasts.noPendingAnnotation"), "info");
       return;
     }
     const currentIndex = selectedAnnotationId
-      ? pendingAnnotations.findIndex((annotation) => annotation.id === selectedAnnotationId)
+      ? orderedAnnotations.findIndex((annotation) => annotation.id === selectedAnnotationId)
       : -1;
-    const next = pendingAnnotations[currentIndex >= 0 ? (currentIndex + 1) % pendingAnnotations.length : 0];
+    const next =
+      currentIndex >= 0
+        ? (orderedAnnotations
+            .slice(currentIndex + 1)
+            .concat(orderedAnnotations.slice(0, currentIndex + 1))
+            .find((annotation) => annotation.status === "pending") ?? pendingAnnotations[0])
+        : pendingAnnotations[0];
     clearWorkspaceSelection();
     setSelectedAnnotationId(next.id);
     setFocusedLabelId(next.label_id);

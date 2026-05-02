@@ -87,6 +87,7 @@ function SelectedAnnotationDock({
   onDelete: () => void;
 }) {
   const { t } = useI18n();
+  const detailsId = `selected-annotation-details-${annotation.id}`;
 
   return (
     <Paper
@@ -169,6 +170,8 @@ function SelectedAnnotationDock({
           </Button>
           <IconButton
             aria-label="Annotation details"
+            aria-controls={detailsId}
+            aria-expanded={detailsOpen}
             onClick={onToggleDetails}
             sx={{
               flex: "0 0 40px",
@@ -189,7 +192,7 @@ function SelectedAnnotationDock({
         </Box>
 
         <Collapse in={detailsOpen} timeout="auto" unmountOnExit>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, minWidth: 0, pt: 0.25 }}>
+          <Box id={detailsId} sx={{ display: "flex", flexDirection: "column", gap: 1.25, minWidth: 0, pt: 0.25 }}>
             <Box sx={{ display: "flex", gap: 1, alignItems: "center", justifyContent: "space-between", minWidth: 0 }}>
               <Autocomplete
                 options={STATUS_VALUES}
@@ -290,10 +293,24 @@ function DocumentAnnotationListPanel({
         {groups.map(({ label, annotations }) => (
           <Paper key={label.id} variant="outlined" sx={{ p: 1.5 }}>
             <Stack
+              component="button"
+              type="button"
               direction="row"
               spacing={1}
               alignItems="center"
-              sx={{ cursor: "pointer", width: "100%", minWidth: 0 }}
+              aria-controls={`document-annotation-group-${label.id}`}
+              aria-expanded={accordionOpen[label.id] ?? true}
+              sx={{
+                appearance: "none",
+                background: "transparent",
+                border: 0,
+                cursor: "pointer",
+                font: "inherit",
+                p: 0,
+                textAlign: "left",
+                width: "100%",
+                minWidth: 0,
+              }}
               onClick={() => onToggleAnnotationGroup(label.id)}
             >
               <Box sx={{ width: 18, flexShrink: 0, display: "grid", placeItems: "center" }}>
@@ -305,12 +322,14 @@ function DocumentAnnotationListPanel({
               </Typography>
               <Chip size="small" label={annotations.length} sx={{ flexShrink: 0 }} />
             </Stack>
-            <Stack spacing={1} sx={{ mt: 1.25, display: accordionOpen[label.id] ?? true ? "flex" : "none" }}>
+            <Stack id={`document-annotation-group-${label.id}`} spacing={1} sx={{ mt: 1.25, display: accordionOpen[label.id] ?? true ? "flex" : "none" }}>
               {annotations.map((annotation) => {
                 const snippet = contextSnippet(currentDocument?.text ?? "", annotation.start, annotation.end, 10);
                 return (
                   <Paper
                     key={annotation.id}
+                    role="button"
+                    tabIndex={0}
                     ref={(element) => {
                       if (element) {
                         annotationRowRefs.current[annotation.id] = element;
@@ -325,6 +344,14 @@ function DocumentAnnotationListPanel({
                       borderColor: annotation.id === selectedAnnotationId ? "primary.main" : undefined,
                     }}
                     onClick={() => {
+                      onFocusLabel(annotation.label_id);
+                      onSelectAnnotation(annotation.id);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") {
+                        return;
+                      }
+                      event.preventDefault();
                       onFocusLabel(annotation.label_id);
                       onSelectAnnotation(annotation.id);
                     }}
@@ -969,7 +996,10 @@ export function WorkspaceView({
               accordionOpen={accordionOpen}
               annotationRowRefs={annotationRowRefs}
               onFocusLabel={onFocusLabel}
-              onSelectAnnotation={onSelectAnnotation}
+              onSelectAnnotation={(annotationId) => {
+                onSelectionDraftChange(null);
+                onSelectAnnotation(annotationId);
+              }}
               onToggleAnnotationGroup={onToggleAnnotationGroup}
             />
           )}

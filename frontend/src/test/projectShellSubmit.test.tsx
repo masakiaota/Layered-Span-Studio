@@ -332,6 +332,56 @@ describe("ProjectShell submit behavior", () => {
     expect(screen.getAllByText("world").length).toBeGreaterThan(0);
   });
 
+  it("selects the next pending annotation after the current annotation position", async () => {
+    const userEventSetup = userEvent.setup();
+    const firstAnnotation = createAnnotation({
+      id: "annotation-1",
+      start: 0,
+      end: 5,
+      span_text: "Hello",
+      status: "pending",
+    });
+    const verifiedAnnotation = createAnnotation({
+      id: "annotation-2",
+      start: 6,
+      end: 11,
+      span_text: "world",
+      status: "verified",
+    });
+    const nextPendingAnnotation = createAnnotation({
+      id: "annotation-3",
+      start: 0,
+      end: 5,
+      label_id: "label-2",
+      label_name: "所見",
+      span_text: "Hello",
+      status: "pending",
+    });
+    const initialDocument = createDocument({ annotations: [firstAnnotation, verifiedAnnotation, nextPendingAnnotation] });
+
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [{ ...initialDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+      total: 1,
+      pending_total: 1,
+      offset: 0,
+      limit: 40,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "getDocument").mockResolvedValue(initialDocument);
+
+    renderWorkspace();
+
+    await screen.findByText("1 pending / 1 docs");
+    await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
+    await userEventSetup.click(screen.getByText("6-11"));
+    await userEventSetup.click(screen.getByRole("button", { name: "Next pending" }));
+
+    const dock = within(screen.getByTestId("selected-annotation-dock"));
+    expect(dock.getByDisplayValue("所見")).toBeInTheDocument();
+    expect(dock.getByText("pending")).toBeInTheDocument();
+  });
+
   it("shows verified doc as pending while unsaved and returns to verified after save", async () => {
     const userEventSetup = userEvent.setup();
     const annotation = createAnnotation({ status: "verified" });

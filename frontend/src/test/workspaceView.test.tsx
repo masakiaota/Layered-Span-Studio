@@ -666,6 +666,79 @@ describe("WorkspaceView", () => {
     expect(screen.getByDisplayValue("note")).toBeInTheDocument();
   });
 
+  it("exposes selected annotation details as an accessible disclosure", async () => {
+    const user = userEvent.setup();
+    render(
+      <WorkspaceView
+        {...createProps({
+          currentDocument: annotationCurrentDocument,
+          selectedAnnotationId: "ann-1",
+          selectedAnnotation: annotationCurrentDocument.annotations[0],
+        })}
+      />,
+    );
+
+    const detailsButton = within(screen.getByTestId("selected-annotation-dock")).getByRole("button", {
+      name: "Annotation details",
+    });
+    expect(detailsButton).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(detailsButton);
+
+    expect(detailsButton).toHaveAttribute("aria-expanded", "true");
+    expect(detailsButton.getAttribute("aria-controls")).toContain("selected-annotation-details-ann-1");
+  });
+
+  it("clears the range selection preview when selecting an annotation from the list", async () => {
+    const user = userEvent.setup();
+    const onSelectionDraftChange = vi.fn();
+    const onSelectAnnotation = vi.fn();
+    render(
+      <WorkspaceView
+        {...createProps({
+          currentDocument: annotationCurrentDocument,
+          rightTab: "annotations",
+          selectionPreview: { start: 0, end: 5, text: "alpha" },
+          onSelectionDraftChange,
+          onSelectAnnotation,
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /0-5/ }));
+
+    expect(onSelectionDraftChange).toHaveBeenCalledWith(null);
+    expect(onSelectAnnotation).toHaveBeenCalledWith("ann-1");
+  });
+
+  it("lets keyboard users operate annotation groups and rows", async () => {
+    const user = userEvent.setup();
+    const onToggleAnnotationGroup = vi.fn();
+    const onSelectAnnotation = vi.fn();
+    render(
+      <WorkspaceView
+        {...createProps({
+          currentDocument: annotationCurrentDocument,
+          rightTab: "annotations",
+          onToggleAnnotationGroup,
+          onSelectAnnotation,
+        })}
+      />,
+    );
+
+    const annotationList = within(screen.getByTestId("document-annotation-list"));
+    const groupButton = annotationList.getByRole("button", { name: /主訴/ });
+    expect(groupButton).toHaveAttribute("aria-expanded", "true");
+    groupButton.focus();
+    await user.keyboard("{Enter}");
+    expect(onToggleAnnotationGroup).toHaveBeenCalledWith("label-1");
+
+    const rowButton = annotationList.getByRole("button", { name: /0-5/ });
+    rowButton.focus();
+    await user.keyboard(" ");
+    expect(onSelectAnnotation).toHaveBeenCalledWith("ann-1");
+  });
+
   it("shows an empty state when the current document has no annotations", () => {
     render(
       <WorkspaceView

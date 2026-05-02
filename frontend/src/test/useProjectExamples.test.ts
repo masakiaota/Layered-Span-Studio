@@ -292,7 +292,7 @@ describe("useProjectExamples", () => {
       label_id: "label-2",
       exclude_annotation_id: "ann-1",
     });
-    vi.spyOn(api, "listLabelSurfaceGroups").mockResolvedValue({
+    const listLabelSurfaceGroupsSpy = vi.spyOn(api, "listLabelSurfaceGroups").mockResolvedValue({
       items: [],
       total: 0,
       offset: 0,
@@ -327,6 +327,13 @@ describe("useProjectExamples", () => {
         excludeAnnotationId: "ann-1",
         labelId: "label-2",
         text: "Alice",
+      }),
+    );
+    expect(listLabelSurfaceGroupsSpy).toHaveBeenCalledWith(
+      "project-1",
+      "label-2",
+      expect.objectContaining({
+        excludeAnnotationId: "ann-1",
       }),
     );
   });
