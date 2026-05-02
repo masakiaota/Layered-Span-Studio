@@ -14,6 +14,7 @@ type UseProjectExamplesOptions = {
   projectId: string | null;
   focusedLabel: LabelRecord | null;
   selectedAnnotation: AnnotationRecord | null;
+  selectedAnnotationExcludeId: string | null;
   selectionPreview: SelectionPreview | null;
   showToast: (message: string, severity?: ToastState["severity"]) => void;
 };
@@ -22,6 +23,7 @@ export function useProjectExamples({
   projectId,
   focusedLabel,
   selectedAnnotation,
+  selectedAnnotationExcludeId,
   selectionPreview,
   showToast,
 }: UseProjectExamplesOptions) {
@@ -47,11 +49,11 @@ export function useProjectExamples({
       : selectedAnnotation
         ? {
             text: selectedAnnotation.span_text,
-            annotationId: selectedAnnotation.id,
+            annotationId: selectedAnnotationExcludeId,
             labelId: selectedAnnotation.label_id,
           }
         : null;
-  }, [focusedLabel?.id, selectedAnnotation, selectionPreview]);
+  }, [focusedLabel?.id, selectedAnnotation, selectedAnnotationExcludeId, selectionPreview]);
 
   async function loadSameLabelExamples(reset: boolean) {
     const requestId = ++sameLabelExamplesRequestIdRef.current;
@@ -69,7 +71,7 @@ export function useProjectExamples({
         limit: EXAMPLES_BATCH_SIZE,
         status: "all",
         contextWindow: 16,
-        excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
+        excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotationExcludeId : null,
       });
       if (requestId !== sameLabelExamplesRequestIdRef.current) {
         return;
@@ -137,7 +139,7 @@ export function useProjectExamples({
         text: surfaceText,
         status: "all",
         labelId: focusedLabel.id,
-        excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotation.id : null,
+        excludeAnnotationId: selectedAnnotation?.label_id === focusedLabel.id ? selectedAnnotationExcludeId : null,
         limit: Math.min(Math.max(duplicateCount, EXAMPLES_BATCH_SIZE), EXAMPLES_BATCH_SIZE * 3),
         contextWindow: 42,
       });
@@ -152,7 +154,7 @@ export function useProjectExamples({
 
   useEffect(() => {
     void loadSameLabelExamples(true);
-  }, [projectId, focusedLabel?.id, selectedAnnotation?.id]);
+  }, [projectId, focusedLabel?.id, selectedAnnotation?.id, selectedAnnotationExcludeId]);
 
   useEffect(() => {
     void loadSameSurfaceExamples(true);

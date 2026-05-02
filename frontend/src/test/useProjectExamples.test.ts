@@ -139,6 +139,7 @@ describe("useProjectExamples", () => {
         projectId: "project-1",
         focusedLabel,
         selectedAnnotation: null,
+        selectedAnnotationExcludeId: null,
         selectionPreview: null,
         showToast,
       }),
@@ -229,6 +230,7 @@ describe("useProjectExamples", () => {
         projectId: "project-1",
         focusedLabel: null,
         selectedAnnotation: null,
+        selectedAnnotationExcludeId: null,
         selectionPreview,
         showToast,
       }),
@@ -276,5 +278,63 @@ describe("useProjectExamples", () => {
     });
 
     expect(result.current.sameSurfaceExamplesLoadingMore).toBe(false);
+  });
+
+  it("uses the original annotation id when a selected annotation replaced an existing one", async () => {
+    const searchAnnotationsSpy = vi.spyOn(api, "searchAnnotations").mockResolvedValue({
+      items: [],
+      total: 0,
+      offset: 0,
+      limit: 8,
+      text: "Alice",
+      status: "all",
+      context_window: 16,
+      label_id: "label-2",
+      exclude_annotation_id: "ann-1",
+    });
+    const listLabelSurfaceGroupsSpy = vi.spyOn(api, "listLabelSurfaceGroups").mockResolvedValue({
+      items: [],
+      total: 0,
+      offset: 0,
+      limit: 8,
+      status: "all",
+      context_window: 16,
+    });
+
+    renderHook(() =>
+      useProjectExamples({
+        projectId: "project-1",
+        focusedLabel: { ...focusedLabel, id: "label-2" },
+        selectedAnnotation: {
+          ...selectedAnnotation,
+          id: "local-annotation-replacement",
+          label_id: "label-2",
+          label_name: "Other",
+        },
+        selectedAnnotationExcludeId: "ann-1",
+        selectionPreview: null,
+        showToast: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(searchAnnotationsSpy).toHaveBeenCalledWith(
+      "project-1",
+      expect.objectContaining({
+        excludeAnnotationId: "ann-1",
+        labelId: "label-2",
+        text: "Alice",
+      }),
+    );
+    expect(listLabelSurfaceGroupsSpy).toHaveBeenCalledWith(
+      "project-1",
+      "label-2",
+      expect.objectContaining({
+        excludeAnnotationId: "ann-1",
+      }),
+    );
   });
 });

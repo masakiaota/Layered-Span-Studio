@@ -96,10 +96,11 @@
 - Annotation Canvas の非アノテーション領域（空白）クリックで、選択中 Annotation を解除する。
 - Workspace 初期表示時は Annotation 未選択状態で開始する。
 - Document 切り替え直後は Annotation 未選択状態で開始する。
-- 既存 Annotation の編集可能範囲は以下に限定する。
+- 既存 Annotation の直接更新可能範囲は以下に限定する。
   - `comment`
   - `status`
   - `meta`
+- Label 切り替えは既存 Annotation の直接更新ではなく、旧 Annotation の削除と新 Label の Annotation 作成として扱う。
 - `start/end/span_text` の直接編集は行わない。
 
 ## 5. 右ペイン仕様（2タブ）
@@ -120,9 +121,12 @@
 - `同一表層の他アノテーション` 内では、他 Label の事例だけを行内バッジ等で強調表示する。
 - `関連例` 内の各項目は短い抜粋を常時表示し、hover 時はより長い周辺文脈を Tooltip 形式の詳細表示で確認できるようにする。
 - `同一ラベルの他アノテーション` は同一表層を件数集約して表示し、hover 時のフローティングウィンドウでは backend の project 横断検索 API を補助的に使って、該当する複数 Document の事例を並べて表示する。
-- `注釈一覧` タブは以下で構成する。
-  - Comment / Meta カード: 「選択中 Annotation」に紐づく `status` / `comment` / `meta` を表示・編集する。必要に応じて折りたたみ可能とし、開閉 UI は Doc アノテーション一覧と同系統の三角アコーディオン表現で統一する。
-  - Doc アノテーション一覧カード: 現在選択中 Doc の Annotation を Label ごとに表示する。
+- 中央ペイン下部には、Annotation 選択中のみ選択中 Annotation dock を表示する。
+- 選択中 Annotation dock の上段には、選択中 Annotation の見出し、`status`、`span_text` を 1 行で表示する。
+- 選択中 Annotation dock の主操作列には、Label 切り替え、次の `pending` Annotation への移動、`verified` 化、詳細開閉ボタンを配置する。
+- 選択中 Annotation dock の詳細領域には、`status` / `comment` / `meta` 編集と削除を配置し、開閉状態は Annotation 選択が変わっても維持する。
+- Label 切り替えは backend の既存 Annotation immutable 契約に合わせ、保存時には旧 Annotation の削除と新 Label の Annotation 作成として扱う。
+- `注釈一覧` タブは、現在選択中 Doc の Annotation を Label ごとに表示する一覧のみで構成する。
 - Doc アノテーション一覧は Label ごとのアコーディオン形式とする。
 - Doc アノテーション一覧には、現在選択中 Doc に Annotation が存在する Label のみ表示する。
 - 現在選択中 Doc に Annotation が存在しない場合は、一覧カード内に空状態を表示する。
@@ -131,6 +135,7 @@
 - 文脈表示は前後 10 文字固定で生成し、`span_text` 以外（前後文脈）は灰色で表示する。
 - 一覧カード内の Label 色は、Label Selector と本文マーカー色に合わせて統一する。
 - Doc 切り替えや Annotation 移動時は、Doc アノテーション一覧で選択行が可視領域内になるよう自動スクロールする。
+- 注釈一覧タブは Doc 内 Annotation の一覧・選択に集中し、選択中 Annotation の編集フォームは持たない。
 
 ## 6. 保存と確定
 
@@ -148,7 +153,13 @@
 - Submit 完了後は次の `pending` Document へ自動で移動する。
 - 次の `pending` が存在しない場合は現在 Document に留まる。
 
-## 6.1 Project 一覧へ戻る時のガード
+## 6.1 i18n 方針
+
+- 説明文、通知、dialog 文言、長い補助テキストは i18n 対象とする。
+- `Save` / `Submit` / `Label` / `Next pending` / `Mark verified` のように、十分短く UI 操作語として定着した英語フレーズは無理に翻訳しない。
+- 短い英語フレーズを固定表示にする場合でも、aria-label や Tooltip が補足説明として長くなるなら i18n 対象とする。
+
+## 6.2 Project 一覧へ戻る時のガード
 
 - Workspace / Settings から Project 一覧へ戻る操作には未保存確認を表示する。
 - 確認ダイアログの選択肢は以下とする。
@@ -157,7 +168,7 @@
   - キャンセル
 - URL 直打ち・ブラウザ履歴遷移時のガードは実装対象外とする。
 
-## 6.2 Import / Export（Project List / Project Settings）
+## 6.3 Import / Export（Project List / Project Settings）
 
 - Project List では `New Project` と `Import Project` を並列導線として提供する。
 - Project List では検索欄の近くに `並び順` と `昇順 / 降順` の UI を置く。
@@ -184,7 +195,7 @@
 - Project Settings の Import は backend 検証ルールに合わせ、既存と同名の label / document が含まれる場合は失敗扱いとする。
 - Import は部分成功しない（不整合が1件でもあれば全体失敗）。
 
-## 6.3 Project Settings 画面
+## 6.4 Project Settings 画面
 
 - Project scope 共通 header では、左側に project 名と説明文、中央に `Workspace / Project Settings` 切り替え、右側に言語切替、現在の username、logout 導線をまとめて表示する。
 - Project 名と説明文を編集可能にする。

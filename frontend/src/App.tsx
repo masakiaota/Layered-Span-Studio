@@ -90,11 +90,11 @@ export function ProjectShell({
   const [focusedLabelId, setFocusedLabelId] = useState<string | null>(null);
   const [selectedSettingsLabelId, setSelectedSettingsLabelId] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [replacementAnnotationIds, setReplacementAnnotationIds] = useState<Record<string, string>>({});
   const [selectedAnnotationMetaDraft, setSelectedAnnotationMetaDraft] = useState("");
   const [selectedAnnotationMetaError, setSelectedAnnotationMetaError] = useState<string | null>(null);
   const [selectionPreview, setSelectionPreview] = useState<SelectionPreview | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>("examples");
-  const [annotationEditCollapsed, setAnnotationEditCollapsed] = useState(true);
   const [accordionOpen, setAccordionOpen] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState<DocumentSortValue>("created");
@@ -257,6 +257,7 @@ export function ProjectShell({
     projectId: bundle?.project.id ?? null,
     focusedLabel,
     selectedAnnotation,
+    selectedAnnotationExcludeId: selectedAnnotation ? (replacementAnnotationIds[selectedAnnotation.id] ?? selectedAnnotation.id) : null,
     selectionPreview,
     showToast,
   });
@@ -309,11 +310,11 @@ export function ProjectShell({
 
   function resetWorkspacePanels() {
     setRightTab("examples");
-    setAnnotationEditCollapsed(true);
   }
 
   function activateDocument(documentId: string | null) {
     setSelectedDocId(documentId);
+    setReplacementAnnotationIds({});
     clearWorkspaceSelection();
     resetWorkspacePanels();
   }
@@ -418,6 +419,7 @@ export function ProjectShell({
         entries: [deepClone(savedDocument)],
         index: 0,
       });
+      setReplacementAnnotationIds({});
       clearWorkspaceSelection();
       if (successMessage) {
         showToast(successMessage, "success");
@@ -674,6 +676,42 @@ export function ProjectShell({
     clearWorkspaceSelection();
     setSelectedAnnotationId(next.id);
     setFocusedLabelId(next.label_id);
+    setAccordionOpen((current) => ({
+      ...current,
+      [next.label_id]: true,
+    }));
+  }
+
+  function selectNextPendingAnnotation() {
+    if (!currentDocument || !bundle) {
+      return;
+    }
+    const orderedAnnotations = sortAnnotationsInPanelOrder(currentDocument, bundle.labels);
+    const pendingAnnotations = orderedAnnotations.filter((annotation) => annotation.status === "pending");
+    if (pendingAnnotations.length === 0) {
+      showToast(t("projectShell.toasts.noPendingAnnotation"), "info");
+      return;
+    }
+    const currentIndex = selectedAnnotationId
+      ? orderedAnnotations.findIndex((annotation) => annotation.id === selectedAnnotationId)
+      : -1;
+    const next =
+      currentIndex >= 0
+        ? (orderedAnnotations
+            .slice(currentIndex + 1)
+            .concat(orderedAnnotations.slice(0, currentIndex + 1))
+            .find((annotation) => annotation.status === "pending") ?? pendingAnnotations[0])
+        : pendingAnnotations[0];
+    clearWorkspaceSelection();
+    setSelectedAnnotationId(next.id);
+    setFocusedLabelId(next.label_id);
+  }
+
+  function verifySelectedAnnotation() {
+    if (!selectedAnnotation || selectedAnnotation.status === "verified") {
+      return;
+    }
+    handleSelectedAnnotationStatusChange("verified");
   }
 
   function deleteSelectedAnnotation() {
@@ -959,7 +997,6 @@ export function ProjectShell({
     });
     setSelectionPreview(null);
     setSelectedAnnotationId(nextAnnotation.id);
-    setRightTab("annotations");
   }
 
   async function handleCreateDocument() {
@@ -1018,6 +1055,80 @@ export function ProjectShell({
         annotation.status = status;
       }
     });
+  }
+
+  function handleSelectedAnnotationLabelChange(labelId: string) {
+    if (!selectedAnnotation || !bundle) {
+      return;
+    }
+    const label = bundle.labels.find((item) => item.id === labelId);
+    if (!label || label.id === selectedAnnotation.label_id) {
+      return;
+    }
+    const originalAnnotationId = replacementAnnotationIds[selectedAnnotation.id] ?? null;
+    const originalAnnotation = originalAnnotationId
+      ? currentDocumentSnapshot?.annotations.find((annotation) => annotation.id === originalAnnotationId) ?? null
+      : null;
+    const hasOverlap = currentDocument?.annotations.some(
+      (annotation) =>
+        annotation.id !== selectedAnnotation.id &&
+        annotation.label_id === label.id &&
+        annotation.start < selectedAnnotation.end &&
+        annotation.end > selectedAnnotation.start,
+    );
+    if (hasOverlap) {
+      showToast(t("projectShell.toasts.duplicateSpanInSameLabel"), "warning");
+      return;
+    }
+    if (originalAnnotation && label.id === originalAnnotation.label_id) {
+      mutateCurrentDocument((draft) => {
+        const annotationIndex = draft.annotations.findIndex((item) => item.id === selectedAnnotation.id);
+        if (annotationIndex >= 0) {
+          draft.annotations[annotationIndex] = {
+            ...draft.annotations[annotationIndex],
+            id: originalAnnotation.id,
+            label_id: originalAnnotation.label_id,
+            label_name: originalAnnotation.label_name,
+            status: originalAnnotation.status,
+          };
+        }
+      });
+      setReplacementAnnotationIds((current) => {
+        const next = { ...current };
+        delete next[selectedAnnotation.id];
+        return next;
+      });
+      setSelectedAnnotationId(originalAnnotation.id);
+      setFocusedLabelId(originalAnnotation.label_id);
+      setAccordionOpen((current) => ({
+        ...current,
+        [originalAnnotation.label_id]: true,
+      }));
+      return;
+    }
+    const nextAnnotationId = makeLocalId("annotation");
+    mutateCurrentDocument((draft) => {
+      const annotationIndex = draft.annotations.findIndex((item) => item.id === selectedAnnotation.id);
+      if (annotationIndex >= 0) {
+        draft.annotations[annotationIndex] = {
+          ...draft.annotations[annotationIndex],
+          id: nextAnnotationId,
+          label_id: label.id,
+          label_name: label.name,
+          status: "pending",
+        };
+      }
+    });
+    setReplacementAnnotationIds((current) => ({
+      ...current,
+      [nextAnnotationId]: current[selectedAnnotation.id] ?? selectedAnnotation.id,
+    }));
+    setSelectedAnnotationId(nextAnnotationId);
+    setFocusedLabelId(label.id);
+    setAccordionOpen((current) => ({
+      ...current,
+      [label.id]: true,
+    }));
   }
 
   function handleSelectedAnnotationCommentChange(comment: string) {
@@ -1184,7 +1295,6 @@ export function ProjectShell({
               selectedAnnotationMetaError={selectedAnnotationMetaError}
               selectionPreview={selectionPreview}
               rightTab={rightTab}
-              annotationEditCollapsed={annotationEditCollapsed}
               accordionOpen={accordionOpen}
               sameLabelExamples={sameLabelExamples}
               sameLabelExamplesTotal={sameLabelExamplesTotal}
@@ -1238,7 +1348,9 @@ export function ProjectShell({
                 void ensureSameLabelDetails(surfaceKey, surfaceText, duplicateCount)
               }
               onLoadMoreSameSurfaceExamples={() => void loadSameSurfaceExamples(false)}
-              onToggleAnnotationEditCollapsed={() => setAnnotationEditCollapsed((current) => !current)}
+              onSelectNextPendingAnnotation={selectNextPendingAnnotation}
+              onVerifySelectedAnnotation={verifySelectedAnnotation}
+              onUpdateSelectedAnnotationLabel={handleSelectedAnnotationLabelChange}
               onUpdateSelectedAnnotationStatus={handleSelectedAnnotationStatusChange}
               onUpdateSelectedAnnotationComment={handleSelectedAnnotationCommentChange}
               onUpdateSelectedAnnotationMeta={handleSelectedAnnotationMetaChange}

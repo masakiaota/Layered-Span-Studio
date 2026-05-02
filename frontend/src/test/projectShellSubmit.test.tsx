@@ -51,6 +51,16 @@ const labels: LabelRecord[] = [
     shortcut: "1",
     meta: {},
   },
+  {
+    id: "label-2",
+    project_id: "project-1",
+    project_name: "Medical NER",
+    name: "所見",
+    color: "#2f80ed",
+    description: "desc",
+    shortcut: "2",
+    meta: {},
+  },
 ];
 const labelsRevision = "labels-revision-1";
 
@@ -199,7 +209,7 @@ describe("ProjectShell submit behavior", () => {
     await screen.findByText("1 pending / 1 docs");
     await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
     await userEventSetup.click(screen.getByText("0-5"));
-    await userEventSetup.click(screen.getByText("選択中 Annotation"));
+    await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
     await userEventSetup.type(commentInput, "updated comment");
     await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
@@ -224,6 +234,221 @@ describe("ProjectShell submit behavior", () => {
       );
     });
   }, 15000);
+
+  it("saves selected annotation label changes as replacement annotations", async () => {
+    const userEventSetup = userEvent.setup();
+    const annotation = createAnnotation({ status: "verified" });
+    const initialDocument = createDocument({ annotations: [annotation] });
+    const savedAnnotation = createAnnotation({ id: "annotation-2", label_id: "label-2", label_name: "所見" });
+    const savedDocument = createDocument({
+      annotations: [savedAnnotation],
+      updated_at: "2026-03-02T00:00:00Z",
+    });
+
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [{ ...initialDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: [{ ...savedDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument").mockResolvedValue(initialDocument);
+    const saveDocumentBundleSpy = vi.spyOn(api, "saveDocumentBundle").mockResolvedValue(savedDocument);
+
+    renderWorkspace();
+
+    await screen.findByText("1 pending / 1 docs");
+    await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
+    await userEventSetup.click(screen.getByText("0-5"));
+    await userEventSetup.click(screen.getByRole("combobox", { name: "Label" }));
+    await userEventSetup.click(await screen.findByRole("option", { name: "所見" }));
+    expect(within(screen.getByTestId("selected-annotation-dock")).getByText("pending")).toBeInTheDocument();
+    await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(saveDocumentBundleSpy).toHaveBeenCalledWith(
+        "project-1",
+        "doc-1",
+        [
+          {
+            id: null,
+            label_id: "label-2",
+            start: 0,
+            end: 5,
+            span_text: "Hello",
+            comment: "",
+            status: "pending",
+            meta: {},
+          },
+        ],
+        false,
+      );
+    });
+  }, 15000);
+
+  it("restores the persisted annotation when changing the label back before saving", async () => {
+    const userEventSetup = userEvent.setup();
+    const annotation = createAnnotation({ status: "verified" });
+    const initialDocument = createDocument({ annotations: [annotation] });
+    const savedDocument = createDocument({
+      annotations: [annotation],
+      updated_at: "2026-03-02T00:00:00Z",
+    });
+
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [{ ...initialDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: [{ ...savedDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument").mockResolvedValue(initialDocument);
+    const saveDocumentBundleSpy = vi.spyOn(api, "saveDocumentBundle").mockResolvedValue(savedDocument);
+
+    renderWorkspace();
+
+    await screen.findByText("1 pending / 1 docs");
+    await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
+    await userEventSetup.click(screen.getByText("0-5"));
+    await userEventSetup.click(screen.getByRole("combobox", { name: "Label" }));
+    await userEventSetup.click(await screen.findByRole("option", { name: "所見" }));
+    await userEventSetup.click(screen.getByRole("combobox", { name: "Label" }));
+    await userEventSetup.click(await screen.findByRole("option", { name: "主訴" }));
+    expect(within(screen.getByTestId("selected-annotation-dock")).getByText("verified")).toBeInTheDocument();
+    await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
+    await userEventSetup.type(await screen.findByLabelText("Comment"), "updated comment");
+    await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(saveDocumentBundleSpy).toHaveBeenCalledWith(
+        "project-1",
+        "doc-1",
+        [
+          {
+            id: "annotation-1",
+            label_id: "label-1",
+            start: 0,
+            end: 5,
+            span_text: "Hello",
+            comment: "updated comment",
+            status: "verified",
+            meta: {},
+          },
+        ],
+        false,
+      );
+    });
+  }, 15000);
+
+  it("keeps the related examples tab open when selecting the next pending annotation", async () => {
+    const userEventSetup = userEvent.setup();
+    const firstAnnotation = createAnnotation();
+    const secondAnnotation = createAnnotation({
+      id: "annotation-2",
+      start: 6,
+      end: 11,
+      span_text: "world",
+    });
+    const initialDocument = createDocument({ annotations: [firstAnnotation, secondAnnotation] });
+
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [{ ...initialDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+      total: 1,
+      pending_total: 1,
+      offset: 0,
+      limit: 40,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "getDocument").mockResolvedValue(initialDocument);
+
+    renderWorkspace();
+
+    await screen.findByText("1 pending / 1 docs");
+    await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
+    await userEventSetup.click(screen.getByText("0-5"));
+    await userEventSetup.click(screen.getByRole("tab", { name: "関連例" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "Next pending" }));
+
+    expect(screen.getByRole("tab", { name: "関連例" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getAllByText("world").length).toBeGreaterThan(0);
+  });
+
+  it("selects the next pending annotation after the current annotation position", async () => {
+    const userEventSetup = userEvent.setup();
+    const firstAnnotation = createAnnotation({
+      id: "annotation-1",
+      start: 0,
+      end: 5,
+      span_text: "Hello",
+      status: "pending",
+    });
+    const verifiedAnnotation = createAnnotation({
+      id: "annotation-2",
+      start: 6,
+      end: 11,
+      span_text: "world",
+      status: "verified",
+    });
+    const nextPendingAnnotation = createAnnotation({
+      id: "annotation-3",
+      start: 0,
+      end: 5,
+      label_id: "label-2",
+      label_name: "所見",
+      span_text: "Hello",
+      status: "pending",
+    });
+    const initialDocument = createDocument({ annotations: [firstAnnotation, verifiedAnnotation, nextPendingAnnotation] });
+
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [{ ...initialDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+      total: 1,
+      pending_total: 1,
+      offset: 0,
+      limit: 40,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "getDocument").mockResolvedValue(initialDocument);
+
+    renderWorkspace();
+
+    await screen.findByText("1 pending / 1 docs");
+    await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
+    await userEventSetup.click(within(screen.getByTestId("document-annotation-list")).getByRole("button", { name: /所見/ }));
+    await userEventSetup.click(screen.getByText("6-11"));
+    await userEventSetup.click(screen.getByRole("button", { name: "Next pending" }));
+
+    const dock = within(screen.getByTestId("selected-annotation-dock"));
+    expect(dock.getByDisplayValue("所見")).toBeInTheDocument();
+    expect(dock.getByText("pending")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /0-5/ })).toBeVisible();
+  });
 
   it("shows verified doc as pending while unsaved and returns to verified after save", async () => {
     const userEventSetup = userEvent.setup();
@@ -264,7 +489,7 @@ describe("ProjectShell submit behavior", () => {
 
     await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
     await userEventSetup.click(screen.getByText("0-5"));
-    await userEventSetup.click(screen.getByText("選択中 Annotation"));
+    await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
     await userEventSetup.type(commentInput, "updated comment");
 
@@ -330,7 +555,7 @@ describe("ProjectShell submit behavior", () => {
     await screen.findByText("0 pending / 1 docs");
     await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
     await userEventSetup.click(screen.getByText("0-5"));
-    await userEventSetup.click(screen.getByText("選択中 Annotation"));
+    await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
     await userEventSetup.type(commentInput, "updated comment");
 
