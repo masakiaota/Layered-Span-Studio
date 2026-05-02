@@ -16,7 +16,7 @@ import {
   Typography,
   alpha,
 } from "@mui/material";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
@@ -271,6 +271,19 @@ export function SettingsView({
   const guideUrl = getImportYourDataGuideUrl(locale);
   const [draggingLabelId, setDraggingLabelId] = useState<string | null>(null);
   const labelRowRefs = useRef(new Map<string, HTMLDivElement>());
+  const activeLabelDragCleanupRef = useRef<(() => void) | null>(null);
+  const labelReorderTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      activeLabelDragCleanupRef.current?.();
+      activeLabelDragCleanupRef.current = null;
+      if (labelReorderTimeoutRef.current !== null) {
+        window.clearTimeout(labelReorderTimeoutRef.current);
+        labelReorderTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   function registerLabelRow(labelId: string, element: HTMLDivElement | null) {
     if (element) {
@@ -308,6 +321,8 @@ export function SettingsView({
     let frameId = 0;
     let finished = false;
 
+    activeLabelDragCleanupRef.current?.();
+
     function applyVirtualLayout(clientY: number, options: { snapDraggedToSlot: boolean }) {
       frameId = 0;
       const draggedTop = clamp(clientY - pointerOffsetY, firstTop, maxDraggedTop);
@@ -344,9 +359,6 @@ export function SettingsView({
     }
 
     function removeDragListeners() {
-      handle.removeEventListener("pointermove", onPointerMove);
-      handle.removeEventListener("pointerup", onPointerUp);
-      handle.removeEventListener("pointercancel", onPointerCancel);
       handle.removeEventListener("lostpointercapture", onLostPointerCapture);
       document.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("pointerup", onPointerUp);
@@ -357,6 +369,21 @@ export function SettingsView({
       if (handle.hasPointerCapture?.(event.pointerId)) {
         handle.releasePointerCapture(event.pointerId);
       }
+    }
+
+    function cleanupActiveDrag() {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+        frameId = 0;
+      }
+      if (labelReorderTimeoutRef.current !== null) {
+        window.clearTimeout(labelReorderTimeoutRef.current);
+        labelReorderTimeoutRef.current = null;
+      }
+      removeDragListeners();
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      clearLabelRowStyles(rows);
     }
 
     function finish(commit: boolean) {
@@ -379,7 +406,12 @@ export function SettingsView({
         snapRowsToOrder(rows, ids, rowById, firstTop);
       }
 
-      window.setTimeout(() => {
+      if (labelReorderTimeoutRef.current !== null) {
+        window.clearTimeout(labelReorderTimeoutRef.current);
+      }
+      labelReorderTimeoutRef.current = window.setTimeout(() => {
+        labelReorderTimeoutRef.current = null;
+        activeLabelDragCleanupRef.current = null;
         keepVisualPositionsAfterCommit(rows, () => {
           setDraggingLabelId(null);
           if (shouldCommit) {
@@ -426,14 +458,12 @@ export function SettingsView({
 
     document.body.style.cursor = "grabbing";
     document.body.style.userSelect = "none";
+    activeLabelDragCleanupRef.current = cleanupActiveDrag;
     setDraggingLabelId(labelId);
     for (const row of rows) {
       row.element.style.transition = row.id === labelId ? "none" : "transform 120ms ease";
       row.element.style.zIndex = row.id === labelId ? "2" : "";
     }
-    handle.addEventListener("pointermove", onPointerMove);
-    handle.addEventListener("pointerup", onPointerUp);
-    handle.addEventListener("pointercancel", onPointerCancel);
     handle.addEventListener("lostpointercapture", onLostPointerCapture);
     document.addEventListener("pointermove", onPointerMove);
     document.addEventListener("pointerup", onPointerUp);

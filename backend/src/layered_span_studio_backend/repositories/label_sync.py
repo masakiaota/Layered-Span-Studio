@@ -33,7 +33,7 @@ def _current_max_display_order(conn: Connection, project_id: str) -> int | None:
 
 
 def _backfill_missing_display_orders(conn: Connection, project_id: str | None = None) -> None:
-    query = select(labels_table).where(labels_table.c.display_order.is_(None))
+    query = select(labels_table.c.id, labels_table.c.project_id).where(labels_table.c.display_order.is_(None))
     if project_id is not None:
         query = query.where(labels_table.c.project_id == project_id)
     rows = conn.execute(query.order_by(labels_table.c.name.asc(), labels_table.c.id.asc())).mappings().all()
