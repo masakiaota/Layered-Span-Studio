@@ -1,5 +1,5 @@
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
@@ -254,13 +254,13 @@ describe("ProjectShell settings label selection", () => {
     const nameInput = screen.getByLabelText("Name");
     await userEventSetup.click(getLabelRow("患者メタデータ"));
 
-    await userEventSetup.click(within(getLabelRow("病名")).getByRole("button"));
+    await userEventSetup.click(within(getLabelRow("病名")).getByRole("button", { name: "病名 を削除" }));
 
     expect(screen.queryByText("病名")).not.toBeInTheDocument();
     expect(nameInput).toHaveValue("患者メタデータ");
     expect(getLabelRow("患者メタデータ")).toHaveClass("Mui-selected");
 
-    await userEventSetup.click(within(getLabelRow("患者メタデータ")).getByRole("button"));
+    await userEventSetup.click(within(getLabelRow("患者メタデータ")).getByRole("button", { name: "患者メタデータ を削除" }));
 
     await waitFor(() => {
       expect(screen.queryByText("患者メタデータ")).not.toBeInTheDocument();
@@ -286,6 +286,71 @@ describe("ProjectShell settings label selection", () => {
     expect(screen.getAllByText("主訴")).toHaveLength(1);
     expect(screen.getByText("病名")).toBeInTheDocument();
     expect(getLabelRow("病名")).toHaveClass("Mui-selected");
+  });
+
+  it("reorders labels with the vertical drag handle and saves the reordered payload", async () => {
+    const userEventSetup = userEvent.setup();
+    const saveProjectLabelsSpy = vi.spyOn(api, "saveProjectLabels").mockResolvedValue({
+      labels: [baseLabels[1], baseLabels[0], baseLabels[2]],
+      revision: "labels-revision-2",
+    });
+    renderProjectSettings();
+
+    await screen.findByRole("heading", { name: "Project Settings" });
+
+    const firstRow = getLabelRow("主訴");
+    const secondRow = getLabelRow("病名");
+    const thirdRow = getLabelRow("患者メタデータ");
+    vi.spyOn(firstRow, "getBoundingClientRect").mockReturnValue({
+      top: 0,
+      bottom: 48,
+      left: 0,
+      right: 320,
+      width: 320,
+      height: 48,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(secondRow, "getBoundingClientRect").mockReturnValue({
+      top: 48,
+      bottom: 96,
+      left: 0,
+      right: 320,
+      width: 320,
+      height: 48,
+      x: 0,
+      y: 48,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(thirdRow, "getBoundingClientRect").mockReturnValue({
+      top: 96,
+      bottom: 144,
+      left: 0,
+      right: 320,
+      width: 320,
+      height: 48,
+      x: 0,
+      y: 96,
+      toJSON: () => ({}),
+    });
+
+    const handle = screen.getByRole("button", { name: "病名 の表示順をドラッグで変更" });
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 1, clientY: 72 });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientY: 10 });
+    fireEvent.pointerUp(handle, { pointerId: 1, clientY: 10 });
+
+    await userEventSetup.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(saveProjectLabelsSpy).toHaveBeenCalledTimes(1);
+    });
+    expect(saveProjectLabelsSpy.mock.calls[0][1].map((label) => label.name)).toEqual([
+      "病名",
+      "主訴",
+      "患者メタデータ",
+    ]);
+    expect(saveProjectLabelsSpy.mock.calls[0][2]).toBe("labels-revision-1");
   });
 });
 

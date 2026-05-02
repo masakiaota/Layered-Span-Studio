@@ -129,6 +129,52 @@ def test_labels_put_syncs_create_update_delete(client: TestClient, auth_headers:
     assert all(label["id"] != second["id"] for label in payload)
 
 
+def test_labels_put_preserves_payload_order_and_updates_revision(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project_id = _create_project(client, auth_headers)
+    first = create_label_via_sync(
+        client, auth_headers, project_id, name="Zulu", color="#FF5733", description="desc", shortcut="z", meta={}
+    )
+    second = create_label_via_sync(
+        client, auth_headers, project_id, name="Alpha", color="#33AA44", description="desc", shortcut="a", meta={}
+    )
+    current_payload = _get_labels_payload(client, auth_headers, project_id)
+
+    response = client.put(
+        f"/projects/{project_id}/labels",
+        json={
+            "base_revision": current_payload["revision"],
+            "labels": [
+                {
+                    "id": second["id"],
+                    "name": second["name"],
+                    "color": second["color"],
+                    "description": second["description"],
+                    "shortcut": second["shortcut"],
+                    "meta": second["meta"],
+                },
+                {
+                    "id": first["id"],
+                    "name": first["name"],
+                    "color": first["color"],
+                    "description": first["description"],
+                    "shortcut": first["shortcut"],
+                    "meta": first["meta"],
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert [label["name"] for label in response.json()["labels"]] == ["Alpha", "Zulu"]
+    assert response.json()["revision"] != current_payload["revision"]
+
+    persisted = _get_labels_payload(client, auth_headers, project_id)
+    assert [label["name"] for label in persisted["labels"]] == ["Alpha", "Zulu"]
+
+
 def test_labels_put_rejects_duplicate_name_in_payload(client: TestClient, auth_headers: dict[str, str]) -> None:
     project_id = _create_project(client, auth_headers)
     current_payload = _get_labels_payload(client, auth_headers, project_id)

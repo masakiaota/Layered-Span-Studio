@@ -114,6 +114,7 @@ export const enMessages: Messages = {
       updateLabel: "Update label",
       addLabel: "Add label",
       clear: "Clear",
+      dragLabel: "Drag to reorder {{name}}",
       deleteLabel: "Delete {{name}}",
       importExportTitle: "Import / Export",
       importTitle: "Append import into current project",

@@ -8,7 +8,12 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import case, func, select
 
 from layered_span_studio_backend.core.config import Settings
-from layered_span_studio_backend.repositories.label_sync import load_label_rows, sync_labels
+from layered_span_studio_backend.repositories.label_sync import (
+    ensure_label_display_order_column,
+    load_label_rows,
+    next_label_display_order,
+    sync_labels,
+)
 from layered_span_studio_backend.repositories.projects import project_db_path
 from layered_span_studio_backend.storage.project_db import (
     annotations_table,
@@ -43,6 +48,7 @@ def _labels_revision_from_rows(rows: List[Dict[str, Any]] | Any) -> str:
             "description": row["description"],
             "shortcut": row["shortcut"],
             "meta": decode_meta(row["meta"]),
+            "display_order": row["display_order"],
         }
         for row in rows
     ]
@@ -69,7 +75,7 @@ def list_labels_state(settings: Settings, project_id: str) -> Dict[str, Any]:
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     project_name = _project_name(settings, project_id)
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         rows = load_label_rows(conn, project_id)
     rows_list = list(rows)
     return {
@@ -82,7 +88,8 @@ def get_label(settings: Settings, project_id: str, label_id: str) -> Optional[Di
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     project_name = _project_name(settings, project_id)
-    with engine.connect() as conn:
+    with engine.begin() as conn:
+        ensure_label_display_order_column(conn, project_id)
         row = (
             conn.execute(
                 select(labels_table).where(
@@ -111,7 +118,8 @@ def get_label_by_name(settings: Settings, project_id: str, name: str) -> Optiona
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
     project_name = _project_name(settings, project_id)
-    with engine.connect() as conn:
+    with engine.begin() as conn:
+        ensure_label_display_order_column(conn, project_id)
         row = (
             conn.execute(
                 select(labels_table).where(
@@ -150,6 +158,7 @@ def create_label(
     project_name = _project_name(settings, project_id)
     label_id = str(uuid.uuid4())
     with engine.begin() as conn:
+        display_order = next_label_display_order(conn, project_id)
         conn.execute(
             labels_table.insert().values(
                 id=label_id,
@@ -159,6 +168,7 @@ def create_label(
                 description=description,
                 shortcut=shortcut,
                 meta=encode_meta(meta),
+                display_order=display_order,
             )
         )
     return {

@@ -113,6 +113,7 @@ export const zhCnMessages: Messages = {
       updateLabel: "更新标签",
       addLabel: "添加标签",
       clear: "清空",
+      dragLabel: "拖拽调整 {{name}} 的顺序",
       deleteLabel: "删除 {{name}}",
       importExportTitle: "导入 / 导出",
       importTitle: "向当前项目追加导入",

@@ -41,6 +41,7 @@ labels_table = Table(
     Column("description", Text, nullable=False),
     Column("shortcut", String),
     Column("meta", Text),
+    Column("display_order", Integer),
 )
 
 # SQLite does not enforce foreign keys unless PRAGMA is set. We'll enable it per-connection.

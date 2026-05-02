@@ -112,6 +112,7 @@ export const jaMessages = {
       updateLabel: "Update label",
       addLabel: "Add label",
       clear: "Clear",
+      dragLabel: "{{name}} の表示順をドラッグで変更",
       deleteLabel: "{{name}} を削除",
       importExportTitle: "Import / Export",
       importTitle: "現在 project への追記 import",

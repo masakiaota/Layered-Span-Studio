@@ -4,6 +4,7 @@ import uuid
 from typing import Any, Dict, List
 
 from layered_span_studio_backend.core.config import Settings
+from layered_span_studio_backend.repositories.label_sync import next_label_display_order
 from layered_span_studio_backend.repositories.projects import project_db_path
 from layered_span_studio_backend.storage.project_db import (
     annotations_table,
@@ -89,6 +90,9 @@ def import_entities(
             )
 
     with engine.begin() as conn:
+        next_display_order = next_label_display_order(conn, project_id)
+        for index, label_row in enumerate(label_rows):
+            label_row["display_order"] = next_display_order + index
         if label_rows:
             conn.execute(labels_table.insert(), label_rows)
         if document_rows:

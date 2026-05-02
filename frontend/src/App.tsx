@@ -1219,6 +1219,17 @@ export function ProjectShell({
     }
   }
 
+  function handleReorderSettingsLabel(labelId: string, targetIndex: number) {
+    mutateSettingsBundle((draft) => {
+      const index = draft.labels.findIndex((label) => label.id === labelId);
+      if (index < 0 || targetIndex < 0 || targetIndex >= draft.labels.length || index === targetIndex) {
+        return;
+      }
+      const [label] = draft.labels.splice(index, 1);
+      draft.labels.splice(targetIndex, 0, label);
+    });
+  }
+
   if (loading || !bundle) {
     return (
       <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
@@ -1410,6 +1421,7 @@ export function ProjectShell({
                 setSelectedSettingsLabelId(labelId);
                 setLabelDraft(toLabelDraft(selectedLabel));
               }}
+              onReorderLabel={handleReorderSettingsLabel}
               onDeleteLabel={handleDeleteLabel}
               onImportFileChange={(file) => {
                 setSettingsImportFile(file);
