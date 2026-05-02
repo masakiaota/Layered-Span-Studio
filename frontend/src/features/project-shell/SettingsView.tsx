@@ -56,9 +56,38 @@ function labelRowsFromRefs(bundle: ProjectBundle, refs: Map<string, HTMLDivEleme
     .filter((item): item is LabelRowElement => Boolean(item.element));
 }
 
+function labelDragRowsFromRefs(bundle: ProjectBundle, refs: Map<string, HTMLDivElement>) {
+  return labelRowsFromRefs(bundle, refs).map((row) => {
+    const rect = row.element.getBoundingClientRect();
+    return {
+      ...row,
+      top: rect.top,
+      height: rect.height || 1,
+    };
+  });
+}
+
 function clearLabelRowStyles(rows: LabelRowElement[]) {
   for (const row of rows) {
     row.element.style.transition = "";
+    row.element.style.transform = "";
+    row.element.style.zIndex = "";
+  }
+}
+
+function setLabelRowTransform(row: LabelRowElement, deltaY: number) {
+  row.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
+}
+
+function setLabelRowTransitions(rows: LabelRowElement[], transition: string) {
+  for (const row of rows) {
+    row.element.style.transition = transition;
+  }
+}
+
+function resetLabelRowsForMeasurement(rows: LabelRowElement[]) {
+  for (const row of rows) {
+    row.element.style.transition = "none";
     row.element.style.transform = "";
     row.element.style.zIndex = "";
   }
@@ -95,13 +124,12 @@ function orderIdsByDragBoundaries(
   if (draggedIndex < 0) {
     return currentIds;
   }
-  const currentIndexById = new Map(currentIds.map((id, index) => [id, index]));
   const upperProbeY = draggedTop;
   const lowerProbeY = draggedTop + draggedHeight;
   const beforeDragged: string[] = [];
   const afterDragged: string[] = [];
 
-  for (const id of currentIds) {
+  for (const [currentIndex, id] of currentIds.entries()) {
     if (id === draggedId) {
       continue;
     }
@@ -111,8 +139,7 @@ function orderIdsByDragBoundaries(
       continue;
     }
     const centerY = currentTop + row.height / 2;
-    const currentIndex = currentIndexById.get(id);
-    const isCurrentlyBeforeDragged = currentIndex !== undefined && currentIndex < draggedIndex;
+    const isCurrentlyBeforeDragged = currentIndex < draggedIndex;
 
     if (isCurrentlyBeforeDragged) {
       if (centerY > upperProbeY) {
@@ -131,6 +158,42 @@ function orderIdsByDragBoundaries(
   }
 
   return [...beforeDragged, draggedId, ...afterDragged];
+}
+
+function dragBoundsForRows(rows: LabelDragRow[], draggedRow: LabelDragRow) {
+  const firstTop = Math.min(...rows.map((row) => row.top));
+  const lastBottom = Math.max(...rows.map((row) => row.top + row.height));
+  return {
+    firstTop,
+    maxDraggedTop: Math.max(firstTop, lastBottom - draggedRow.height),
+  };
+}
+
+function snapRowsToOrder(rows: LabelDragRow[], ids: string[], rowById: Map<string, LabelDragRow>, startTop: number) {
+  const targetTopById = targetTopsForOrder(ids, rowById, startTop);
+  for (const row of rows) {
+    const targetTop = targetTopById.get(row.id) ?? row.top;
+    setLabelRowTransform(row, targetTop - row.top);
+  }
+}
+
+function keepVisualPositionsAfterCommit(rows: LabelRowElement[], commitState: () => void) {
+  const visualTopById = new Map(rows.map((row) => [row.id, row.element.getBoundingClientRect().top]));
+  flushSync(commitState);
+  resetLabelRowsForMeasurement(rows);
+
+  for (const row of rows) {
+    const visualTop = visualTopById.get(row.id);
+    if (visualTop === undefined) {
+      continue;
+    }
+    const naturalTop = row.element.getBoundingClientRect().top;
+    setLabelRowTransform(row, visualTop - naturalTop);
+  }
+
+  window.requestAnimationFrame(() => {
+    clearLabelRowStyles(rows);
+  });
 }
 
 export function SettingsView({
@@ -221,14 +284,7 @@ export function SettingsView({
     if (event.pointerType === "mouse" && event.button !== 0) {
       return;
     }
-    const rows = labelRowsFromRefs(bundle, labelRowRefs.current).map((row) => {
-      const rect = row.element.getBoundingClientRect();
-      return {
-        ...row,
-        top: rect.top,
-        height: rect.height || 1,
-      };
-    });
+    const rows = labelDragRowsFromRefs(bundle, labelRowRefs.current);
     const ids = rows.map((row) => row.id);
     const from = ids.indexOf(labelId);
     const dragged = rows.find((row) => row.id === labelId);
@@ -245,9 +301,7 @@ export function SettingsView({
 
     const handle = event.currentTarget;
     const rowById = new Map(rows.map((row) => [row.id, row]));
-    const firstTop = Math.min(...rows.map((row) => row.top));
-    const lastBottom = Math.max(...rows.map((row) => row.top + row.height));
-    const maxDraggedTop = Math.max(firstTop, lastBottom - draggedRow.height);
+    const { firstTop, maxDraggedTop } = dragBoundsForRows(rows, draggedRow);
     const pointerOffsetY = event.clientY - draggedRow.top;
     let latestNextIds = ids;
     let latestClientY = event.clientY;
@@ -270,8 +324,7 @@ export function SettingsView({
           row.id === labelId && !options.snapDraggedToSlot
             ? draggedTop
             : targetTop;
-        const deltaY = visualTop - row.top;
-        row.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
+        setLabelRowTransform(row, visualTop - row.top);
       }
     }
 
@@ -318,45 +371,20 @@ export function SettingsView({
 
       const nextIds = commit ? latestNextIds : ids;
       const shouldCommit = commit && !sameOrder(ids, nextIds);
-      for (const row of rows) {
-        row.element.style.transition = `transform ${LABEL_REORDER_ANIMATION_MS}ms ease`;
-      }
+      setLabelRowTransitions(rows, `transform ${LABEL_REORDER_ANIMATION_MS}ms ease`);
       if (commit) {
         applyVirtualLayout(latestClientY, { snapDraggedToSlot: true });
       } else {
         latestNextIds = ids;
-        const originalTopById = targetTopsForOrder(ids, rowById, firstTop);
-        for (const row of rows) {
-          const targetTop = originalTopById.get(row.id) ?? row.top;
-          const deltaY = targetTop - row.top;
-          row.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
-        }
+        snapRowsToOrder(rows, ids, rowById, firstTop);
       }
 
       window.setTimeout(() => {
-        const visualTopById = new Map(rows.map((row) => [row.id, row.element.getBoundingClientRect().top]));
-        flushSync(() => {
+        keepVisualPositionsAfterCommit(rows, () => {
           setDraggingLabelId(null);
           if (shouldCommit) {
             onReorderLabel(labelId, nextIds.indexOf(labelId));
           }
-        });
-        for (const row of rows) {
-          row.element.style.transition = "none";
-          row.element.style.transform = "";
-          row.element.style.zIndex = "";
-        }
-        for (const row of rows) {
-          const visualTop = visualTopById.get(row.id);
-          if (visualTop === undefined) {
-            continue;
-          }
-          const naturalTop = row.element.getBoundingClientRect().top;
-          const deltaY = visualTop - naturalTop;
-          row.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
-        }
-        window.requestAnimationFrame(() => {
-          clearLabelRowStyles(rows);
         });
       }, LABEL_REORDER_ANIMATION_MS);
     }
@@ -401,9 +429,7 @@ export function SettingsView({
     setDraggingLabelId(labelId);
     for (const row of rows) {
       row.element.style.transition = row.id === labelId ? "none" : "transform 120ms ease";
-      if (row.id === labelId) {
-        row.element.style.zIndex = "2";
-      }
+      row.element.style.zIndex = row.id === labelId ? "2" : "";
     }
     handle.addEventListener("pointermove", onPointerMove);
     handle.addEventListener("pointerup", onPointerUp);
