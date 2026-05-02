@@ -31,6 +31,58 @@ import { getImportYourDataGuideUrl } from "../../externalLinks";
 import { useI18n } from "../../i18n/useI18n";
 import { getProjectGuideline } from "../../utils";
 
+type LabelRowElement = {
+  id: string;
+  element: HTMLDivElement;
+};
+
+function sameOrder(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function labelRowsFromRefs(bundle: ProjectBundle, refs: Map<string, HTMLDivElement>) {
+  return bundle.labels
+    .map((label) => ({
+      id: label.id,
+      element: refs.get(label.id),
+    }))
+    .filter((item): item is LabelRowElement => Boolean(item.element));
+}
+
+function clearLabelRowStyles(rows: LabelRowElement[]) {
+  for (const row of rows) {
+    row.element.style.transition = "";
+    row.element.style.transform = "";
+    row.element.style.zIndex = "";
+  }
+}
+
+function applyReleaseAnimation(nextIds: string[], visualTopById: Map<string, number>, refs: Map<string, HTMLDivElement>) {
+  const rowsAfterCommit = nextIds
+    .map((id) => ({
+      id,
+      element: refs.get(id),
+    }))
+    .filter((item): item is LabelRowElement => Boolean(item.element));
+
+  for (const row of rowsAfterCommit) {
+    const visualTop = visualTopById.get(row.id);
+    if (visualTop === undefined) {
+      continue;
+    }
+    const deltaY = visualTop - row.element.getBoundingClientRect().top;
+    row.element.style.transition = "none";
+    row.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
+  }
+
+  window.requestAnimationFrame(() => {
+    for (const row of rowsAfterCommit) {
+      row.element.style.transition = "transform 160ms ease";
+      row.element.style.transform = "";
+    }
+  });
+}
+
 export function SettingsView({
   bundle,
   selectedLabelId,
@@ -115,20 +167,11 @@ export function SettingsView({
     labelRowRefs.current.delete(labelId);
   }
 
-  function sameOrder(left: string[], right: string[]) {
-    return left.length === right.length && left.every((value, index) => value === right[index]);
-  }
-
   function startLabelDrag(event: React.PointerEvent<HTMLButtonElement>, labelId: string) {
     if (event.pointerType === "mouse" && event.button !== 0) {
       return;
     }
-    const rows = bundle.labels
-      .map((label) => ({
-        id: label.id,
-        element: labelRowRefs.current.get(label.id),
-      }))
-      .filter((item): item is { id: string; element: HTMLDivElement } => Boolean(item.element));
+    const rows = labelRowsFromRefs(bundle, labelRowRefs.current);
     const ids = rows.map((item) => item.id);
     const from = ids.indexOf(labelId);
     const dragged = rows.find((item) => item.id === labelId);
@@ -185,6 +228,13 @@ export function SettingsView({
       }
     }
 
+    function flushScheduledTransforms() {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
+      applyTransforms();
+    }
+
     function scheduleTransform(clientY: number) {
       latestClientY = clientY;
       if (!frameId) {
@@ -200,11 +250,7 @@ export function SettingsView({
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       if (clearTransforms) {
-        for (const item of rows) {
-          item.element.style.transition = "";
-          item.element.style.transform = "";
-          item.element.style.zIndex = "";
-        }
+        clearLabelRowStyles(rows);
       }
       handle.removeEventListener("pointermove", onPointerMove);
       handle.removeEventListener("pointerup", onPointerUp);
@@ -219,43 +265,17 @@ export function SettingsView({
     function commitWithReleaseAnimation(nextIds: string[]) {
       const visualTopById = new Map(rows.map((item) => [item.id, item.element.getBoundingClientRect().top]));
       cleanup({ clearTransforms: false });
-      for (const item of rows) {
-        item.element.style.transition = "none";
-        item.element.style.transform = "";
-        item.element.style.zIndex = "";
-      }
+      clearLabelRowStyles(rows);
 
       flushSync(() => {
         onReorderLabel(labelId, nextIds.indexOf(labelId));
       });
 
-      const elementsAfterCommit = nextIds
-        .map((id) => ({
-          id,
-          element: labelRowRefs.current.get(id),
-        }))
-        .filter((item): item is { id: string; element: HTMLDivElement } => Boolean(item.element));
-
-      for (const item of elementsAfterCommit) {
-        const visualTop = visualTopById.get(item.id);
-        if (visualTop === undefined) {
-          continue;
-        }
-        const deltaY = visualTop - item.element.getBoundingClientRect().top;
-        item.element.style.transition = "none";
-        item.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
-      }
-
-      window.requestAnimationFrame(() => {
-        for (const item of elementsAfterCommit) {
-          item.element.style.transition = "transform 160ms ease";
-          item.element.style.transform = "";
-        }
-      });
+      applyReleaseAnimation(nextIds, visualTopById, labelRowRefs.current);
     }
 
     function finish(commit: boolean) {
-      insertIndex = computeInsertIndex(latestClientY);
+      flushScheduledTransforms();
       const nextIds = orderedIdsForInsert();
       if (commit && !sameOrder(ids, nextIds)) {
         commitWithReleaseAnimation(nextIds);

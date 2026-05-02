@@ -11,15 +11,28 @@ from layered_span_studio_backend.storage.project_db import labels_table
 from layered_span_studio_backend.utils.json_utils import encode_meta
 
 
-def ensure_label_display_order_column(conn: Connection, project_id: str | None = None) -> None:
+def _ensure_display_order_column_exists(conn: Connection) -> None:
     columns = {row["name"] for row in conn.exec_driver_sql("PRAGMA table_info(labels)").mappings()}
-    if "display_order" not in columns:
-        try:
-            conn.exec_driver_sql("ALTER TABLE labels ADD COLUMN display_order INTEGER")
-        except OperationalError as exc:
-            if "duplicate column name" not in str(exc).lower():
-                raise
+    if "display_order" in columns:
+        return
+    try:
+        conn.exec_driver_sql("ALTER TABLE labels ADD COLUMN display_order INTEGER")
+    except OperationalError as exc:
+        if "duplicate column name" not in str(exc).lower():
+            raise
 
+
+def _current_max_display_order(conn: Connection, project_id: str) -> int | None:
+    current_max = conn.execute(
+        select(func.max(labels_table.c.display_order)).where(
+            labels_table.c.project_id == project_id,
+            labels_table.c.display_order.is_not(None),
+        )
+    ).scalar_one()
+    return int(current_max) if current_max is not None else None
+
+
+def _backfill_missing_display_orders(conn: Connection, project_id: str | None = None) -> None:
     query = select(labels_table).where(labels_table.c.display_order.is_(None))
     if project_id is not None:
         query = query.where(labels_table.c.project_id == project_id)
@@ -28,13 +41,8 @@ def ensure_label_display_order_column(conn: Connection, project_id: str | None =
     for row in rows:
         row_project_id = row["project_id"]
         if row_project_id not in next_order_by_project:
-            current_max = conn.execute(
-                select(func.max(labels_table.c.display_order)).where(
-                    labels_table.c.project_id == row_project_id,
-                    labels_table.c.display_order.is_not(None),
-                )
-            ).scalar_one()
-            next_order_by_project[row_project_id] = int(current_max) + 1 if current_max is not None else 0
+            current_max = _current_max_display_order(conn, row_project_id)
+            next_order_by_project[row_project_id] = current_max + 1 if current_max is not None else 0
         display_order = next_order_by_project[row_project_id]
         conn.execute(
             labels_table.update()
@@ -44,12 +52,15 @@ def ensure_label_display_order_column(conn: Connection, project_id: str | None =
         next_order_by_project[row_project_id] = display_order + 1
 
 
+def ensure_label_display_order_column(conn: Connection, project_id: str | None = None) -> None:
+    _ensure_display_order_column_exists(conn)
+    _backfill_missing_display_orders(conn, project_id)
+
+
 def next_label_display_order(conn: Connection, project_id: str) -> int:
     ensure_label_display_order_column(conn, project_id)
-    current_max = conn.execute(
-        select(func.max(labels_table.c.display_order)).where(labels_table.c.project_id == project_id)
-    ).scalar_one()
-    return int(current_max) + 1 if current_max is not None else 0
+    current_max = _current_max_display_order(conn, project_id)
+    return current_max + 1 if current_max is not None else 0
 
 
 def load_label_rows(conn: Connection, project_id: str) -> Sequence[RowMapping]:
