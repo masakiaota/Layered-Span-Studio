@@ -25,7 +25,7 @@ import SkipNextRoundedIcon from "@mui/icons-material/SkipNextRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import { DocumentCanvas } from "../../components/DocumentCanvas";
 import { contextSnippet } from "../workspace/workspaceUtils";
-import { floatingTooltipSlotProps } from "./projectShellConstants";
+import { RELATED_EXAMPLES_PANEL_GAP, floatingTooltipSlotProps, getAnnotationGuideMaxHeight } from "./projectShellConstants";
 import type { RightTab, SelectionPreview } from "./projectShellTypes";
 import type {
   AnnotationSearchItemRecord,
@@ -751,25 +751,44 @@ export function WorkspaceView({
           <Tab value="annotations" label={t("projectShell.workspace.tabs.annotations")} />
         </Tabs>
         <Divider />
-        <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2, flex: 1, minHeight: 0, overflow: "hidden" }}>
+        <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: RELATED_EXAMPLES_PANEL_GAP, flex: 1, minHeight: 0, overflow: "hidden" }}>
           {rightTab === "examples" ? (
             <>
               <Paper
+                data-testid="annotation-guide-panel"
                 variant="outlined"
-                sx={{ p: 2, display: "flex", flexDirection: "column", flexShrink: 0 }}
+                sx={{
+                  p: 2,
+                  display: "flex",
+                  flexDirection: "column",
+                  maxHeight: getAnnotationGuideMaxHeight,
+                  minHeight: 0,
+                  overflow: "hidden",
+                }}
               >
                 <Typography variant="subtitle2">
                   {t("projectShell.workspace.annotationGuideTitle", {
                     label: focusedLabel?.name ?? t("projectShell.workspace.fallbackLabel"),
                   })}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1.2, whiteSpace: "pre-wrap" }}>
+                <Typography
+                  data-testid="annotation-guide-content"
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 1.2, minHeight: 0, overflow: "auto", whiteSpace: "pre-wrap" }}
+                >
                   {focusedLabel?.description || t("projectShell.workspace.annotationGuideEmpty")}
                 </Typography>
               </Paper>
               <Box
                 data-testid="examples-panels-grid"
-                sx={{ display: "grid", gap: 2, flex: 1, minHeight: 0, gridTemplateRows: "minmax(0,1fr) minmax(0,1fr)" }}
+                sx={{
+                  display: "grid",
+                  gap: RELATED_EXAMPLES_PANEL_GAP,
+                  flex: 1,
+                  minHeight: 0,
+                  gridTemplateRows: "minmax(0,1fr) minmax(0,1fr)",
+                }}
               >
                 <Paper
                   data-testid="same-label-examples-panel"

@@ -1,8 +1,10 @@
 import type { ComponentProps } from "react";
+import { createTheme } from "@mui/material/styles";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceView } from "../features/project-shell/WorkspaceView";
+import { getAnnotationGuideMaxHeight } from "../features/project-shell/projectShellConstants";
 import type { SelectionPreview } from "../features/project-shell/projectShellTypes";
 import type {
   DocumentListItem,
@@ -16,6 +18,8 @@ import type {
 } from "../api-contract";
 
 type WorkspaceViewProps = ComponentProps<typeof WorkspaceView>;
+
+const annotationGuideMaxHeight = getAnnotationGuideMaxHeight(createTheme());
 
 const project: ProjectRecord = {
   id: "project-1",
@@ -775,7 +779,43 @@ describe("WorkspaceView", () => {
     expect(annotationList.queryByText("所見")).not.toBeInTheDocument();
   });
 
-  it("splits the remaining examples area equally between the same-label and same-surface panels", () => {
+  it("caps long annotation guide content while keeping both examples panels visible", () => {
+    const longDescription = Array.from({ length: 20 }, (_value, index) => `基準 ${index + 1}`).join("\n");
+
+    render(
+      <WorkspaceView
+        {...createProps({
+          focusedLabel: { ...label, description: longDescription },
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId("examples-panels-grid")).toHaveStyle({
+      display: "grid",
+      gridTemplateRows: "minmax(0,1fr) minmax(0,1fr)",
+      minHeight: "0",
+      flex: "1 1 0%",
+    });
+    expect(screen.getByTestId("annotation-guide-panel")).toHaveStyle({
+      maxHeight: annotationGuideMaxHeight,
+      minHeight: "0",
+      overflow: "hidden",
+    });
+    expect(screen.getByTestId("annotation-guide-content")).toHaveStyle({
+      minHeight: "0",
+      overflow: "auto",
+    });
+    expect(screen.getByTestId("same-label-examples-panel")).toHaveStyle({
+      minHeight: "0",
+      overflow: "hidden",
+    });
+    expect(screen.getByTestId("same-surface-examples-panel")).toHaveStyle({
+      minHeight: "0",
+      overflow: "hidden",
+    });
+  });
+
+  it("allows short annotation guide content to use natural height", () => {
     render(<WorkspaceView {...createProps()} />);
 
     expect(screen.getByTestId("examples-panels-grid")).toHaveStyle({
@@ -783,6 +823,11 @@ describe("WorkspaceView", () => {
       gridTemplateRows: "minmax(0,1fr) minmax(0,1fr)",
       minHeight: "0",
       flex: "1 1 0%",
+    });
+    expect(screen.getByTestId("annotation-guide-panel")).toHaveStyle({
+      maxHeight: annotationGuideMaxHeight,
+      minHeight: "0",
+      overflow: "hidden",
     });
     expect(screen.getByTestId("same-label-examples-panel")).toHaveStyle({
       minHeight: "0",
