@@ -114,7 +114,13 @@ function SelectedAnnotationDock({
             size="small"
             label={annotation.status}
             color={annotation.status === "verified" ? "success" : "warning"}
-            sx={{ flexShrink: 0 }}
+            sx={{
+              flexShrink: 0,
+              transition: "none",
+              "& .MuiChip-label": {
+                transition: "none",
+              },
+            }}
           />
           <Typography variant="body2" sx={{ minWidth: 0, fontWeight: 700 }} noWrap>
             {annotation.span_text}
