@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Autocomplete,
   Box,
   Button,
   Chip,
   CircularProgress,
+  Collapse,
   Divider,
+  IconButton,
   Paper,
   Stack,
   Tab,
@@ -16,8 +18,10 @@ import {
   alpha,
 } from "@mui/material";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import LabelRoundedIcon from "@mui/icons-material/LabelRounded";
 import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
+import SkipNextRoundedIcon from "@mui/icons-material/SkipNextRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import { DocumentCanvas } from "../../components/DocumentCanvas";
 import { contextSnippet } from "../workspace/workspaceUtils";
@@ -38,11 +42,355 @@ import { DocumentListPane } from "./DocumentListPane";
 
 const examplesGuideMaxHeight = "calc((100% - 32px) / 3)";
 
+type AnnotationRecord = DocumentRecord["annotations"][number];
+
+const STATUS_VALUES: StatusValue[] = ["pending", "verified"];
+
 function scrollRowIntoView(row: Element | null) {
   if (!row || typeof row.scrollIntoView !== "function") {
     return;
   }
   row.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
+function SelectedAnnotationDock({
+  annotation,
+  annotationLabel,
+  labels,
+  metaDraft,
+  metaError,
+  pendingCount,
+  saving,
+  detailsOpen,
+  onToggleDetails,
+  onSelectNextPendingAnnotation,
+  onVerifySelectedAnnotation,
+  onUpdateLabel,
+  onUpdateStatus,
+  onUpdateComment,
+  onUpdateMeta,
+  onDelete,
+}: {
+  annotation: AnnotationRecord;
+  annotationLabel: LabelRecord | null;
+  labels: LabelRecord[];
+  metaDraft: string;
+  metaError: string | null;
+  pendingCount: number;
+  saving: boolean;
+  detailsOpen: boolean;
+  onToggleDetails: () => void;
+  onSelectNextPendingAnnotation: () => void;
+  onVerifySelectedAnnotation: () => void;
+  onUpdateLabel: (labelId: string) => void;
+  onUpdateStatus: (status: StatusValue) => void;
+  onUpdateComment: (comment: string) => void;
+  onUpdateMeta: (metaText: string) => void;
+  onDelete: () => void;
+}) {
+  const { t } = useI18n();
+  const detailsId = `selected-annotation-details-${annotation.id}`;
+
+  return (
+    <Paper
+      data-testid="selected-annotation-dock"
+      variant="outlined"
+      sx={{
+        p: 1.5,
+        borderColor: "primary.light",
+        bgcolor: alpha("#1a73e8", 0.018),
+        boxShadow: `0 10px 28px ${alpha("#1a73e8", 0.08)}`,
+        flexShrink: 0,
+        minWidth: 0,
+        width: "100%",
+        maxWidth: "100%",
+        overflow: "hidden",
+      }}
+    >
+      <Stack spacing={1.1} sx={{ minWidth: 0 }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0, overflow: "hidden" }}>
+          <Typography variant="subtitle2" sx={{ flexShrink: 0 }}>
+            {t("projectShell.workspace.selectedAnnotationDockTitle")}
+          </Typography>
+          <Chip
+            size="small"
+            label={annotation.status}
+            color={annotation.status === "verified" ? "success" : "warning"}
+            sx={{
+              flexShrink: 0,
+              transition: "none",
+              "& .MuiChip-label": {
+                transition: "none",
+              },
+            }}
+          />
+          <Typography variant="body2" sx={{ minWidth: 0, fontWeight: 700 }} noWrap>
+            {annotation.span_text}
+          </Typography>
+        </Stack>
+
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: "nowrap",
+            gap: 1,
+            alignItems: "center",
+            minWidth: 0,
+            overflow: "visible",
+          }}
+        >
+          <Autocomplete
+            options={labels}
+            value={annotationLabel}
+            getOptionLabel={(option) => option.name}
+            isOptionEqualToValue={(option, value) => option.id === value.id}
+            renderInput={(params) => <TextField {...params} label="Label" size="small" />}
+            onChange={(_event, value) => {
+              if (value) {
+                onUpdateLabel(value.id);
+              }
+            }}
+            renderOption={(props, option) => (
+              <Box component="li" {...props} sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                <LabelRoundedIcon sx={{ color: option.color, fontSize: 18 }} />
+                {option.name}
+              </Box>
+            )}
+            sx={{ flex: "1 1 0", minWidth: 128 }}
+          />
+          <Button
+            variant="outlined"
+            startIcon={<SkipNextRoundedIcon />}
+            onClick={onSelectNextPendingAnnotation}
+            disabled={saving || pendingCount === 0}
+            sx={{ flex: "0 0 auto", minWidth: 148, minHeight: 40, px: 1.25, whiteSpace: "nowrap" }}
+          >
+            Next pending
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<TaskAltRoundedIcon />}
+            onClick={onVerifySelectedAnnotation}
+            disabled={saving || annotation.status === "verified"}
+            sx={{ flex: "0 0 auto", minWidth: 148, minHeight: 40, px: 1.25, whiteSpace: "nowrap" }}
+          >
+            Mark verified
+          </Button>
+          <IconButton
+            aria-label="Annotation details"
+            aria-controls={detailsId}
+            aria-expanded={detailsOpen}
+            onClick={onToggleDetails}
+            sx={{
+              flex: "0 0 40px",
+              width: 40,
+              height: 40,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1.5,
+            }}
+          >
+            <ExpandMoreRoundedIcon
+              sx={{
+                transform: detailsOpen ? "rotate(180deg)" : "rotate(0deg)",
+                transition: (theme) => theme.transitions.create("transform", { duration: theme.transitions.duration.shortest }),
+              }}
+            />
+          </IconButton>
+        </Box>
+
+        <Collapse in={detailsOpen} timeout="auto" unmountOnExit>
+          <Box id={detailsId} sx={{ display: "flex", flexDirection: "column", gap: 1.25, minWidth: 0, pt: 0.25 }}>
+            <Box sx={{ display: "flex", gap: 1, alignItems: "center", justifyContent: "space-between", minWidth: 0 }}>
+              <Autocomplete
+                options={STATUS_VALUES}
+                value={annotation.status}
+                renderInput={(params) => <TextField {...params} label={t("projectShell.workspace.status")} size="small" />}
+                onChange={(_event, value) => {
+                  if (value) {
+                    onUpdateStatus(value);
+                  }
+                }}
+                sx={{ width: { xs: "100%", sm: 180 } }}
+              />
+              <Tooltip title={t("projectShell.workspace.deleteAnnotation")}>
+                <IconButton
+                  aria-label={t("projectShell.workspace.deleteAnnotation")}
+                  color="error"
+                  onClick={onDelete}
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    border: "1px solid",
+                    borderColor: "error.light",
+                    borderRadius: 1.5,
+                    flexShrink: 0,
+                  }}
+                >
+                  <DeleteOutlineRoundedIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+            <TextField
+              label={t("projectShell.workspace.comment")}
+              size="small"
+              multiline
+              minRows={2}
+              maxRows={6}
+              fullWidth
+              value={annotation.comment}
+              onChange={(event) => onUpdateComment(event.target.value)}
+            />
+            <TextField
+              label={t("projectShell.workspace.meta")}
+              size="small"
+              multiline
+              minRows={4}
+              maxRows={10}
+              fullWidth
+              value={metaDraft}
+              onChange={(event) => onUpdateMeta(event.target.value)}
+              error={Boolean(metaError)}
+              helperText={metaError ?? undefined}
+            />
+          </Box>
+        </Collapse>
+      </Stack>
+    </Paper>
+  );
+}
+
+function DocumentAnnotationListPanel({
+  currentDocument,
+  groups,
+  pendingCount,
+  selectedAnnotationId,
+  accordionOpen,
+  annotationRowRefs,
+  onFocusLabel,
+  onSelectAnnotation,
+  onToggleAnnotationGroup,
+}: {
+  currentDocument: DocumentRecord | null;
+  groups: Array<{ label: LabelRecord; annotations: AnnotationRecord[] }>;
+  pendingCount: number;
+  selectedAnnotationId: string | null;
+  accordionOpen: Record<string, boolean>;
+  annotationRowRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>;
+  onFocusLabel: (labelId: string) => void;
+  onSelectAnnotation: (annotationId: string | null) => void;
+  onToggleAnnotationGroup: (labelId: string) => void;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0, px: 2 }}>
+        <Typography variant="subtitle2" sx={{ flex: 1 }}>
+          {t("projectShell.workspace.documentAnnotationsTitle")}
+        </Typography>
+        <Chip
+          size="small"
+          label={t("projectShell.workspace.pendingAnnotationCount", { count: pendingCount })}
+          color={pendingCount > 0 ? "warning" : "success"}
+          sx={{ fontWeight: 700 }}
+        />
+      </Stack>
+      <Stack data-testid="document-annotation-list" spacing={1.5} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
+        {currentDocument && groups.length === 0 ? <Typography color="text.secondary">{t("projectShell.workspace.noAnnotations")}</Typography> : null}
+        {groups.map(({ label, annotations }) => (
+          <Paper key={label.id} variant="outlined" sx={{ p: 1.5 }}>
+            <Stack
+              component="button"
+              type="button"
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              aria-controls={`document-annotation-group-${label.id}`}
+              aria-expanded={accordionOpen[label.id] ?? true}
+              sx={{
+                appearance: "none",
+                background: "transparent",
+                border: 0,
+                cursor: "pointer",
+                font: "inherit",
+                p: 0,
+                textAlign: "left",
+                width: "100%",
+                minWidth: 0,
+              }}
+              onClick={() => onToggleAnnotationGroup(label.id)}
+            >
+              <Box sx={{ width: 18, flexShrink: 0, display: "grid", placeItems: "center" }}>
+                <Typography variant="caption">{accordionOpen[label.id] ?? true ? "▼" : "▶"}</Typography>
+              </Box>
+              <LabelRoundedIcon sx={{ color: label.color, flexShrink: 0, fontSize: 18 }} />
+              <Typography variant="subtitle2" noWrap sx={{ minWidth: 0, flex: 1 }}>
+                {label.name}
+              </Typography>
+              <Chip size="small" label={annotations.length} sx={{ flexShrink: 0 }} />
+            </Stack>
+            <Stack id={`document-annotation-group-${label.id}`} spacing={1} sx={{ mt: 1.25, display: accordionOpen[label.id] ?? true ? "flex" : "none" }}>
+              {annotations.map((annotation) => {
+                const snippet = contextSnippet(currentDocument?.text ?? "", annotation.start, annotation.end, 10);
+                return (
+                  <Paper
+                    key={annotation.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={annotation.id === selectedAnnotationId}
+                    ref={(element) => {
+                      if (element) {
+                        annotationRowRefs.current[annotation.id] = element;
+                        return;
+                      }
+                      delete annotationRowRefs.current[annotation.id];
+                    }}
+                    variant="outlined"
+                    sx={{
+                      p: 1.25,
+                      cursor: "pointer",
+                      borderColor: annotation.id === selectedAnnotationId ? "primary.main" : undefined,
+                    }}
+                    onClick={() => {
+                      onFocusLabel(annotation.label_id);
+                      onSelectAnnotation(annotation.id);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") {
+                        return;
+                      }
+                      event.preventDefault();
+                      onFocusLabel(annotation.label_id);
+                      onSelectAnnotation(annotation.id);
+                    }}
+                  >
+                    <Stack direction="row" justifyContent="space-between" spacing={1}>
+                      <Typography variant="caption" color="text.secondary">
+                        {annotation.start}-{annotation.end}
+                      </Typography>
+                      <Chip size="small" label={annotation.status} color={annotation.status === "verified" ? "success" : "warning"} />
+                    </Stack>
+                    <Typography variant="body2" sx={{ mt: 0.75 }}>
+                      <Box component="span" color="text.disabled">
+                        {snippet.before}
+                      </Box>
+                      <Box component="span" sx={{ fontWeight: 700 }}>
+                        {snippet.focus}
+                      </Box>
+                      <Box component="span" color="text.disabled">
+                        {snippet.after}
+                      </Box>
+                    </Typography>
+                  </Paper>
+                );
+              })}
+            </Stack>
+          </Paper>
+        ))}
+      </Stack>
+    </Box>
+  );
 }
 
 export function WorkspaceView({
@@ -68,7 +416,6 @@ export function WorkspaceView({
   selectedAnnotationMetaError,
   selectionPreview,
   rightTab,
-  annotationEditCollapsed,
   accordionOpen,
   sameLabelExamples,
   sameLabelExamplesTotal,
@@ -105,7 +452,9 @@ export function WorkspaceView({
   onLoadMoreSameLabelExamples,
   onEnsureSameLabelDetails,
   onLoadMoreSameSurfaceExamples,
-  onToggleAnnotationEditCollapsed,
+  onSelectNextPendingAnnotation,
+  onVerifySelectedAnnotation,
+  onUpdateSelectedAnnotationLabel,
   onUpdateSelectedAnnotationStatus,
   onUpdateSelectedAnnotationComment,
   onUpdateSelectedAnnotationMeta,
@@ -134,7 +483,6 @@ export function WorkspaceView({
   selectedAnnotationMetaError: string | null;
   selectionPreview: SelectionPreview | null;
   rightTab: RightTab;
-  annotationEditCollapsed: boolean;
   accordionOpen: Record<string, boolean>;
   sameLabelExamples: LabelSurfaceGroupRecord[];
   sameLabelExamplesTotal: number;
@@ -171,13 +519,16 @@ export function WorkspaceView({
   onLoadMoreSameLabelExamples: () => void;
   onEnsureSameLabelDetails: (surfaceKey: string, surfaceText: string, duplicateCount: number) => void;
   onLoadMoreSameSurfaceExamples: () => void;
-  onToggleAnnotationEditCollapsed: () => void;
+  onSelectNextPendingAnnotation: () => void;
+  onVerifySelectedAnnotation: () => void;
+  onUpdateSelectedAnnotationLabel: (labelId: string) => void;
   onUpdateSelectedAnnotationStatus: (status: StatusValue) => void;
   onUpdateSelectedAnnotationComment: (comment: string) => void;
   onUpdateSelectedAnnotationMeta: (metaText: string) => void;
   onDeleteSelectedAnnotation: () => void;
   onToggleAnnotationGroup: (labelId: string) => void;
 }) {
+  const [annotationDetailsOpen, setAnnotationDetailsOpen] = useState(false);
   const groupedAnnotations = useMemo(
     () => (currentDocument ? groupAnnotationsByLabel(currentDocument, bundle.labels) : []),
     [currentDocument, bundle.labels],
@@ -185,6 +536,14 @@ export function WorkspaceView({
   const visibleAnnotationGroups = useMemo(
     () => groupedAnnotations.filter((group) => group.annotations.length > 0),
     [groupedAnnotations],
+  );
+  const pendingAnnotationCount = useMemo(
+    () => currentDocument?.annotations.filter((annotation) => annotation.status === "pending").length ?? 0,
+    [currentDocument],
+  );
+  const selectedAnnotationLabel = useMemo(
+    () => bundle.labels.find((label) => label.id === selectedAnnotation?.label_id) ?? null,
+    [bundle.labels, selectedAnnotation?.label_id],
   );
   const { t } = useI18n();
   const labelChipRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -243,7 +602,7 @@ export function WorkspaceView({
         onRequestDeleteDocument={onRequestDeleteDocument}
       />
 
-      <Box sx={{ display: "grid", gap: 2, height: "100%", minHeight: 0, overflow: "hidden", gridTemplateRows: "auto minmax(0,1fr) auto" }}>
+      <Box sx={{ display: "grid", gap: 2, height: "100%", minHeight: 0, overflow: "hidden", gridTemplateRows: "auto minmax(0,1fr) auto auto" }}>
         <Paper
           data-testid="label-selector"
           sx={{
@@ -344,6 +703,27 @@ export function WorkspaceView({
             <Typography variant="h6">{t("projectShell.workspace.noDocumentTitle")}</Typography>
           </Paper>
         )}
+
+        {selectedAnnotation ? (
+          <SelectedAnnotationDock
+            annotation={selectedAnnotation}
+            annotationLabel={selectedAnnotationLabel}
+            labels={bundle.labels}
+            metaDraft={selectedAnnotationMetaDraft}
+            metaError={selectedAnnotationMetaError}
+            pendingCount={pendingAnnotationCount}
+            saving={saving}
+            detailsOpen={annotationDetailsOpen}
+            onToggleDetails={() => setAnnotationDetailsOpen((open) => !open)}
+            onSelectNextPendingAnnotation={onSelectNextPendingAnnotation}
+            onVerifySelectedAnnotation={onVerifySelectedAnnotation}
+            onUpdateLabel={onUpdateSelectedAnnotationLabel}
+            onUpdateStatus={onUpdateSelectedAnnotationStatus}
+            onUpdateComment={onUpdateSelectedAnnotationComment}
+            onUpdateMeta={onUpdateSelectedAnnotationMeta}
+            onDelete={onDeleteSelectedAnnotation}
+          />
+        ) : null}
 
         <Stack direction="row" spacing={1} sx={{ ml: "auto", alignItems: "center", pb: 1, flexShrink: 0 }}>
           <Button
@@ -630,141 +1010,20 @@ export function WorkspaceView({
               </Box>
             </>
           ) : (
-            <>
-              <Paper
-                variant="outlined"
-                sx={{ p: 2, display: "flex", flexDirection: "column", flexShrink: 0 }}
-              >
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  alignItems="center"
-                  id="annotation-edit-toggle"
-                  sx={{ cursor: "pointer", width: "fit-content" }}
-                  onClick={onToggleAnnotationEditCollapsed}
-                >
-                  <Box sx={{ width: 18, display: "grid", placeItems: "center" }}>
-                    <Typography variant="caption">{annotationEditCollapsed ? "▶" : "▼"}</Typography>
-                  </Box>
-                  <Typography variant="subtitle2">{t("projectShell.workspace.selectedAnnotationTitle")}</Typography>
-                </Stack>
-                {selectedAnnotation && !annotationEditCollapsed ? (
-                  <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-                    <Autocomplete
-                      options={["pending", "verified"]}
-                      value={selectedAnnotation.status}
-                      renderInput={(params) => <TextField {...params} label={t("projectShell.workspace.status")} size="small" />}
-                      onChange={(_event, value) => {
-                        if (value) {
-                          onUpdateSelectedAnnotationStatus(value as StatusValue);
-                        }
-                      }}
-                    />
-                    <TextField
-                      label={t("projectShell.workspace.comment")}
-                      multiline
-                      minRows={3}
-                      value={selectedAnnotation.comment}
-                      onChange={(event) => onUpdateSelectedAnnotationComment(event.target.value)}
-                    />
-                    <TextField
-                      label={t("projectShell.workspace.meta")}
-                      multiline
-                      minRows={3}
-                      value={selectedAnnotationMetaDraft}
-                      onChange={(event) => onUpdateSelectedAnnotationMeta(event.target.value)}
-                      error={Boolean(selectedAnnotationMetaError)}
-                      helperText={selectedAnnotationMetaError ?? undefined}
-                    />
-                    <Button color="error" variant="outlined" startIcon={<DeleteOutlineRoundedIcon />} onClick={onDeleteSelectedAnnotation}>
-                      {t("projectShell.workspace.deleteAnnotation")}
-                    </Button>
-                  </Stack>
-                ) : selectedAnnotation ? (
-                  <Typography color="text.secondary" sx={{ mt: 1.5 }}>
-                    {t("projectShell.workspace.annotationCollapsed")}
-                  </Typography>
-                ) : (
-                  <Typography color="text.secondary" sx={{ mt: 1.5 }}>
-                    {t("projectShell.workspace.annotationHint")}
-                  </Typography>
-                )}
-              </Paper>
-
-              <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
-                <Typography variant="subtitle2">{t("projectShell.workspace.documentAnnotationsTitle")}</Typography>
-                <Stack data-testid="document-annotation-list" spacing={1.5} sx={{ mt: 1.5, overflow: "auto", minHeight: 0, pr: 0.5 }}>
-                  {currentDocument && visibleAnnotationGroups.length === 0 ? (
-                    <Typography color="text.secondary">{t("projectShell.workspace.noAnnotations")}</Typography>
-                  ) : null}
-                  {visibleAnnotationGroups.map(({ label, annotations }) => (
-                    <Paper key={label.id} variant="outlined" sx={{ p: 1.5 }}>
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        alignItems="center"
-                        sx={{ cursor: "pointer", width: "100%", minWidth: 0 }}
-                        onClick={() => onToggleAnnotationGroup(label.id)}
-                      >
-                        <Box sx={{ width: 18, flexShrink: 0, display: "grid", placeItems: "center" }}>
-                          <Typography variant="caption">{accordionOpen[label.id] ?? true ? "▼" : "▶"}</Typography>
-                        </Box>
-                        <LabelRoundedIcon sx={{ color: label.color, flexShrink: 0, fontSize: 18 }} />
-                        <Typography variant="subtitle2" noWrap sx={{ minWidth: 0, flex: 1 }}>
-                          {label.name}
-                        </Typography>
-                        <Chip size="small" label={annotations.length} sx={{ flexShrink: 0 }} />
-                      </Stack>
-                      <Stack spacing={1} sx={{ mt: 1.25, display: accordionOpen[label.id] ?? true ? "flex" : "none" }}>
-                        {annotations.map((annotation) => {
-                          const snippet = contextSnippet(currentDocument?.text ?? "", annotation.start, annotation.end, 10);
-                          return (
-                            <Paper
-                              key={annotation.id}
-                              ref={(element) => {
-                                if (element) {
-                                  annotationRowRefs.current[annotation.id] = element;
-                                  return;
-                                }
-                                delete annotationRowRefs.current[annotation.id];
-                              }}
-                              variant="outlined"
-                              sx={{
-                                p: 1.25,
-                                cursor: "pointer",
-                                borderColor: annotation.id === selectedAnnotationId ? "primary.main" : undefined,
-                              }}
-                              onClick={() => {
-                                onFocusLabel(annotation.label_id);
-                                onSelectAnnotation(annotation.id);
-                              }}
-                            >
-                              <Stack direction="row" justifyContent="space-between" spacing={1}>
-                                <Typography variant="caption" color="text.secondary">
-                                  {annotation.start}-{annotation.end}
-                                </Typography>
-                                <Chip size="small" label={annotation.status} color={annotation.status === "verified" ? "success" : "warning"} />
-                              </Stack>
-                              <Typography variant="body2" sx={{ mt: 0.75 }}>
-                                <Box component="span" color="text.disabled">
-                                  {snippet.before}
-                                </Box>
-                                <Box component="span" sx={{ fontWeight: 700 }}>
-                                  {snippet.focus}
-                                </Box>
-                                <Box component="span" color="text.disabled">
-                                  {snippet.after}
-                                </Box>
-                              </Typography>
-                            </Paper>
-                          );
-                        })}
-                      </Stack>
-                    </Paper>
-                  ))}
-                </Stack>
-              </Paper>
-            </>
+            <DocumentAnnotationListPanel
+              currentDocument={currentDocument}
+              groups={visibleAnnotationGroups}
+              pendingCount={pendingAnnotationCount}
+              selectedAnnotationId={selectedAnnotationId}
+              accordionOpen={accordionOpen}
+              annotationRowRefs={annotationRowRefs}
+              onFocusLabel={onFocusLabel}
+              onSelectAnnotation={(annotationId) => {
+                onSelectionDraftChange(null);
+                onSelectAnnotation(annotationId);
+              }}
+              onToggleAnnotationGroup={onToggleAnnotationGroup}
+            />
           )}
         </Box>
       </Paper>

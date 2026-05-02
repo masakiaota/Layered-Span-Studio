@@ -96,7 +96,7 @@ function createAnnotation(overrides: Partial<AnnotationRecord> = {}): Annotation
 async function dirtyWorkspaceDocument(userEventSetup: ReturnType<typeof userEvent.setup>, comment = "dirty comment") {
   await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
   await userEventSetup.click(screen.getByText("0-5"));
-  await userEventSetup.click(screen.getByText("選択中 Annotation"));
+  await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
   const commentInput = await screen.findByLabelText("Comment");
   fireEvent.change(commentInput, { target: { value: comment } });
 }
