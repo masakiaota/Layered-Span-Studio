@@ -153,6 +153,7 @@ export const jaMessages = {
         examples: "関連例",
         annotations: "注釈一覧",
       },
+      deleteDocumentTooltip: "Document を削除",
       deleteDocumentAria: "Delete document {{name}}",
       status: "Status",
       comment: "Comment",

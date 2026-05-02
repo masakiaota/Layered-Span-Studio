@@ -155,6 +155,7 @@ export const enMessages: Messages = {
         examples: "Examples",
         annotations: "Annotations",
       },
+      deleteDocumentTooltip: "Delete document",
       deleteDocumentAria: "Delete document {{name}}",
       status: "Status",
       comment: "Comment",

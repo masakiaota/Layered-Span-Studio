@@ -471,7 +471,7 @@ function DocumentListRow({
               },
             }}
           />
-          <Tooltip title="Delete document">
+          <Tooltip title={t("projectShell.workspace.deleteDocumentTooltip")}>
             <span
               style={{
                 position: "absolute",

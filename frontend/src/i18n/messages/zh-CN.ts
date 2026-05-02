@@ -153,6 +153,7 @@ export const zhCnMessages: Messages = {
         examples: "示例",
         annotations: "标注",
       },
+      deleteDocumentTooltip: "删除文档",
       deleteDocumentAria: "删除文档 {{name}}",
       status: "状态",
       comment: "备注",
