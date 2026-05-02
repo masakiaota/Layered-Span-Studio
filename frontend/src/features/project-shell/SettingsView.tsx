@@ -549,6 +549,7 @@ export function SettingsView({
                     selected={label.id === selectedLabelId}
                     onClick={() => onSelectLabel(label.id)}
                     sx={{
+                      pl: 0,
                       transition: "background-color 120ms ease, box-shadow 120ms ease, transform 160ms ease",
                       ...(draggingLabelId === label.id
                         ? {
@@ -571,8 +572,8 @@ export function SettingsView({
                       }}
                       sx={{
                         alignSelf: "stretch",
-                        width: 32,
-                        minWidth: 32,
+                        width: 42,
+                        minWidth: 42,
                         mr: 1,
                         p: 0,
                         border: 0,
