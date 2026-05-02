@@ -36,6 +36,13 @@ type LabelRowElement = {
   element: HTMLDivElement;
 };
 
+type LabelDragRow = LabelRowElement & {
+  top: number;
+  height: number;
+};
+
+const LABEL_REORDER_ANIMATION_MS = 140;
+
 function sameOrder(left: string[], right: string[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
@@ -57,30 +64,73 @@ function clearLabelRowStyles(rows: LabelRowElement[]) {
   }
 }
 
-function applyReleaseAnimation(nextIds: string[], visualTopById: Map<string, number>, refs: Map<string, HTMLDivElement>) {
-  const rowsAfterCommit = nextIds
-    .map((id) => ({
-      id,
-      element: refs.get(id),
-    }))
-    .filter((item): item is LabelRowElement => Boolean(item.element));
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
 
-  for (const row of rowsAfterCommit) {
-    const visualTop = visualTopById.get(row.id);
-    if (visualTop === undefined) {
+function targetTopsForOrder(ids: string[], rowById: Map<string, LabelDragRow>, startTop: number) {
+  const targetTopById = new Map<string, number>();
+  let nextTop = startTop;
+  for (const id of ids) {
+    const row = rowById.get(id);
+    if (!row) {
       continue;
     }
-    const deltaY = visualTop - row.element.getBoundingClientRect().top;
-    row.element.style.transition = "none";
-    row.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
+    targetTopById.set(id, nextTop);
+    nextTop += row.height;
+  }
+  return targetTopById;
+}
+
+function orderIdsByDragBoundaries(
+  currentIds: string[],
+  draggedId: string,
+  draggedTop: number,
+  draggedHeight: number,
+  rowById: Map<string, LabelDragRow>,
+  startTop: number,
+) {
+  const currentTopById = targetTopsForOrder(currentIds, rowById, startTop);
+  const draggedIndex = currentIds.indexOf(draggedId);
+  if (draggedIndex < 0) {
+    return currentIds;
+  }
+  const currentIndexById = new Map(currentIds.map((id, index) => [id, index]));
+  const upperProbeY = draggedTop;
+  const lowerProbeY = draggedTop + draggedHeight;
+  const beforeDragged: string[] = [];
+  const afterDragged: string[] = [];
+
+  for (const id of currentIds) {
+    if (id === draggedId) {
+      continue;
+    }
+    const row = rowById.get(id);
+    const currentTop = currentTopById.get(id);
+    if (!row || currentTop === undefined) {
+      continue;
+    }
+    const centerY = currentTop + row.height / 2;
+    const currentIndex = currentIndexById.get(id);
+    const isCurrentlyBeforeDragged = currentIndex !== undefined && currentIndex < draggedIndex;
+
+    if (isCurrentlyBeforeDragged) {
+      if (centerY > upperProbeY) {
+        afterDragged.push(id);
+      } else {
+        beforeDragged.push(id);
+      }
+      continue;
+    }
+
+    if (centerY < lowerProbeY) {
+      beforeDragged.push(id);
+    } else {
+      afterDragged.push(id);
+    }
   }
 
-  window.requestAnimationFrame(() => {
-    for (const row of rowsAfterCommit) {
-      row.element.style.transition = "transform 160ms ease";
-      row.element.style.transform = "";
-    }
-  });
+  return [...beforeDragged, draggedId, ...afterDragged];
 }
 
 export function SettingsView({
@@ -171,13 +221,21 @@ export function SettingsView({
     if (event.pointerType === "mouse" && event.button !== 0) {
       return;
     }
-    const rows = labelRowsFromRefs(bundle, labelRowRefs.current);
-    const ids = rows.map((item) => item.id);
+    const rows = labelRowsFromRefs(bundle, labelRowRefs.current).map((row) => {
+      const rect = row.element.getBoundingClientRect();
+      return {
+        ...row,
+        top: rect.top,
+        height: rect.height || 1,
+      };
+    });
+    const ids = rows.map((row) => row.id);
     const from = ids.indexOf(labelId);
-    const dragged = rows.find((item) => item.id === labelId);
+    const dragged = rows.find((row) => row.id === labelId);
     if (from < 0 || !dragged) {
       return;
     }
+    const draggedRow = dragged;
 
     event.preventDefault();
     event.stopPropagation();
@@ -186,102 +244,121 @@ export function SettingsView({
     }
 
     const handle = event.currentTarget;
-    const rectById = new Map(rows.map((item) => [item.id, item.element.getBoundingClientRect()]));
-    const draggedRect = rectById.get(labelId);
-    const rowHeight = draggedRect?.height || dragged.element.getBoundingClientRect().height || 1;
-    const remainingIds = ids.filter((id) => id !== labelId);
-    let insertIndex = from;
+    const rowById = new Map(rows.map((row) => [row.id, row]));
+    const firstTop = Math.min(...rows.map((row) => row.top));
+    const lastBottom = Math.max(...rows.map((row) => row.top + row.height));
+    const maxDraggedTop = Math.max(firstTop, lastBottom - draggedRow.height);
+    const pointerOffsetY = event.clientY - draggedRow.top;
+    let latestNextIds = ids;
     let latestClientY = event.clientY;
     let frameId = 0;
+    let finished = false;
 
-    function computeInsertIndex(clientY: number) {
-      for (let index = 0; index < remainingIds.length; index += 1) {
-        const rect = rectById.get(remainingIds[index]);
-        if (rect && clientY < rect.top + rect.height / 2) {
-          return index;
-        }
-      }
-      return remainingIds.length;
-    }
-
-    function orderedIdsForInsert() {
-      const nextIds = [...remainingIds];
-      nextIds.splice(insertIndex, 0, labelId);
-      return nextIds;
-    }
-
-    function applyTransforms() {
+    function applyVirtualLayout(clientY: number, options: { snapDraggedToSlot: boolean }) {
       frameId = 0;
-      insertIndex = computeInsertIndex(latestClientY);
-      const nextIds = orderedIdsForInsert();
-      const nextIndexById = new Map(nextIds.map((id, index) => [id, index]));
+      const draggedTop = clamp(clientY - pointerOffsetY, firstTop, maxDraggedTop);
+      const nextIds = orderIdsByDragBoundaries(latestNextIds, labelId, draggedTop, draggedRow.height, rowById, firstTop);
+      const targetTopById = targetTopsForOrder(nextIds, rowById, firstTop);
+      latestNextIds = nextIds;
 
-      for (const item of rows) {
-        if (item.id === labelId) {
-          item.element.style.transform = `translateY(${latestClientY - event.clientY}px)`;
+      for (const row of rows) {
+        const targetTop = targetTopById.get(row.id);
+        if (targetTop === undefined) {
           continue;
         }
-        const originalIndex = ids.indexOf(item.id);
-        const nextIndex = nextIndexById.get(item.id);
-        const deltaY = nextIndex === undefined ? 0 : (nextIndex - originalIndex) * rowHeight;
-        item.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
+        const visualTop =
+          row.id === labelId && !options.snapDraggedToSlot
+            ? draggedTop
+            : targetTop;
+        const deltaY = visualTop - row.top;
+        row.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
       }
     }
 
     function flushScheduledTransforms() {
       if (frameId) {
         window.cancelAnimationFrame(frameId);
+        frameId = 0;
       }
-      applyTransforms();
+      applyVirtualLayout(latestClientY, { snapDraggedToSlot: false });
     }
 
     function scheduleTransform(clientY: number) {
       latestClientY = clientY;
       if (!frameId) {
-        frameId = window.requestAnimationFrame(applyTransforms);
+        frameId = window.requestAnimationFrame(() => applyVirtualLayout(latestClientY, { snapDraggedToSlot: false }));
       }
     }
 
-    function cleanup({ clearTransforms }: { clearTransforms: boolean }) {
-      if (frameId) {
-        window.cancelAnimationFrame(frameId);
-        frameId = 0;
-      }
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      if (clearTransforms) {
-        clearLabelRowStyles(rows);
-      }
+    function removeDragListeners() {
       handle.removeEventListener("pointermove", onPointerMove);
       handle.removeEventListener("pointerup", onPointerUp);
       handle.removeEventListener("pointercancel", onPointerCancel);
+      handle.removeEventListener("lostpointercapture", onLostPointerCapture);
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerCancel);
+      document.removeEventListener("mouseup", onMouseUp);
       document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("blur", onWindowBlur);
       if (handle.hasPointerCapture?.(event.pointerId)) {
         handle.releasePointerCapture(event.pointerId);
       }
-      setDraggingLabelId(null);
-    }
-
-    function commitWithReleaseAnimation(nextIds: string[]) {
-      const visualTopById = new Map(rows.map((item) => [item.id, item.element.getBoundingClientRect().top]));
-      cleanup({ clearTransforms: false });
-      clearLabelRowStyles(rows);
-
-      flushSync(() => {
-        onReorderLabel(labelId, nextIds.indexOf(labelId));
-      });
-
-      applyReleaseAnimation(nextIds, visualTopById, labelRowRefs.current);
     }
 
     function finish(commit: boolean) {
-      flushScheduledTransforms();
-      const nextIds = orderedIdsForInsert();
-      if (commit && !sameOrder(ids, nextIds)) {
-        commitWithReleaseAnimation(nextIds);
+      if (finished) {
         return;
       }
-      cleanup({ clearTransforms: true });
+      finished = true;
+      flushScheduledTransforms();
+      removeDragListeners();
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+
+      const nextIds = commit ? latestNextIds : ids;
+      const shouldCommit = commit && !sameOrder(ids, nextIds);
+      for (const row of rows) {
+        row.element.style.transition = `transform ${LABEL_REORDER_ANIMATION_MS}ms ease`;
+      }
+      if (commit) {
+        applyVirtualLayout(latestClientY, { snapDraggedToSlot: true });
+      } else {
+        latestNextIds = ids;
+        const originalTopById = targetTopsForOrder(ids, rowById, firstTop);
+        for (const row of rows) {
+          const targetTop = originalTopById.get(row.id) ?? row.top;
+          const deltaY = targetTop - row.top;
+          row.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
+        }
+      }
+
+      window.setTimeout(() => {
+        const visualTopById = new Map(rows.map((row) => [row.id, row.element.getBoundingClientRect().top]));
+        flushSync(() => {
+          setDraggingLabelId(null);
+          if (shouldCommit) {
+            onReorderLabel(labelId, nextIds.indexOf(labelId));
+          }
+        });
+        for (const row of rows) {
+          row.element.style.transition = "none";
+          row.element.style.transform = "";
+          row.element.style.zIndex = "";
+        }
+        for (const row of rows) {
+          const visualTop = visualTopById.get(row.id);
+          if (visualTop === undefined) {
+            continue;
+          }
+          const naturalTop = row.element.getBoundingClientRect().top;
+          const deltaY = visualTop - naturalTop;
+          row.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
+        }
+        window.requestAnimationFrame(() => {
+          clearLabelRowStyles(rows);
+        });
+      }, LABEL_REORDER_ANIMATION_MS);
     }
 
     function onPointerMove(moveEvent: PointerEvent) {
@@ -294,8 +371,21 @@ export function SettingsView({
       finish(true);
     }
 
+    function onMouseUp(mouseEvent: MouseEvent) {
+      mouseEvent.preventDefault();
+      finish(true);
+    }
+
     function onPointerCancel(cancelEvent: PointerEvent) {
       cancelEvent.preventDefault();
+      finish(false);
+    }
+
+    function onLostPointerCapture() {
+      finish(true);
+    }
+
+    function onWindowBlur() {
       finish(false);
     }
 
@@ -309,16 +399,22 @@ export function SettingsView({
     document.body.style.cursor = "grabbing";
     document.body.style.userSelect = "none";
     setDraggingLabelId(labelId);
-    for (const item of rows) {
-      item.element.style.transition = item.id === labelId ? "none" : "transform 120ms ease";
-      if (item.id === labelId) {
-        item.element.style.zIndex = "2";
+    for (const row of rows) {
+      row.element.style.transition = row.id === labelId ? "none" : "transform 120ms ease";
+      if (row.id === labelId) {
+        row.element.style.zIndex = "2";
       }
     }
     handle.addEventListener("pointermove", onPointerMove);
     handle.addEventListener("pointerup", onPointerUp);
     handle.addEventListener("pointercancel", onPointerCancel);
+    handle.addEventListener("lostpointercapture", onLostPointerCapture);
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("pointercancel", onPointerCancel);
+    document.addEventListener("mouseup", onMouseUp);
     document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("blur", onWindowBlur);
     scheduleTransform(event.clientY);
   }
 

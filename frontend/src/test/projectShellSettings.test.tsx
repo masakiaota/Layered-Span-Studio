@@ -91,6 +91,20 @@ function getLabelRow(name: string) {
   return row;
 }
 
+function mockLabelRowRect(name: string, top: number, height: number) {
+  vi.spyOn(getLabelRow(name), "getBoundingClientRect").mockReturnValue({
+    top,
+    bottom: top + height,
+    left: 0,
+    right: 320,
+    width: 320,
+    height,
+    x: 0,
+    y: top,
+    toJSON: () => ({}),
+  });
+}
+
 function renderProjectSettings(locale: "ja" | "en" | "zh-CN" = "ja") {
   vi.spyOn(api, "getProject").mockResolvedValue(project);
   vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
@@ -298,48 +312,18 @@ describe("ProjectShell settings label selection", () => {
 
     await screen.findByRole("heading", { name: "Project Settings" });
 
-    const firstRow = getLabelRow("主訴");
-    const secondRow = getLabelRow("病名");
-    const thirdRow = getLabelRow("患者メタデータ");
-    vi.spyOn(firstRow, "getBoundingClientRect").mockReturnValue({
-      top: 0,
-      bottom: 48,
-      left: 0,
-      right: 320,
-      width: 320,
-      height: 48,
-      x: 0,
-      y: 0,
-      toJSON: () => ({}),
-    });
-    vi.spyOn(secondRow, "getBoundingClientRect").mockReturnValue({
-      top: 48,
-      bottom: 96,
-      left: 0,
-      right: 320,
-      width: 320,
-      height: 48,
-      x: 0,
-      y: 48,
-      toJSON: () => ({}),
-    });
-    vi.spyOn(thirdRow, "getBoundingClientRect").mockReturnValue({
-      top: 96,
-      bottom: 144,
-      left: 0,
-      right: 320,
-      width: 320,
-      height: 48,
-      x: 0,
-      y: 96,
-      toJSON: () => ({}),
-    });
+    mockLabelRowRect("主訴", 0, 48);
+    mockLabelRowRect("病名", 48, 48);
+    mockLabelRowRect("患者メタデータ", 96, 48);
 
     const handle = screen.getByRole("button", { name: "病名 の表示順をドラッグで変更" });
     fireEvent.pointerDown(handle, { button: 0, pointerId: 1, clientY: 72 });
-    fireEvent.pointerMove(handle, { pointerId: 1, clientY: 10 });
-    fireEvent.pointerUp(handle, { pointerId: 1, clientY: 10 });
+    fireEvent.pointerMove(document, { pointerId: 1, clientY: 10 });
+    fireEvent(handle, new Event("lostpointercapture"));
 
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Save changes" })).not.toBeDisabled();
+    });
     await userEventSetup.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
@@ -351,6 +335,40 @@ describe("ProjectShell settings label selection", () => {
       "患者メタデータ",
     ]);
     expect(saveProjectLabelsSpy.mock.calls[0][2]).toBe("labels-revision-1");
+  });
+
+  it("moves a tall label to the bottom when its lower boundary crosses following labels", async () => {
+    const userEventSetup = userEvent.setup();
+    const saveProjectLabelsSpy = vi.spyOn(api, "saveProjectLabels").mockResolvedValue({
+      labels: [baseLabels[0], baseLabels[2], baseLabels[1]],
+      revision: "labels-revision-2",
+    });
+    renderProjectSettings();
+
+    await screen.findByRole("heading", { name: "Project Settings" });
+
+    mockLabelRowRect("主訴", 0, 48);
+    mockLabelRowRect("病名", 48, 240);
+    mockLabelRowRect("患者メタデータ", 288, 48);
+
+    const handle = screen.getByRole("button", { name: "病名 の表示順をドラッグで変更" });
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 1, clientY: 72 });
+    fireEvent.pointerMove(document, { pointerId: 1, clientY: 300 });
+    fireEvent(handle, new Event("lostpointercapture"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Save changes" })).not.toBeDisabled();
+    });
+    await userEventSetup.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(saveProjectLabelsSpy).toHaveBeenCalledTimes(1);
+    });
+    expect(saveProjectLabelsSpy.mock.calls[0][1].map((label) => label.name)).toEqual([
+      "主訴",
+      "患者メタデータ",
+      "病名",
+    ]);
   });
 });
 
