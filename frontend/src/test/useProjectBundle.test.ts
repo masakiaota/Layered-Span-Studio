@@ -550,6 +550,69 @@ describe("useProjectBundle", () => {
     expect(result.current.documentList.some((document) => document.id === "doc-42")).toBe(true);
   });
 
+  it("starts focused document window lookup near the current scroll window", async () => {
+    const makePage = (offset: number) =>
+      Array.from({ length: DOCUMENT_PAGE_SIZE }, (_, index) =>
+        createDocumentListItem({
+          id: `doc-${offset + index}`,
+          document_name: `Doc ${offset + index}`,
+        }),
+      );
+
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+    const listDocumentsSpy = vi.spyOn(api, "listDocuments").mockImplementation(async (_projectId, options) => {
+      const offset = options?.offset ?? 0;
+      return {
+        documents: makePage(offset),
+        total: 200,
+        pending_total: 200,
+        offset,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created",
+      };
+    });
+    vi.spyOn(api, "getDocument").mockResolvedValue(createDocument({ id: "doc-0", document_name: "Doc 0" }));
+
+    const { result } = renderHook(() =>
+      useProjectBundle({
+        projectId: "project-1",
+        searchQuery: "",
+        sortMode: "created",
+        selectedDocId: null,
+        showToast: makeShowToast(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+    await act(async () => {
+      await result.current.fetchDocumentPage(false);
+    });
+    await act(async () => {
+      await result.current.fetchDocumentPage(false);
+    });
+    await act(async () => {
+      await result.current.fetchDocumentPage(false);
+    });
+
+    expect(result.current.documentWindowStartOffset).toBe(40);
+    const focusCallStart = listDocumentsSpy.mock.calls.length;
+
+    await act(async () => {
+      await result.current.focusDocumentListWindow("doc-10");
+    });
+
+    const focusOffsets = listDocumentsSpy.mock.calls
+      .slice(focusCallStart)
+      .map(([, options]) => options?.offset);
+    expect(focusOffsets[0]).toBe(40);
+    expect(focusOffsets).toContain(0);
+    expect(result.current.documentList.some((document) => document.id === "doc-10")).toBe(true);
+  });
+
   it("keeps loading true while a newer loadBundle call is still pending", async () => {
     const firstListDeferred = createDeferred<{
       documents: DocumentListItem[];

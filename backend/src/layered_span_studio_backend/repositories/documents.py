@@ -176,6 +176,15 @@ def resolve_document_navigation(
         )
         if not current_row:
             return None
+        prev_pending_document_id = conn.execute(
+            select(ordered_documents.c.id)
+            .where(
+                ordered_documents.c.row_num < current_row["row_num"],
+                ordered_documents.c.status != "verified",
+            )
+            .order_by(ordered_documents.c.row_num.desc())
+            .limit(1)
+        ).scalar_one_or_none()
         next_pending_document_id = conn.execute(
             select(ordered_documents.c.id)
             .where(
@@ -189,6 +198,7 @@ def resolve_document_navigation(
         "current_document_id": current_document_id,
         "prev_document_id": current_row["prev_document_id"],
         "next_document_id": current_row["next_document_id"],
+        "prev_pending_document_id": prev_pending_document_id,
         "next_pending_document_id": next_pending_document_id,
     }
 

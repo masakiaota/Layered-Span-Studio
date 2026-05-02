@@ -389,6 +389,7 @@ response 例:
   "current_document_id": "uuid-current",
   "prev_document_id": "uuid-prev",
   "next_document_id": "uuid-next",
+  "prev_pending_document_id": "uuid-prev-pending",
   "next_pending_document_id": "uuid-next-pending",
   "search": "target",
   "sort": "name"
@@ -396,6 +397,7 @@ response 例:
 ```
 
 - `prev_document_id` / `next_document_id` は現在の `search` / `sort` 適用後の隣接 document
+- `prev_pending_document_id` は現在位置より前方にある最初の `status != "verified"` document
 - `next_pending_document_id` は現在位置より後方にある最初の `status != "verified"` document
 - 候補がない場合は `null`
 - `search` / `sort` は解決に使った条件をそのまま返す

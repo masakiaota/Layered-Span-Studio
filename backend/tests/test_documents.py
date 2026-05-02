@@ -256,7 +256,7 @@ def test_document_list_search_treats_percent_and_underscore_as_literals(
     assert [item["document_name"] for item in underscore_response.json()["documents"]] == ["UnderscoreMatch"]
 
 
-def test_document_navigation_resolves_prev_next_and_next_pending(
+def test_document_navigation_resolves_prev_next_and_adjacent_pending(
     client: TestClient, auth_headers: dict[str, str], settings: Settings
 ) -> None:
     project_id = _create_project(client, auth_headers)
@@ -312,6 +312,7 @@ def test_document_navigation_resolves_prev_next_and_next_pending(
     assert payload["current_document_id"] == mu["id"]
     assert payload["prev_document_id"] == alpha["id"]
     assert payload["next_document_id"] == zeta["id"]
+    assert payload["prev_pending_document_id"] == alpha["id"]
     assert payload["next_pending_document_id"] == zeta["id"]
     assert payload["search"] == "target"
     assert payload["sort"] == "name"
@@ -355,6 +356,7 @@ def test_document_navigation_does_not_wrap_next_pending_to_previous_documents(
     payload = response.json()
     assert payload["prev_document_id"] == alpha["id"]
     assert payload["next_document_id"] is None
+    assert payload["prev_pending_document_id"] == alpha["id"]
     assert payload["next_pending_document_id"] is None
 
 

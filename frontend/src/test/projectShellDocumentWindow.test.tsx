@@ -111,7 +111,7 @@ describe("ProjectShell document list window", () => {
     vi.restoreAllMocks();
   });
 
-  it("moves keyboard document navigation back to the selected document range when the selected document is outside the list window", async () => {
+  it("moves pending keyboard navigation from the off-window selected document in one step", async () => {
     const documents = Array.from({ length: 160 }, (_, index) => createDocument(index));
     vi.spyOn(api, "getProject").mockResolvedValue(project);
     vi.spyOn(api, "listLabels").mockResolvedValue({ labels, revision: "labels-revision-1" });
@@ -139,7 +139,66 @@ describe("ProjectShell document list window", () => {
       current_document_id: "doc-0",
       prev_document_id: null,
       next_document_id: "doc-1",
+      prev_pending_document_id: null,
       next_pending_document_id: "doc-1",
+      search: "",
+      sort: "created",
+    } satisfies DocumentNavigationResponse);
+
+    renderWorkspace();
+
+    await screen.findByText("Doc 0");
+    scrollDocumentListToBottom();
+    await screen.findByText("Doc 40");
+    scrollDocumentListToBottom();
+    await screen.findByText("Doc 80");
+    scrollDocumentListToBottom();
+    await screen.findByText("Doc 120");
+    await waitFor(() => {
+      expect(screen.queryByText("Doc 0")).not.toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(window, { key: "J", shiftKey: true });
+
+    expect(await screen.findByText("Doc 1")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.getDocumentNavigation).toHaveBeenCalledWith("project-1", "doc-0", {
+        search: "",
+        sort: "created",
+      });
+    });
+  }, 15000);
+
+  it("keeps the selected document unchanged when off-window navigation cannot load the target window", async () => {
+    const documents = Array.from({ length: 160 }, (_, index) => createDocument(index));
+    const getDocumentSpy = vi.spyOn(api, "getDocument").mockImplementation(async (_projectId, documentId) => {
+      const document = documents.find((item) => item.id === documentId);
+      if (!document) {
+        throw new Error("Document not found");
+      }
+      return structuredClone(document);
+    });
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels, revision: "labels-revision-1" });
+    vi.spyOn(api, "listDocuments").mockImplementation(async (_projectId, options) => {
+      const offset = options?.offset ?? 0;
+      const limit = options?.limit ?? 100;
+      return {
+        documents: documents.slice(offset, offset + limit).map(toListItem),
+        total: documents.length,
+        pending_total: documents.length,
+        offset,
+        limit,
+        search: options?.search ?? "",
+        sort: options?.sort ?? "created",
+      };
+    });
+    vi.spyOn(api, "getDocumentNavigation").mockResolvedValue({
+      current_document_id: "doc-0",
+      prev_document_id: null,
+      next_document_id: "missing-doc",
+      prev_pending_document_id: null,
+      next_pending_document_id: "missing-doc",
       search: "",
       sort: "created",
     } satisfies DocumentNavigationResponse);
@@ -159,12 +218,9 @@ describe("ProjectShell document list window", () => {
 
     fireEvent.keyDown(window, { key: "j" });
 
-    expect(await screen.findByText("Doc 1")).toBeInTheDocument();
     await waitFor(() => {
-      expect(api.getDocumentNavigation).toHaveBeenCalledWith("project-1", "doc-0", {
-        search: "",
-        sort: "created",
-      });
+      expect(api.getDocumentNavigation).toHaveBeenCalled();
     });
+    expect(getDocumentSpy).not.toHaveBeenCalledWith("project-1", "missing-doc");
   }, 15000);
 });

@@ -20,6 +20,35 @@ export type OnBundleLoaded = (bundle: ProjectBundle, firstDocId: string | null) 
 type SettingsSnapshot = Pick<ProjectBundle, "project" | "labels"> & { labelsRevision: string };
 type SettingsBundleDraft = Pick<ProjectBundle, "project" | "labels">;
 
+function buildDocumentWindowLookupOffsets(startOffset: number, total: number) {
+  const maxOffset = Math.max(0, total - DOCUMENT_PAGE_SIZE);
+  const clampedStartOffset = Math.min(Math.max(0, startOffset), maxOffset);
+  const offsets: number[] = [];
+  const seen = new Set<number>();
+  const addOffset = (offset: number) => {
+    const clampedOffset = Math.min(Math.max(0, offset), maxOffset);
+    if (seen.has(clampedOffset)) {
+      return;
+    }
+    seen.add(clampedOffset);
+    offsets.push(clampedOffset);
+  };
+
+  addOffset(clampedStartOffset);
+  for (
+    let distance = DOCUMENT_PAGE_SIZE;
+    seen.size * DOCUMENT_PAGE_SIZE <= total + DOCUMENT_PAGE_SIZE;
+    distance += DOCUMENT_PAGE_SIZE
+  ) {
+    addOffset(clampedStartOffset - distance);
+    addOffset(clampedStartOffset + distance);
+    if (seen.has(0) && seen.has(maxOffset)) {
+      break;
+    }
+  }
+  return offsets;
+}
+
 export function useProjectBundle({
   projectId,
   searchQuery,
@@ -244,7 +273,7 @@ export function useProjectBundle({
     const loadMoreRequestId = ++documentLoadMoreRequestIdRef.current;
     setDocumentsLoadingMore(true);
     try {
-      for (let offset = 0; ; offset += DOCUMENT_PAGE_SIZE) {
+      for (const offset of buildDocumentWindowLookupOffsets(documentWindowStartOffset, documentTotal)) {
         const response = await api.listDocuments(projectId, {
           offset,
           limit: DOCUMENT_PAGE_SIZE,
@@ -264,11 +293,12 @@ export function useProjectBundle({
           setDocumentList(trimDocumentScrollWindow(response.documents, "start"));
           return response.documents;
         }
-        if (responseEndOffset >= response.total || response.documents.length === 0) {
-          showToast("選択中 Document は現在の一覧条件内に見つからなかった", "info");
-          return [];
+        if (response.documents.length === 0) {
+          break;
         }
       }
+      showToast("選択中 Document は現在の一覧条件内に見つからなかった", "info");
+      return [];
     } catch (error) {
       if (requestId === documentListRequestIdRef.current) {
         showToast(

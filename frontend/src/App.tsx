@@ -561,23 +561,31 @@ export function ProjectShell({
     if (!bundle || visibleDocuments.length === 0 || !currentDocument || workspaceBusy) {
       return;
     }
+    const focusWindowForDocument = async (documentId: string) => {
+      const focusedDocuments = await focusDocumentListWindow(documentId);
+      return focusedDocuments.some((document) => document.id === documentId);
+    };
     const currentIndex = visibleDocuments.findIndex((document) => document.id === currentDocument.id);
     if (currentIndex < 0) {
-      if (pendingOnly) {
-        await focusDocumentListWindow(currentDocument.id);
-        return;
-      }
       try {
         const navigation = await api.getDocumentNavigation(bundle.project.id, currentDocument.id, {
           search: searchQuery,
           sort: sortMode,
         });
-        const targetId = direction > 0 ? navigation.next_document_id : navigation.prev_document_id;
+        const targetId = pendingOnly
+          ? direction > 0
+            ? navigation.next_pending_document_id
+            : navigation.prev_pending_document_id
+          : direction > 0
+            ? navigation.next_document_id
+            : navigation.prev_document_id;
         if (!targetId) {
           await focusDocumentListWindow(currentDocument.id);
           return;
         }
-        await focusDocumentListWindow(targetId);
+        if (!(await focusWindowForDocument(targetId))) {
+          return;
+        }
         requestAction({ type: "doc", docId: targetId });
       } catch (error) {
         showToast(error instanceof Error ? error.message : t("projectShell.toasts.noDestination"), "error");

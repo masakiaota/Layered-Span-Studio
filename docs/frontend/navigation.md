@@ -55,7 +55,7 @@
 - 検索によって現在選択中 Document が一覧から外れても、編集中の Document は維持する。左ペインには検索結果外である旨と、検索クリア導線を表示する。
 - 左ペインの Document 一覧は仮想化された連続 window として扱い、現在選択中 Document だけを並び順から外して先頭へ固定表示しない。
 - 現在選択中 Document が左ペインの読み込み済み window 外、または scroll 可視領域外にある場合でも、Document 切り替え状態と中央ペインの編集対象は維持する。左ペインには「選択中Documentへ戻る」導線を表示し、必要に応じて選択中 Document を含む window を再取得する。
-- 現在選択中 Document が左ペインの読み込み済み window 外にある状態で `J` / `K` を実行した場合は、現在の scroll 位置ではなく選択中 Document の前後関係を基準に次 / 前 Document を解決し、移動先を含む window へ戻る。
+- 現在選択中 Document が左ペインの読み込み済み window 外にある状態で `J` / `K` / `Shift+J` / `Shift+K` を実行した場合は、現在の scroll 位置ではなく選択中 Document の前後関係を基準に次 / 前 Document を解決し、移動先を含む window へ戻る。
 
 ## 5. Project 一覧へ戻る時の扱い
 

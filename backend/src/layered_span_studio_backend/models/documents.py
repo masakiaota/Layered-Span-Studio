@@ -69,6 +69,7 @@ class DocumentNavigationResponse(APIModel):
     current_document_id: str
     prev_document_id: Optional[str] = None
     next_document_id: Optional[str] = None
+    prev_pending_document_id: Optional[str] = None
     next_pending_document_id: Optional[str] = None
     search: str
     sort: DocumentListSort

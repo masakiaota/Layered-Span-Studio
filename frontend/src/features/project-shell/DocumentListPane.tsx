@@ -161,6 +161,7 @@ function useDocumentListScroll({
   const documentListElementRef = useRef<HTMLDivElement | null>(null);
   const documentRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const pendingScrollAnchorRef = useRef<DocumentScrollAnchor | null>(null);
+  const documentPageRequestInFlightRef = useRef(false);
   const selectedDocumentVisible = useMemo(
     () => Boolean(selectedDocumentId && visibleDocuments.some((document) => document.id === selectedDocumentId)),
     [selectedDocumentId, visibleDocuments],
@@ -218,20 +219,43 @@ function useDocumentListScroll({
     delete documentRowRefs.current[documentId];
   }, []);
 
+  const requestDocumentPage = useCallback((loader: () => Promise<unknown> | unknown) => {
+    if (documentPageRequestInFlightRef.current) {
+      return;
+    }
+    documentPageRequestInFlightRef.current = true;
+    let loadResult: Promise<unknown> | unknown;
+    try {
+      loadResult = loader();
+    } catch (error) {
+      documentPageRequestInFlightRef.current = false;
+      throw error;
+    }
+    void Promise.resolve(loadResult).finally(() => {
+      documentPageRequestInFlightRef.current = false;
+    });
+  }, []);
+
   const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     const element = event.currentTarget;
     updateSelectedDocumentOutsideViewport();
-    if (!documentsLoadingMore && documentWindowStartOffset > 0 && element.scrollTop <= DOCUMENT_LIST_EDGE_THRESHOLD) {
+    if (
+      !documentsLoadingMore &&
+      !documentPageRequestInFlightRef.current &&
+      documentWindowStartOffset > 0 &&
+      element.scrollTop <= DOCUMENT_LIST_EDGE_THRESHOLD
+    ) {
       pendingScrollAnchorRef.current = getDocumentScrollAnchor(element);
-      onLoadPreviousDocuments();
+      requestDocumentPage(onLoadPreviousDocuments);
       return;
     }
     if (
       !documentsLoadingMore &&
+      !documentPageRequestInFlightRef.current &&
       documentNextOffset < documentTotal &&
       element.scrollTop + element.clientHeight >= element.scrollHeight - DOCUMENT_LIST_EDGE_THRESHOLD
     ) {
-      onLoadMoreDocuments();
+      requestDocumentPage(onLoadMoreDocuments);
     }
   }, [
     documentNextOffset,
@@ -240,6 +264,7 @@ function useDocumentListScroll({
     documentsLoadingMore,
     onLoadMoreDocuments,
     onLoadPreviousDocuments,
+    requestDocumentPage,
     updateSelectedDocumentOutsideViewport,
   ]);
 

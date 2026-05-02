@@ -248,6 +248,31 @@ describe("WorkspaceView", () => {
     expect(onLoadMoreDocuments).not.toHaveBeenCalled();
   });
 
+  it("does not request the previous document page twice while the first request is in flight", () => {
+    const loadDeferred = createDeferred<void>();
+    const onLoadPreviousDocuments = vi.fn(() => loadDeferred.promise);
+    render(
+      <WorkspaceView
+        {...createProps({
+          documentWindowStartOffset: 40,
+          documentNextOffset: 80,
+          documentTotal: 120,
+          onLoadPreviousDocuments,
+        })}
+      />,
+    );
+
+    const scroller = screen.getByTestId("document-list-scroll");
+    Object.defineProperty(scroller, "scrollTop", { value: 0, configurable: true, writable: true });
+    Object.defineProperty(scroller, "clientHeight", { value: 400, configurable: true });
+    Object.defineProperty(scroller, "scrollHeight", { value: 1000, configurable: true });
+
+    fireEvent.scroll(scroller);
+    fireEvent.scroll(scroller);
+
+    expect(onLoadPreviousDocuments).toHaveBeenCalledTimes(1);
+  });
+
   it("shows a compact return banner instead of pinning the selected document outside the scroll window", async () => {
     const userEventSetup = userEvent.setup();
     const onReturnToSelectedDocument = vi.fn();
