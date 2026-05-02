@@ -62,11 +62,13 @@
 ```
 
 - request の `labels` は project 配下 label の最終状態全件
+- request の `labels` 配列順は label 表示順として保存される
 - request の `base_revision` は直前に取得した label 一覧の revision
 - `base_revision` / response の `revision` は 64 文字の lowercase sha256 hex digest
 - `id: null` は新規 label
 - request に含まれない既存 label は削除
 - response は `labels: Label[]` と `revision`
+- response の `labels` 配列順は保存済みの label 表示順
 
 response 例:
 
@@ -263,6 +265,7 @@ response 例:
 ```
 
 - settings 画面の project フォームと label 一覧の完全現在値を表す
+- `labels` 配列順は label 表示順として保存される
 - response は次の形を返す
 
 ```json

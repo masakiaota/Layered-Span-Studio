@@ -200,7 +200,9 @@
 
 - Project scope 共通 header では、左側に project 名と説明文、中央に `Workspace / Project Settings` 切り替え、右側に言語切替、現在の username、logout 導線をまとめて表示する。
 - Project 名と説明文を編集可能にする。
-- Label定義管理を行う（追加 / 編集 / 削除）。
+- Label定義管理を行う（追加 / 編集 / 削除 / 表示順変更）。
+- Label 表示順変更は、一覧左端のグラブハンドルを縦方向にドラッグして行う。ドラッグ中は周囲の Label 行が並び替え位置へ滑って移動するアニメーションを付ける。
+- 表示順保存後は Workspace の Label Selector、右ペインの Annotation グループ順、label 切り替えショートカット順に反映する。
 - Label削除時は対応するAnnotationも同時に除去する。
 - プロジェクトガイドライン文言を編集可能にする。
 - Import / Export カードを同画面内に配置する。

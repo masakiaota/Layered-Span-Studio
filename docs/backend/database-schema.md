@@ -181,6 +181,7 @@ CREATE TABLE labels (
     description TEXT NOT NULL,    -- ラベルの説明（ガイドライン含む）
     shortcut TEXT,                -- キーボードショートカット
     meta TEXT,                    -- JSON: 任意の拡張情報
+    display_order INTEGER,        -- Project 内の表示順
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE
 );
 
@@ -197,12 +198,14 @@ CREATE INDEX idx_labels_name ON labels(name);
 | description | TEXT | NOT NULL | ラベルの説明（ガイドライン含む） |
 | shortcut | TEXT | NULL | キーボードショートカット（例: "1", "d"） |
 | meta | TEXT | NULL | 任意の拡張情報（JSON文字列） |
+| display_order | INTEGER | NULL | Project 内の表示順 |
 
 **設計ポイント**:
 - `name` は変更可能（ユーザー向け表示名）
 - `id` は不変（システム内部での識別子）
 - ラベル名を変更しても、既存のアノテーションへの参照は壊れない
- - 外部JSONでは `project_id` を持たないため、インポート時は `project.id` を補完して保存する
+- `display_order` は backend 内部の保存順であり、外部JSONでは `labels` 配列順で表現する
+- 外部JSONでは `project_id` を持たないため、インポート時は `project.id` を補完して保存する
 
 ---
 

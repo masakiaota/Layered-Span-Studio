@@ -16,8 +16,11 @@ import {
   Typography,
   alpha,
 } from "@mui/material";
+import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import PaletteRoundedIcon from "@mui/icons-material/PaletteRounded";
 import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
@@ -27,6 +30,171 @@ import type { ProjectBundle } from "../../types";
 import { getImportYourDataGuideUrl } from "../../externalLinks";
 import { useI18n } from "../../i18n/useI18n";
 import { getProjectGuideline } from "../../utils";
+
+type LabelRowElement = {
+  id: string;
+  element: HTMLDivElement;
+};
+
+type LabelDragRow = LabelRowElement & {
+  top: number;
+  height: number;
+};
+
+const LABEL_REORDER_ANIMATION_MS = 140;
+
+function sameOrder(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function labelRowsFromRefs(bundle: ProjectBundle, refs: Map<string, HTMLDivElement>) {
+  return bundle.labels
+    .map((label) => ({
+      id: label.id,
+      element: refs.get(label.id),
+    }))
+    .filter((item): item is LabelRowElement => Boolean(item.element));
+}
+
+function labelDragRowsFromRefs(bundle: ProjectBundle, refs: Map<string, HTMLDivElement>) {
+  return labelRowsFromRefs(bundle, refs).map((row) => {
+    const rect = row.element.getBoundingClientRect();
+    return {
+      ...row,
+      top: rect.top,
+      height: rect.height || 1,
+    };
+  });
+}
+
+function clearLabelRowStyles(rows: LabelRowElement[]) {
+  for (const row of rows) {
+    row.element.style.transition = "";
+    row.element.style.transform = "";
+    row.element.style.zIndex = "";
+  }
+}
+
+function setLabelRowTransform(row: LabelRowElement, deltaY: number) {
+  row.element.style.transform = deltaY === 0 ? "" : `translateY(${deltaY}px)`;
+}
+
+function setLabelRowTransitions(rows: LabelRowElement[], transition: string) {
+  for (const row of rows) {
+    row.element.style.transition = transition;
+  }
+}
+
+function resetLabelRowsForMeasurement(rows: LabelRowElement[]) {
+  for (const row of rows) {
+    row.element.style.transition = "none";
+    row.element.style.transform = "";
+    row.element.style.zIndex = "";
+  }
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function targetTopsForOrder(ids: string[], rowById: Map<string, LabelDragRow>, startTop: number) {
+  const targetTopById = new Map<string, number>();
+  let nextTop = startTop;
+  for (const id of ids) {
+    const row = rowById.get(id);
+    if (!row) {
+      continue;
+    }
+    targetTopById.set(id, nextTop);
+    nextTop += row.height;
+  }
+  return targetTopById;
+}
+
+function orderIdsByDragBoundaries(
+  currentIds: string[],
+  draggedId: string,
+  draggedTop: number,
+  draggedHeight: number,
+  rowById: Map<string, LabelDragRow>,
+  startTop: number,
+) {
+  const currentTopById = targetTopsForOrder(currentIds, rowById, startTop);
+  const draggedIndex = currentIds.indexOf(draggedId);
+  if (draggedIndex < 0) {
+    return currentIds;
+  }
+  const upperProbeY = draggedTop;
+  const lowerProbeY = draggedTop + draggedHeight;
+  const beforeDragged: string[] = [];
+  const afterDragged: string[] = [];
+
+  for (const [currentIndex, id] of currentIds.entries()) {
+    if (id === draggedId) {
+      continue;
+    }
+    const row = rowById.get(id);
+    const currentTop = currentTopById.get(id);
+    if (!row || currentTop === undefined) {
+      continue;
+    }
+    const centerY = currentTop + row.height / 2;
+    const isCurrentlyBeforeDragged = currentIndex < draggedIndex;
+
+    if (isCurrentlyBeforeDragged) {
+      if (centerY > upperProbeY) {
+        afterDragged.push(id);
+      } else {
+        beforeDragged.push(id);
+      }
+      continue;
+    }
+
+    if (centerY < lowerProbeY) {
+      beforeDragged.push(id);
+    } else {
+      afterDragged.push(id);
+    }
+  }
+
+  return [...beforeDragged, draggedId, ...afterDragged];
+}
+
+function dragBoundsForRows(rows: LabelDragRow[], draggedRow: LabelDragRow) {
+  const firstTop = Math.min(...rows.map((row) => row.top));
+  const lastBottom = Math.max(...rows.map((row) => row.top + row.height));
+  return {
+    firstTop,
+    maxDraggedTop: Math.max(firstTop, lastBottom - draggedRow.height),
+  };
+}
+
+function snapRowsToOrder(rows: LabelDragRow[], ids: string[], rowById: Map<string, LabelDragRow>, startTop: number) {
+  const targetTopById = targetTopsForOrder(ids, rowById, startTop);
+  for (const row of rows) {
+    const targetTop = targetTopById.get(row.id) ?? row.top;
+    setLabelRowTransform(row, targetTop - row.top);
+  }
+}
+
+function keepVisualPositionsAfterCommit(rows: LabelRowElement[], commitState: () => void) {
+  const visualTopById = new Map(rows.map((row) => [row.id, row.element.getBoundingClientRect().top]));
+  flushSync(commitState);
+  resetLabelRowsForMeasurement(rows);
+
+  for (const row of rows) {
+    const visualTop = visualTopById.get(row.id);
+    if (visualTop === undefined) {
+      continue;
+    }
+    const naturalTop = row.element.getBoundingClientRect().top;
+    setLabelRowTransform(row, visualTop - naturalTop);
+  }
+
+  window.requestAnimationFrame(() => {
+    clearLabelRowStyles(rows);
+  });
+}
 
 export function SettingsView({
   bundle,
@@ -53,6 +221,7 @@ export function SettingsView({
   onSubmitLabelDraft,
   onResetLabelDraft,
   onSelectLabel,
+  onReorderLabel,
   onDeleteLabel,
   onImportFileChange,
   onImport,
@@ -87,6 +256,7 @@ export function SettingsView({
   onSubmitLabelDraft: () => void;
   onResetLabelDraft: () => void;
   onSelectLabel: (labelId: string) => void;
+  onReorderLabel: (labelId: string, targetIndex: number) => void;
   onDeleteLabel: (labelId: string) => void;
   onImportFileChange: (file: File | null) => void;
   onImport: () => void;
@@ -99,6 +269,210 @@ export function SettingsView({
 }) {
   const { locale, t } = useI18n();
   const guideUrl = getImportYourDataGuideUrl(locale);
+  const [draggingLabelId, setDraggingLabelId] = useState<string | null>(null);
+  const labelRowRefs = useRef(new Map<string, HTMLDivElement>());
+  const activeLabelDragCleanupRef = useRef<(() => void) | null>(null);
+  const labelReorderTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      activeLabelDragCleanupRef.current?.();
+      activeLabelDragCleanupRef.current = null;
+      if (labelReorderTimeoutRef.current !== null) {
+        window.clearTimeout(labelReorderTimeoutRef.current);
+        labelReorderTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  function registerLabelRow(labelId: string, element: HTMLDivElement | null) {
+    if (element) {
+      labelRowRefs.current.set(labelId, element);
+      return;
+    }
+    labelRowRefs.current.delete(labelId);
+  }
+
+  function startLabelDrag(event: React.PointerEvent<HTMLButtonElement>, labelId: string) {
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+    const rows = labelDragRowsFromRefs(bundle, labelRowRefs.current);
+    const ids = rows.map((row) => row.id);
+    const from = ids.indexOf(labelId);
+    const dragged = rows.find((row) => row.id === labelId);
+    if (from < 0 || !dragged) {
+      return;
+    }
+    const draggedRow = dragged;
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.currentTarget.setPointerCapture) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+
+    const handle = event.currentTarget;
+    const rowById = new Map(rows.map((row) => [row.id, row]));
+    const { firstTop, maxDraggedTop } = dragBoundsForRows(rows, draggedRow);
+    const pointerOffsetY = event.clientY - draggedRow.top;
+    let latestNextIds = ids;
+    let latestClientY = event.clientY;
+    let frameId = 0;
+    let finished = false;
+
+    activeLabelDragCleanupRef.current?.();
+
+    function applyVirtualLayout(clientY: number, options: { snapDraggedToSlot: boolean }) {
+      frameId = 0;
+      const draggedTop = clamp(clientY - pointerOffsetY, firstTop, maxDraggedTop);
+      const nextIds = orderIdsByDragBoundaries(latestNextIds, labelId, draggedTop, draggedRow.height, rowById, firstTop);
+      const targetTopById = targetTopsForOrder(nextIds, rowById, firstTop);
+      latestNextIds = nextIds;
+
+      for (const row of rows) {
+        const targetTop = targetTopById.get(row.id);
+        if (targetTop === undefined) {
+          continue;
+        }
+        const visualTop =
+          row.id === labelId && !options.snapDraggedToSlot
+            ? draggedTop
+            : targetTop;
+        setLabelRowTransform(row, visualTop - row.top);
+      }
+    }
+
+    function flushScheduledTransforms() {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+        frameId = 0;
+      }
+      applyVirtualLayout(latestClientY, { snapDraggedToSlot: false });
+    }
+
+    function scheduleTransform(clientY: number) {
+      latestClientY = clientY;
+      if (!frameId) {
+        frameId = window.requestAnimationFrame(() => applyVirtualLayout(latestClientY, { snapDraggedToSlot: false }));
+      }
+    }
+
+    function removeDragListeners() {
+      handle.removeEventListener("lostpointercapture", onLostPointerCapture);
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerCancel);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("blur", onWindowBlur);
+      if (handle.hasPointerCapture?.(event.pointerId)) {
+        handle.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    function cleanupActiveDrag() {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+        frameId = 0;
+      }
+      if (labelReorderTimeoutRef.current !== null) {
+        window.clearTimeout(labelReorderTimeoutRef.current);
+        labelReorderTimeoutRef.current = null;
+      }
+      removeDragListeners();
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      clearLabelRowStyles(rows);
+    }
+
+    function finish(commit: boolean) {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      flushScheduledTransforms();
+      removeDragListeners();
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+
+      const nextIds = commit ? latestNextIds : ids;
+      const shouldCommit = commit && !sameOrder(ids, nextIds);
+      setLabelRowTransitions(rows, `transform ${LABEL_REORDER_ANIMATION_MS}ms ease`);
+      if (commit) {
+        applyVirtualLayout(latestClientY, { snapDraggedToSlot: true });
+      } else {
+        latestNextIds = ids;
+        snapRowsToOrder(rows, ids, rowById, firstTop);
+      }
+
+      if (labelReorderTimeoutRef.current !== null) {
+        window.clearTimeout(labelReorderTimeoutRef.current);
+      }
+      labelReorderTimeoutRef.current = window.setTimeout(() => {
+        labelReorderTimeoutRef.current = null;
+        activeLabelDragCleanupRef.current = null;
+        keepVisualPositionsAfterCommit(rows, () => {
+          setDraggingLabelId(null);
+          if (shouldCommit) {
+            onReorderLabel(labelId, nextIds.indexOf(labelId));
+          }
+        });
+      }, LABEL_REORDER_ANIMATION_MS);
+    }
+
+    function onPointerMove(moveEvent: PointerEvent) {
+      moveEvent.preventDefault();
+      scheduleTransform(moveEvent.clientY);
+    }
+
+    function onPointerUp(upEvent: PointerEvent) {
+      upEvent.preventDefault();
+      finish(true);
+    }
+
+    function onMouseUp(mouseEvent: MouseEvent) {
+      mouseEvent.preventDefault();
+      finish(true);
+    }
+
+    function onPointerCancel(cancelEvent: PointerEvent) {
+      cancelEvent.preventDefault();
+      finish(false);
+    }
+
+    function onLostPointerCapture() {
+      finish(true);
+    }
+
+    function onWindowBlur() {
+      finish(false);
+    }
+
+    function onKeyDown(keyEvent: KeyboardEvent) {
+      if (keyEvent.key === "Escape") {
+        keyEvent.preventDefault();
+        finish(false);
+      }
+    }
+
+    document.body.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
+    activeLabelDragCleanupRef.current = cleanupActiveDrag;
+    setDraggingLabelId(labelId);
+    for (const row of rows) {
+      row.element.style.transition = row.id === labelId ? "none" : "transform 120ms ease";
+      row.element.style.zIndex = row.id === labelId ? "2" : "";
+    }
+    handle.addEventListener("lostpointercapture", onLostPointerCapture);
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("pointercancel", onPointerCancel);
+    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("blur", onWindowBlur);
+    scheduleTransform(event.clientY);
+  }
 
   return (
     <Box sx={{ display: "grid", gap: 2, height: "100%", minHeight: 0, gridTemplateRows: "minmax(0,1fr) auto" }}>
@@ -227,9 +601,59 @@ export function SettingsView({
                 {bundle.labels.map((label) => (
                   <ListItemButton
                     key={label.id}
+                    ref={(element) => registerLabelRow(label.id, element)}
                     selected={label.id === selectedLabelId}
                     onClick={() => onSelectLabel(label.id)}
+                    sx={{
+                      pl: 0,
+                      transition: "background-color 120ms ease, box-shadow 120ms ease, transform 160ms ease",
+                      ...(draggingLabelId === label.id
+                        ? {
+                            bgcolor: alpha(label.color, 0.12),
+                            boxShadow: `inset 3px 0 0 ${label.color}`,
+                            zIndex: 1,
+                          }
+                        : {}),
+                    }}
                   >
+                    <Box
+                      component="button"
+                      type="button"
+                      aria-label={t("projectShell.settings.dragLabel", { name: label.name })}
+                      onPointerDown={(event) => {
+                        startLabelDrag(event, label.id);
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                      }}
+                      sx={{
+                        alignSelf: "stretch",
+                        width: 42,
+                        minWidth: 42,
+                        mr: 1,
+                        p: 0,
+                        border: 0,
+                        borderRight: "1px solid",
+                        borderColor: alpha("#16324f", 0.1),
+                        bgcolor: "transparent",
+                        color: "text.secondary",
+                        cursor: draggingLabelId === label.id ? "grabbing" : "grab",
+                        touchAction: "none",
+                        display: "grid",
+                        placeItems: "center",
+                        "&:hover": {
+                          color: "primary.main",
+                          bgcolor: alpha("#1a73e8", 0.06),
+                        },
+                        "&:focus-visible": {
+                          outline: "2px solid",
+                          outlineColor: "primary.main",
+                          outlineOffset: -2,
+                        },
+                      }}
+                    >
+                      <MenuRoundedIcon fontSize="small" />
+                    </Box>
                     <ListItemText
                       primary={
                         <Stack direction="row" spacing={1} alignItems="center">

@@ -124,6 +124,53 @@ def test_import_creates_new_project_from_export(
     )
 
 
+def test_export_and_import_preserve_label_order(client: TestClient, auth_headers: dict[str, str]) -> None:
+    project = client.post(
+        "/projects", json={"name": "Project Label Order", "description": "desc"}, headers=auth_headers
+    ).json()
+    first = create_label_via_sync(client, auth_headers, project["id"], name="Zulu", color="#FF5733", description="desc")
+    second = create_label_via_sync(client, auth_headers, project["id"], name="Alpha", color="#33AA44", description="desc")
+    current = client.get(f"/projects/{project['id']}/labels", headers=auth_headers).json()
+
+    reorder_response = client.put(
+        f"/projects/{project['id']}/labels",
+        json={
+            "base_revision": current["revision"],
+            "labels": [
+                {
+                    "id": second["id"],
+                    "name": second["name"],
+                    "color": second["color"],
+                    "description": second["description"],
+                    "shortcut": second["shortcut"],
+                    "meta": second["meta"],
+                },
+                {
+                    "id": first["id"],
+                    "name": first["name"],
+                    "color": first["color"],
+                    "description": first["description"],
+                    "shortcut": first["shortcut"],
+                    "meta": first["meta"],
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert reorder_response.status_code == 200
+
+    payload = _export_project_payload(client, auth_headers, project["id"])
+    assert [label["name"] for label in payload["labels"]] == ["Alpha", "Zulu"]
+    payload["project"]["name"] = "Project Label Order Imported"
+
+    import_response = client.post("/projects/import", json=payload, headers=auth_headers)
+    assert import_response.status_code == 201
+    imported_project = import_response.json()["project"]
+    labels_response = client.get(f"/projects/{imported_project['id']}/labels", headers=auth_headers)
+    assert labels_response.status_code == 200
+    assert [label["name"] for label in labels_response.json()["labels"]] == ["Alpha", "Zulu"]
+
+
 def test_import_creates_new_project_with_auto_renamed_name(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
