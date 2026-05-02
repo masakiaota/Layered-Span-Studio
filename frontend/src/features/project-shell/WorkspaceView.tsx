@@ -25,7 +25,7 @@ import SkipNextRoundedIcon from "@mui/icons-material/SkipNextRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import { DocumentCanvas } from "../../components/DocumentCanvas";
 import { contextSnippet } from "../workspace/workspaceUtils";
-import { floatingTooltipSlotProps } from "./projectShellConstants";
+import { RELATED_EXAMPLES_PANEL_GAP, floatingTooltipSlotProps, getAnnotationGuideMaxHeight } from "./projectShellConstants";
 import type { RightTab, SelectionPreview } from "./projectShellTypes";
 import type {
   AnnotationSearchItemRecord,
@@ -39,8 +39,6 @@ import type { DocumentListItem, JsonObject, ProjectBundle } from "../../types";
 import { groupAnnotationsByLabel } from "../../utils";
 import { useI18n } from "../../i18n/useI18n";
 import { DocumentListPane } from "./DocumentListPane";
-
-const examplesGuideMaxHeight = "calc((100% - 32px) / 3)";
 
 type AnnotationRecord = DocumentRecord["annotations"][number];
 
@@ -753,7 +751,7 @@ export function WorkspaceView({
           <Tab value="annotations" label={t("projectShell.workspace.tabs.annotations")} />
         </Tabs>
         <Divider />
-        <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2, flex: 1, minHeight: 0, overflow: "hidden" }}>
+        <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: RELATED_EXAMPLES_PANEL_GAP, flex: 1, minHeight: 0, overflow: "hidden" }}>
           {rightTab === "examples" ? (
             <>
               <Paper
@@ -763,7 +761,7 @@ export function WorkspaceView({
                   p: 2,
                   display: "flex",
                   flexDirection: "column",
-                  maxHeight: examplesGuideMaxHeight,
+                  maxHeight: getAnnotationGuideMaxHeight,
                   minHeight: 0,
                   overflow: "hidden",
                 }}
@@ -784,7 +782,13 @@ export function WorkspaceView({
               </Paper>
               <Box
                 data-testid="examples-panels-grid"
-                sx={{ display: "grid", gap: 2, flex: 1, minHeight: 0, gridTemplateRows: "minmax(0,1fr) minmax(0,1fr)" }}
+                sx={{
+                  display: "grid",
+                  gap: RELATED_EXAMPLES_PANEL_GAP,
+                  flex: 1,
+                  minHeight: 0,
+                  gridTemplateRows: "minmax(0,1fr) minmax(0,1fr)",
+                }}
               >
                 <Paper
                   data-testid="same-label-examples-panel"

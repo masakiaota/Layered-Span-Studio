@@ -1,11 +1,19 @@
+import type { Theme } from "@mui/material/styles";
+
 export const EXAMPLES_BATCH_SIZE = 8;
 export const DOCUMENT_PAGE_SIZE = 40;
 export const DOCUMENT_WINDOW_SIZE = 120;
 export const DEFAULT_LABEL_COLOR = "#1a73e8";
+export const RELATED_EXAMPLES_PANEL_GAP = 2;
 
 const FLOATING_TOOLTIP_BG = "#646872";
 
 type Translate = (key: string) => string;
+
+export function getAnnotationGuideMaxHeight(theme: Theme) {
+  const gapCount = 2;
+  return `calc((100% - ${theme.spacing(RELATED_EXAMPLES_PANEL_GAP * gapCount)}) / 3)`;
+}
 
 export const floatingTooltipSlotProps = {
   tooltip: {

@@ -1,8 +1,10 @@
 import type { ComponentProps } from "react";
+import { createTheme } from "@mui/material/styles";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceView } from "../features/project-shell/WorkspaceView";
+import { getAnnotationGuideMaxHeight } from "../features/project-shell/projectShellConstants";
 import type { SelectionPreview } from "../features/project-shell/projectShellTypes";
 import type {
   DocumentListItem,
@@ -17,7 +19,7 @@ import type {
 
 type WorkspaceViewProps = ComponentProps<typeof WorkspaceView>;
 
-const examplesGuideMaxHeight = "calc((100% - 32px) / 3)";
+const annotationGuideMaxHeight = getAnnotationGuideMaxHeight(createTheme());
 
 const project: ProjectRecord = {
   id: "project-1",
@@ -795,7 +797,7 @@ describe("WorkspaceView", () => {
       flex: "1 1 0%",
     });
     expect(screen.getByTestId("annotation-guide-panel")).toHaveStyle({
-      maxHeight: examplesGuideMaxHeight,
+      maxHeight: annotationGuideMaxHeight,
       minHeight: "0",
       overflow: "hidden",
     });
@@ -823,7 +825,7 @@ describe("WorkspaceView", () => {
       flex: "1 1 0%",
     });
     expect(screen.getByTestId("annotation-guide-panel")).toHaveStyle({
-      maxHeight: examplesGuideMaxHeight,
+      maxHeight: annotationGuideMaxHeight,
       minHeight: "0",
       overflow: "hidden",
     });
