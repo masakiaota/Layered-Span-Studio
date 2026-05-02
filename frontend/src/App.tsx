@@ -90,6 +90,7 @@ export function ProjectShell({
   const [focusedLabelId, setFocusedLabelId] = useState<string | null>(null);
   const [selectedSettingsLabelId, setSelectedSettingsLabelId] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [replacementAnnotationIds, setReplacementAnnotationIds] = useState<Record<string, string>>({});
   const [selectedAnnotationMetaDraft, setSelectedAnnotationMetaDraft] = useState("");
   const [selectedAnnotationMetaError, setSelectedAnnotationMetaError] = useState<string | null>(null);
   const [selectionPreview, setSelectionPreview] = useState<SelectionPreview | null>(null);
@@ -256,6 +257,7 @@ export function ProjectShell({
     projectId: bundle?.project.id ?? null,
     focusedLabel,
     selectedAnnotation,
+    selectedAnnotationExcludeId: selectedAnnotation ? (replacementAnnotationIds[selectedAnnotation.id] ?? selectedAnnotation.id) : null,
     selectionPreview,
     showToast,
   });
@@ -312,6 +314,7 @@ export function ProjectShell({
 
   function activateDocument(documentId: string | null) {
     setSelectedDocId(documentId);
+    setReplacementAnnotationIds({});
     clearWorkspaceSelection();
     resetWorkspacePanels();
   }
@@ -416,6 +419,7 @@ export function ProjectShell({
         entries: [deepClone(savedDocument)],
         index: 0,
       });
+      setReplacementAnnotationIds({});
       clearWorkspaceSelection();
       if (successMessage) {
         showToast(successMessage, "success");
@@ -1049,16 +1053,37 @@ export function ProjectShell({
       return;
     }
     const label = bundle.labels.find((item) => item.id === labelId);
-    if (!label) {
+    if (!label || label.id === selectedAnnotation.label_id) {
       return;
     }
+    const hasOverlap = currentDocument?.annotations.some(
+      (annotation) =>
+        annotation.id !== selectedAnnotation.id &&
+        annotation.label_id === label.id &&
+        annotation.start < selectedAnnotation.end &&
+        annotation.end > selectedAnnotation.start,
+    );
+    if (hasOverlap) {
+      showToast(t("projectShell.toasts.duplicateSpanInSameLabel"), "warning");
+      return;
+    }
+    const nextAnnotationId = makeLocalId("annotation");
     mutateCurrentDocument((draft) => {
-      const annotation = draft.annotations.find((item) => item.id === selectedAnnotation.id);
-      if (annotation) {
-        annotation.label_id = label.id;
-        annotation.label_name = label.name;
+      const annotationIndex = draft.annotations.findIndex((item) => item.id === selectedAnnotation.id);
+      if (annotationIndex >= 0) {
+        draft.annotations[annotationIndex] = {
+          ...draft.annotations[annotationIndex],
+          id: nextAnnotationId,
+          label_id: label.id,
+          label_name: label.name,
+        };
       }
     });
+    setReplacementAnnotationIds((current) => ({
+      ...current,
+      [nextAnnotationId]: current[selectedAnnotation.id] ?? selectedAnnotation.id,
+    }));
+    setSelectedAnnotationId(nextAnnotationId);
     setFocusedLabelId(label.id);
     setAccordionOpen((current) => ({
       ...current,

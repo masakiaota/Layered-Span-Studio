@@ -623,7 +623,7 @@ describe("WorkspaceView", () => {
     );
 
     const dock = within(screen.getByTestId("selected-annotation-dock"));
-    expect(dock.getByText("選択中 Annotation")).toBeInTheDocument();
+    expect(dock.getByText("選択中")).toBeInTheDocument();
     expect(dock.getByText("beta")).toBeInTheDocument();
     expect(screen.getByText("1 pending")).toBeInTheDocument();
     expect(screen.getByTestId("document-annotation-list")).toBeInTheDocument();

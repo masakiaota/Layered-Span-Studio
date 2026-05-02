@@ -51,6 +51,16 @@ const labels: LabelRecord[] = [
     shortcut: "1",
     meta: {},
   },
+  {
+    id: "label-2",
+    project_id: "project-1",
+    project_name: "Medical NER",
+    name: "所見",
+    color: "#2f80ed",
+    description: "desc",
+    shortcut: "2",
+    meta: {},
+  },
 ];
 const labelsRevision = "labels-revision-1";
 
@@ -216,6 +226,68 @@ describe("ProjectShell submit behavior", () => {
             end: 5,
             span_text: "Hello",
             comment: "updated comment",
+            status: "pending",
+            meta: {},
+          },
+        ],
+        false,
+      );
+    });
+  }, 15000);
+
+  it("saves selected annotation label changes as replacement annotations", async () => {
+    const userEventSetup = userEvent.setup();
+    const annotation = createAnnotation();
+    const initialDocument = createDocument({ annotations: [annotation] });
+    const savedAnnotation = createAnnotation({ id: "annotation-2", label_id: "label-2", label_name: "所見" });
+    const savedDocument = createDocument({
+      annotations: [savedAnnotation],
+      updated_at: "2026-03-02T00:00:00Z",
+    });
+
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [{ ...initialDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: [{ ...savedDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument").mockResolvedValue(initialDocument);
+    const saveDocumentBundleSpy = vi.spyOn(api, "saveDocumentBundle").mockResolvedValue(savedDocument);
+
+    renderWorkspace();
+
+    await screen.findByText("1 pending / 1 docs");
+    await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
+    await userEventSetup.click(screen.getByText("0-5"));
+    await userEventSetup.click(screen.getByRole("combobox", { name: "Label" }));
+    await userEventSetup.click(await screen.findByRole("option", { name: "所見" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(saveDocumentBundleSpy).toHaveBeenCalledWith(
+        "project-1",
+        "doc-1",
+        [
+          {
+            id: null,
+            label_id: "label-2",
+            start: 0,
+            end: 5,
+            span_text: "Hello",
+            comment: "",
             status: "pending",
             meta: {},
           },
