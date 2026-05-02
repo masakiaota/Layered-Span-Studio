@@ -94,7 +94,6 @@ export function ProjectShell({
   const [selectedAnnotationMetaError, setSelectedAnnotationMetaError] = useState<string | null>(null);
   const [selectionPreview, setSelectionPreview] = useState<SelectionPreview | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>("examples");
-  const [annotationEditCollapsed, setAnnotationEditCollapsed] = useState(true);
   const [accordionOpen, setAccordionOpen] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState<DocumentSortValue>("created");
@@ -309,7 +308,6 @@ export function ProjectShell({
 
   function resetWorkspacePanels() {
     setRightTab("examples");
-    setAnnotationEditCollapsed(true);
   }
 
   function activateDocument(documentId: string | null) {
@@ -676,6 +674,33 @@ export function ProjectShell({
     setFocusedLabelId(next.label_id);
   }
 
+  function selectNextPendingAnnotation() {
+    if (!currentDocument || !bundle) {
+      return;
+    }
+    const pendingAnnotations = sortAnnotationsInPanelOrder(currentDocument, bundle.labels).filter(
+      (annotation) => annotation.status === "pending",
+    );
+    if (pendingAnnotations.length === 0) {
+      showToast(t("projectShell.toasts.noPendingAnnotation"), "info");
+      return;
+    }
+    const currentIndex = selectedAnnotationId
+      ? pendingAnnotations.findIndex((annotation) => annotation.id === selectedAnnotationId)
+      : -1;
+    const next = pendingAnnotations[currentIndex >= 0 ? (currentIndex + 1) % pendingAnnotations.length : 0];
+    clearWorkspaceSelection();
+    setSelectedAnnotationId(next.id);
+    setFocusedLabelId(next.label_id);
+  }
+
+  function verifySelectedAnnotation() {
+    if (!selectedAnnotation || selectedAnnotation.status === "verified") {
+      return;
+    }
+    handleSelectedAnnotationStatusChange("verified");
+  }
+
   function deleteSelectedAnnotation() {
     if (!currentDocument || !selectedAnnotationId) {
       return;
@@ -959,7 +984,6 @@ export function ProjectShell({
     });
     setSelectionPreview(null);
     setSelectedAnnotationId(nextAnnotation.id);
-    setRightTab("annotations");
   }
 
   async function handleCreateDocument() {
@@ -1018,6 +1042,28 @@ export function ProjectShell({
         annotation.status = status;
       }
     });
+  }
+
+  function handleSelectedAnnotationLabelChange(labelId: string) {
+    if (!selectedAnnotation || !bundle) {
+      return;
+    }
+    const label = bundle.labels.find((item) => item.id === labelId);
+    if (!label) {
+      return;
+    }
+    mutateCurrentDocument((draft) => {
+      const annotation = draft.annotations.find((item) => item.id === selectedAnnotation.id);
+      if (annotation) {
+        annotation.label_id = label.id;
+        annotation.label_name = label.name;
+      }
+    });
+    setFocusedLabelId(label.id);
+    setAccordionOpen((current) => ({
+      ...current,
+      [label.id]: true,
+    }));
   }
 
   function handleSelectedAnnotationCommentChange(comment: string) {
@@ -1184,7 +1230,6 @@ export function ProjectShell({
               selectedAnnotationMetaError={selectedAnnotationMetaError}
               selectionPreview={selectionPreview}
               rightTab={rightTab}
-              annotationEditCollapsed={annotationEditCollapsed}
               accordionOpen={accordionOpen}
               sameLabelExamples={sameLabelExamples}
               sameLabelExamplesTotal={sameLabelExamplesTotal}
@@ -1238,7 +1283,9 @@ export function ProjectShell({
                 void ensureSameLabelDetails(surfaceKey, surfaceText, duplicateCount)
               }
               onLoadMoreSameSurfaceExamples={() => void loadSameSurfaceExamples(false)}
-              onToggleAnnotationEditCollapsed={() => setAnnotationEditCollapsed((current) => !current)}
+              onSelectNextPendingAnnotation={selectNextPendingAnnotation}
+              onVerifySelectedAnnotation={verifySelectedAnnotation}
+              onUpdateSelectedAnnotationLabel={handleSelectedAnnotationLabelChange}
               onUpdateSelectedAnnotationStatus={handleSelectedAnnotationStatusChange}
               onUpdateSelectedAnnotationComment={handleSelectedAnnotationCommentChange}
               onUpdateSelectedAnnotationMeta={handleSelectedAnnotationMetaChange}

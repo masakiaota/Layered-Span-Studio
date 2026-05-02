@@ -248,6 +248,7 @@ export const enMessages: Messages = {
       projectSavedButLabelsFailed: "Project was saved, but saving labels failed",
       labelsSaveFailed: "Failed to save labels",
       noPendingDestination: "There is no pending doc to move to",
+      noPendingAnnotation: "There is no pending annotation in this document",
       noDestination: "There is no doc to move to",
       noAnnotationInLabel: "There is no annotation in the current label",
       submitted: "Submitted the document",

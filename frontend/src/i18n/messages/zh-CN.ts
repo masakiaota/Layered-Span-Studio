@@ -246,6 +246,7 @@ export const zhCnMessages: Messages = {
       projectSavedButLabelsFailed: "项目已保存，但标签保存失败",
       labelsSaveFailed: "标签保存失败",
       noPendingDestination: "没有可移动到的 pending 文档",
+      noPendingAnnotation: "当前文档中没有 pending 标注",
       noDestination: "没有可移动到的文档",
       noAnnotationInLabel: "当前标签中没有标注",
       submitted: "已提交文档",

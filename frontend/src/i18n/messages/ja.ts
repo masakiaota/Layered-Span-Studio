@@ -246,6 +246,7 @@ export const jaMessages = {
       projectSavedButLabelsFailed: "Project は保存したが Labels の保存に失敗した",
       labelsSaveFailed: "Labels の保存に失敗した",
       noPendingDestination: "移動先の pending doc がない",
+      noPendingAnnotation: "この Document に pending Annotation はない",
       noDestination: "移動先の doc がない",
       noAnnotationInLabel: "現在 Label に Annotation がない",
       submitted: "Document を submit した",

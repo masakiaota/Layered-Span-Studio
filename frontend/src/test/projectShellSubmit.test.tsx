@@ -199,7 +199,7 @@ describe("ProjectShell submit behavior", () => {
     await screen.findByText("1 pending / 1 docs");
     await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
     await userEventSetup.click(screen.getByText("0-5"));
-    await userEventSetup.click(screen.getByText("選択中 Annotation"));
+    await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
     await userEventSetup.type(commentInput, "updated comment");
     await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
@@ -224,6 +224,40 @@ describe("ProjectShell submit behavior", () => {
       );
     });
   }, 15000);
+
+  it("keeps the related examples tab open when selecting the next pending annotation", async () => {
+    const userEventSetup = userEvent.setup();
+    const firstAnnotation = createAnnotation();
+    const secondAnnotation = createAnnotation({
+      id: "annotation-2",
+      start: 6,
+      end: 11,
+      span_text: "world",
+    });
+    const initialDocument = createDocument({ annotations: [firstAnnotation, secondAnnotation] });
+
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: [{ ...initialDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+      total: 1,
+      pending_total: 1,
+      offset: 0,
+      limit: 40,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "getDocument").mockResolvedValue(initialDocument);
+
+    renderWorkspace();
+
+    await screen.findByText("1 pending / 1 docs");
+    await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
+    await userEventSetup.click(screen.getByText("0-5"));
+    await userEventSetup.click(screen.getByRole("tab", { name: "関連例" }));
+    await userEventSetup.click(screen.getByRole("button", { name: "Next pending" }));
+
+    expect(screen.getByRole("tab", { name: "関連例" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getAllByText("world").length).toBeGreaterThan(0);
+  });
 
   it("shows verified doc as pending while unsaved and returns to verified after save", async () => {
     const userEventSetup = userEvent.setup();
@@ -264,7 +298,7 @@ describe("ProjectShell submit behavior", () => {
 
     await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
     await userEventSetup.click(screen.getByText("0-5"));
-    await userEventSetup.click(screen.getByText("選択中 Annotation"));
+    await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
     await userEventSetup.type(commentInput, "updated comment");
 
@@ -330,7 +364,7 @@ describe("ProjectShell submit behavior", () => {
     await screen.findByText("0 pending / 1 docs");
     await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
     await userEventSetup.click(screen.getByText("0-5"));
-    await userEventSetup.click(screen.getByText("選択中 Annotation"));
+    await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
     await userEventSetup.type(commentInput, "updated comment");
 

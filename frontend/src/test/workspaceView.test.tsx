@@ -175,7 +175,6 @@ function createProps(overrides: Partial<WorkspaceViewProps> = {}): WorkspaceView
     selectedAnnotationMetaError: null,
     selectionPreview: null as SelectionPreview | null,
     rightTab: "examples",
-    annotationEditCollapsed: false,
     accordionOpen: {},
     sameLabelExamples,
     sameLabelExamplesTotal: 0,
@@ -211,7 +210,9 @@ function createProps(overrides: Partial<WorkspaceViewProps> = {}): WorkspaceView
     onLoadMoreSameLabelExamples: vi.fn(),
     onEnsureSameLabelDetails: vi.fn(),
     onLoadMoreSameSurfaceExamples: vi.fn(),
-    onToggleAnnotationEditCollapsed: vi.fn(),
+    onSelectNextPendingAnnotation: vi.fn(),
+    onVerifySelectedAnnotation: vi.fn(),
+    onUpdateSelectedAnnotationLabel: vi.fn(),
     onUpdateSelectedAnnotationStatus: vi.fn(),
     onUpdateSelectedAnnotationComment: vi.fn(),
     onUpdateSelectedAnnotationMeta: vi.fn(),
@@ -602,6 +603,67 @@ describe("WorkspaceView", () => {
     expect(annotationList.getByText("主訴")).toBeInTheDocument();
     expect(annotationList.queryByText("所見")).not.toBeInTheDocument();
     expect(annotationList.queryByText("Annotation なし")).not.toBeInTheDocument();
+  });
+
+  it("shows selected annotation controls in the center dock and removes the right-pane editor", async () => {
+    const user = userEvent.setup();
+    const onSelectNextPendingAnnotation = vi.fn();
+    const onVerifySelectedAnnotation = vi.fn();
+    render(
+      <WorkspaceView
+        {...createProps({
+          currentDocument: annotationCurrentDocument,
+          selectedAnnotationId: "ann-2",
+          selectedAnnotation: annotationCurrentDocument.annotations[1],
+          rightTab: "annotations",
+          onSelectNextPendingAnnotation,
+          onVerifySelectedAnnotation,
+        })}
+      />,
+    );
+
+    const dock = within(screen.getByTestId("selected-annotation-dock"));
+    expect(dock.getByText("選択中 Annotation")).toBeInTheDocument();
+    expect(dock.getByText("beta")).toBeInTheDocument();
+    expect(screen.getByText("1 pending")).toBeInTheDocument();
+    expect(screen.getByTestId("document-annotation-list")).toBeInTheDocument();
+
+    await user.click(dock.getByRole("button", { name: "Next pending" }));
+    await user.click(dock.getByRole("button", { name: "Mark verified" }));
+
+    expect(onSelectNextPendingAnnotation).toHaveBeenCalledTimes(1);
+    expect(onVerifySelectedAnnotation).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps selected annotation details open when selection changes", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <WorkspaceView
+        {...createProps({
+          currentDocument: annotationCurrentDocument,
+          selectedAnnotationId: "ann-1",
+          selectedAnnotation: annotationCurrentDocument.annotations[0],
+          rightTab: "annotations",
+        })}
+      />,
+    );
+
+    await user.click(within(screen.getByTestId("selected-annotation-dock")).getByRole("button", { name: "Annotation details" }));
+    expect(screen.getByLabelText("Comment")).toBeInTheDocument();
+
+    rerender(
+      <WorkspaceView
+        {...createProps({
+          currentDocument: annotationCurrentDocument,
+          selectedAnnotationId: "ann-2",
+          selectedAnnotation: annotationCurrentDocument.annotations[1],
+          rightTab: "annotations",
+        })}
+      />,
+    );
+
+    expect(screen.getByLabelText("Comment")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("note")).toBeInTheDocument();
   });
 
   it("shows an empty state when the current document has no annotations", () => {

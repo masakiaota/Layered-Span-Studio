@@ -131,6 +131,8 @@
 - 文脈表示は前後 10 文字固定で生成し、`span_text` 以外（前後文脈）は灰色で表示する。
 - 一覧カード内の Label 色は、Label Selector と本文マーカー色に合わせて統一する。
 - Doc 切り替えや Annotation 移動時は、Doc アノテーション一覧で選択行が可視領域内になるよう自動スクロールする。
+- 選択中 Annotation の Label 切り替え、`status` / `comment` / `meta` 編集、削除、次の `pending` Annotation への移動、`verified` 化は中央ペイン下部の選択中 Annotation dock に集約する。
+- 注釈一覧タブは Doc 内 Annotation の一覧・選択に集中し、選択中 Annotation の編集フォームは持たない。
 
 ## 6. 保存と確定
 
