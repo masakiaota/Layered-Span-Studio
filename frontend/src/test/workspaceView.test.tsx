@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceView } from "../features/project-shell/WorkspaceView";
 import type { SelectionPreview } from "../features/project-shell/projectShellTypes";
@@ -137,6 +138,16 @@ const annotationCurrentDocument: DocumentRecord = {
 const noDetails: Record<string, AnnotationSearchItemRecord[]> = {};
 const sameLabelExamples: LabelSurfaceGroupRecord[] = [];
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 function createProps(overrides: Partial<WorkspaceViewProps> = {}): WorkspaceViewProps {
   const visibleDocuments = overrides.visibleDocuments ?? initialDocuments;
   const selectedAnnotation = overrides.selectedAnnotation ?? null;
@@ -148,12 +159,13 @@ function createProps(overrides: Partial<WorkspaceViewProps> = {}): WorkspaceView
     currentDocumentLoading: false,
     currentHiddenBySearch: false,
     visibleDocuments,
-    pinnedCurrentDocument: null,
+    currentDocumentOutsideWindow: false,
     pendingDocumentTotal: 0,
     documentTotal: visibleDocuments.length,
     searchQuery: "",
     sortMode: "created",
     documentsLoadingMore: false,
+    documentWindowStartOffset: 0,
     documentNextOffset: 0,
     documentListScrollRef: { current: null },
     focusedLabel: label,
@@ -183,6 +195,8 @@ function createProps(overrides: Partial<WorkspaceViewProps> = {}): WorkspaceView
     onOpenCreateDocument: vi.fn(),
     onSearchQueryChange: vi.fn(),
     onSortModeChange: vi.fn(),
+    onReturnToSelectedDocument: vi.fn(),
+    onLoadPreviousDocuments: vi.fn(),
     onLoadMoreDocuments: vi.fn(),
     onSelectDocument: vi.fn(),
     onRequestDeleteDocument: vi.fn(),
@@ -208,6 +222,232 @@ function createProps(overrides: Partial<WorkspaceViewProps> = {}): WorkspaceView
 }
 
 describe("WorkspaceView", () => {
+  it("loads the previous document page when scrolling back to the top of a trimmed window", () => {
+    const onLoadPreviousDocuments = vi.fn();
+    const onLoadMoreDocuments = vi.fn();
+    render(
+      <WorkspaceView
+        {...createProps({
+          documentWindowStartOffset: 40,
+          documentNextOffset: 80,
+          documentTotal: 120,
+          onLoadPreviousDocuments,
+          onLoadMoreDocuments,
+        })}
+      />,
+    );
+
+    const scroller = screen.getByTestId("document-list-scroll");
+    Object.defineProperty(scroller, "scrollTop", { value: 0, configurable: true, writable: true });
+    Object.defineProperty(scroller, "clientHeight", { value: 400, configurable: true });
+    Object.defineProperty(scroller, "scrollHeight", { value: 1000, configurable: true });
+
+    fireEvent.scroll(scroller);
+
+    expect(onLoadPreviousDocuments).toHaveBeenCalledTimes(1);
+    expect(onLoadMoreDocuments).not.toHaveBeenCalled();
+  });
+
+  it("does not request the previous document page twice while the first request is in flight", () => {
+    const loadDeferred = createDeferred<void>();
+    const onLoadPreviousDocuments = vi.fn(() => loadDeferred.promise);
+    render(
+      <WorkspaceView
+        {...createProps({
+          documentWindowStartOffset: 40,
+          documentNextOffset: 80,
+          documentTotal: 120,
+          onLoadPreviousDocuments,
+        })}
+      />,
+    );
+
+    const scroller = screen.getByTestId("document-list-scroll");
+    Object.defineProperty(scroller, "scrollTop", { value: 0, configurable: true, writable: true });
+    Object.defineProperty(scroller, "clientHeight", { value: 400, configurable: true });
+    Object.defineProperty(scroller, "scrollHeight", { value: 1000, configurable: true });
+
+    fireEvent.scroll(scroller);
+    fireEvent.scroll(scroller);
+
+    expect(onLoadPreviousDocuments).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a compact return banner instead of pinning the selected document outside the scroll window", async () => {
+    const userEventSetup = userEvent.setup();
+    const onReturnToSelectedDocument = vi.fn();
+
+    render(
+      <WorkspaceView
+        {...createProps({
+          selectedDocumentId: "doc-4",
+          visibleDocuments: initialDocuments,
+          currentDocumentOutsideWindow: true,
+          onReturnToSelectedDocument,
+        })}
+      />,
+    );
+
+    expect(screen.queryByText("Doc 4")).not.toBeInTheDocument();
+
+    await userEventSetup.click(screen.getByRole("button", { name: "選択中Documentへ戻る" }));
+
+    expect(onReturnToSelectedDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a return banner when the selected document row is mounted but outside the scroll viewport", async () => {
+    const userEventSetup = userEvent.setup();
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = window.HTMLElement.prototype.scrollIntoView;
+    const originalGetBoundingClientRect = Object.getOwnPropertyDescriptor(
+      window.HTMLElement.prototype,
+      "getBoundingClientRect",
+    );
+
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", {
+      value: function getBoundingClientRect(this: HTMLElement) {
+        if (this.dataset.documentId === "doc-1") {
+          return { top: -120, bottom: -40, left: 0, right: 320, width: 320, height: 80, x: 0, y: -120, toJSON: () => null };
+        }
+        return { top: 0, bottom: 400, left: 0, right: 320, width: 320, height: 400, x: 0, y: 0, toJSON: () => null };
+      },
+      configurable: true,
+    });
+
+    try {
+      render(<WorkspaceView {...createProps({ selectedDocumentId: "doc-1", visibleDocuments: initialDocuments })} />);
+      const scroller = screen.getByTestId("document-list-scroll");
+
+      fireEvent.scroll(scroller);
+
+      await userEventSetup.click(screen.getByRole("button", { name: "選択中Documentへ戻る" }));
+
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+      if (originalGetBoundingClientRect) {
+        Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", originalGetBoundingClientRect);
+      }
+    }
+  });
+
+  it("does not flash the return banner while scrolling a newly selected visible document into view", () => {
+    const originalScrollIntoView = window.HTMLElement.prototype.scrollIntoView;
+    const originalGetBoundingClientRect = Object.getOwnPropertyDescriptor(
+      window.HTMLElement.prototype,
+      "getBoundingClientRect",
+    );
+    let doc2Top = 480;
+
+    window.HTMLElement.prototype.scrollIntoView = function scrollIntoView(this: HTMLElement) {
+      if (this.dataset.documentId === "doc-2") {
+        doc2Top = 120;
+      }
+    };
+    Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", {
+      value: function getBoundingClientRect(this: HTMLElement) {
+        if (this.dataset.documentId === "doc-2") {
+          return { top: doc2Top, bottom: doc2Top + 80, left: 0, right: 320, width: 320, height: 80, x: 0, y: doc2Top, toJSON: () => null };
+        }
+        return { top: 0, bottom: 400, left: 0, right: 320, width: 320, height: 400, x: 0, y: 0, toJSON: () => null };
+      },
+      configurable: true,
+    });
+
+    try {
+      const { rerender } = render(
+        <WorkspaceView {...createProps({ selectedDocumentId: "doc-1", visibleDocuments: initialDocuments })} />,
+      );
+
+      rerender(<WorkspaceView {...createProps({ selectedDocumentId: "doc-2", visibleDocuments: initialDocuments })} />);
+
+      expect(screen.queryByRole("button", { name: "選択中Documentへ戻る" })).not.toBeInTheDocument();
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+      if (originalGetBoundingClientRect) {
+        Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", originalGetBoundingClientRect);
+      }
+    }
+  });
+
+  it("keeps the first visible document anchored after previous rows are prepended", async () => {
+    const previousDocuments: DocumentListItem[] = [
+      { ...initialDocuments[0], id: "doc-0", document_name: "Doc 0" },
+      { ...initialDocuments[1], id: "doc-00", document_name: "Doc 00" },
+    ];
+    const currentDocuments: DocumentListItem[] = [
+      { ...initialDocuments[0], id: "doc-40", document_name: "Doc 40" },
+      { ...initialDocuments[1], id: "doc-41", document_name: "Doc 41" },
+    ];
+    const loadDeferred = createDeferred<void>();
+    const onLoadPreviousDocuments = vi.fn(() => loadDeferred.promise);
+    const originalGetBoundingClientRect = Object.getOwnPropertyDescriptor(
+      window.HTMLElement.prototype,
+      "getBoundingClientRect",
+    );
+    const rowTopById = new Map([
+      ["doc-40", 0],
+      ["doc-41", 80],
+    ]);
+
+    Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", {
+      value: function getBoundingClientRect(this: HTMLElement) {
+        if (this.dataset.documentRow === "true" && this.dataset.documentId) {
+          const top = rowTopById.get(this.dataset.documentId) ?? 0;
+          return { top, bottom: top + 80, left: 0, right: 320, width: 320, height: 80, x: 0, y: top, toJSON: () => null };
+        }
+        return { top: 0, bottom: 400, left: 0, right: 320, width: 320, height: 400, x: 0, y: 0, toJSON: () => null };
+      },
+      configurable: true,
+    });
+
+    try {
+      const { rerender } = render(
+        <WorkspaceView
+          {...createProps({
+            documentWindowStartOffset: 40,
+            visibleDocuments: currentDocuments,
+            selectedDocumentId: "doc-40",
+            onLoadPreviousDocuments,
+          })}
+        />,
+      );
+      const scroller = screen.getByTestId("document-list-scroll");
+      Object.defineProperty(scroller, "scrollTop", { value: 0, configurable: true, writable: true });
+      Object.defineProperty(scroller, "clientHeight", { value: 400, configurable: true });
+      Object.defineProperty(scroller, "scrollHeight", { value: 400, configurable: true });
+
+      fireEvent.scroll(scroller);
+
+      rowTopById.set("doc-0", 0);
+      rowTopById.set("doc-00", 80);
+      rowTopById.set("doc-40", 160);
+      rowTopById.set("doc-41", 240);
+      rerender(
+        <WorkspaceView
+          {...createProps({
+            documentWindowStartOffset: 0,
+            visibleDocuments: [...previousDocuments, ...currentDocuments],
+            selectedDocumentId: "doc-40",
+            onLoadPreviousDocuments,
+          })}
+        />,
+      );
+
+      await act(async () => {
+        loadDeferred.resolve();
+        await loadDeferred.promise;
+      });
+
+      expect(scroller.scrollTop).toBe(160);
+    } finally {
+      if (originalGetBoundingClientRect) {
+        Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", originalGetBoundingClientRect);
+      }
+    }
+  });
+
   it("scrolls the selected document row when selection changes or the row becomes visible", () => {
     const scrollIntoView = vi.fn();
     const original = window.HTMLElement.prototype.scrollIntoView;

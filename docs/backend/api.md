@@ -60,7 +60,7 @@
 
 - `GET /projects/{project_id}/documents` - ドキュメント一覧を取得（`offset/limit/search/sort`）
 - `POST /projects/{project_id}/documents` - ドキュメントを作成（`text` は作成時のみ）
-- `GET /projects/{project_id}/documents/{document_id}/navigation` - 現在 document 基準の `prev/next/next_pending` を取得
+- `GET /projects/{project_id}/documents/{document_id}/navigation` - 現在 document 基準の `prev/next/prev_pending/next_pending` を取得
 - `GET /projects/{project_id}/documents/{document_id}` - ドキュメント詳細を取得（`annotations` 全件含む）
 - `PUT /projects/{project_id}/documents/{document_id}/bundle` - 現在 document の annotation 一覧を一括保存
 - `DELETE /projects/{project_id}/documents/{document_id}` - ドキュメントを削除（関連アノテも連動削除）
@@ -881,6 +881,7 @@ Authorization: Bearer <token>
   "current_document_id": "uuid-current",
   "prev_document_id": "uuid-prev",
   "next_document_id": "uuid-next",
+  "prev_pending_document_id": "uuid-prev-pending",
   "next_pending_document_id": "uuid-next-pending",
   "search": "target",
   "sort": "name"
@@ -889,8 +890,9 @@ Authorization: Bearer <token>
 
 **注記:**
 - `prev_document_id` / `next_document_id` は現在の `search` / `sort` 適用後の隣接 document を表す
+- `prev_pending_document_id` は現在位置より前方にある最初の `status != "verified"` document を返す
 - `next_pending_document_id` は現在位置より後方にある最初の `status != "verified"` document を返す
-- `next_pending_document_id` は前方への wrap をしない
+- `prev_pending_document_id` / `next_pending_document_id` は反対方向への wrap をしない
 - 候補が存在しない場合は `null` を返す
 - `Document not found` は対象 `document_id` 自体が project 配下に存在しない場合に返る
 - `Document not found in current filtered documents` は `document_id` は存在するが、指定した `search` / `sort` 条件で解決対象集合に含まれない場合に返る

@@ -72,6 +72,28 @@ export function trimDocumentWindow(items: DocumentListItem[], selectedId: string
   });
 }
 
+export function trimDocumentScrollWindow(items: DocumentListItem[], trimFrom: "start" | "end") {
+  if (items.length <= DOCUMENT_WINDOW_SIZE) {
+    return items;
+  }
+  return trimFrom === "start"
+    ? items.slice(items.length - DOCUMENT_WINDOW_SIZE)
+    : items.slice(0, DOCUMENT_WINDOW_SIZE);
+}
+
+function mergeUniqueDocuments(items: DocumentListItem[]) {
+  const merged: DocumentListItem[] = [];
+  items.forEach((item) => {
+    const index = merged.findIndex((candidate) => candidate.id === item.id);
+    if (index >= 0) {
+      merged[index] = item;
+      return;
+    }
+    merged.push(item);
+  });
+  return merged;
+}
+
 export function mergeDocumentWindow(existing: DocumentListItem[], incoming: DocumentListItem[], selectedId: string | null) {
   const merged = [...existing];
   incoming.forEach((item) => {
@@ -83,6 +105,18 @@ export function mergeDocumentWindow(existing: DocumentListItem[], incoming: Docu
     merged.push(item);
   });
   return trimDocumentWindow(merged, selectedId);
+}
+
+export function mergeDocumentScrollWindow(
+  existing: DocumentListItem[],
+  incoming: DocumentListItem[],
+  direction: "next" | "previous",
+) {
+  const merged =
+    direction === "previous"
+      ? mergeUniqueDocuments([...incoming, ...existing])
+      : mergeUniqueDocuments([...existing, ...incoming]);
+  return trimDocumentScrollWindow(merged, direction === "previous" ? "end" : "start");
 }
 
 export async function collectDocumentNames(

@@ -582,6 +582,8 @@ export interface components {
             next_pending_document_id?: string | null;
             /** Prev Document Id */
             prev_document_id?: string | null;
+            /** Prev Pending Document Id */
+            prev_pending_document_id?: string | null;
             /** Search */
             search: string;
             sort: components["schemas"]["DocumentListSort"];

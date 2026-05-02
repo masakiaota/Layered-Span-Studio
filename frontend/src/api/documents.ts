@@ -1,5 +1,6 @@
 import type {
   CreateDocumentInput,
+  DocumentNavigationResponse,
   DocumentSortValue,
   DocumentListResponse,
   DocumentRecord,
@@ -33,6 +34,18 @@ export function getDocument(projectId: string, documentId: string) {
   return unwrapData<DocumentRecord>(client.GET("/projects/{project_id}/documents/{document_id}", {
     params: {
       path: { project_id: projectId, document_id: documentId },
+    },
+  }));
+}
+
+export function getDocumentNavigation(projectId: string, documentId: string, options?: Pick<DocumentListOptions, "search" | "sort">) {
+  return unwrapData<DocumentNavigationResponse>(client.GET("/projects/{project_id}/documents/{document_id}/navigation", {
+    params: {
+      path: { project_id: projectId, document_id: documentId },
+      query: {
+        search: options?.search ?? "",
+        sort: options?.sort ?? "created",
+      },
     },
   }));
 }

@@ -139,10 +139,12 @@ export function ProjectShell({
     setDocumentTotal,
     pendingDocumentTotal,
     setPendingDocumentTotal,
+    documentWindowStartOffset,
     documentNextOffset,
     documentsLoadingMore,
     loadBundle,
     fetchDocumentPage,
+    focusDocumentListWindow,
     mutateSettingsBundle,
     removeDocumentFromLocalState,
   } = useProjectBundle({
@@ -289,23 +291,12 @@ export function ProjectShell({
     return pendingDocumentTotal + localOffset;
   }, [currentDocument?.status, currentDocumentDirty, currentHiddenBySearch, pendingDocumentTotal]);
 
-  const pinnedCurrentDocument = useMemo(() => {
-    if (!currentDocument) {
-      return null;
-    }
-    if (documentList.some((document) => document.id === currentDocument.id)) {
-      return null;
-    }
-    if (searchQuery.trim() && !documentMatchesSearch(currentDocument, searchQuery)) {
-      return null;
-    }
-    return toDocumentListItem(currentDocument);
-  }, [currentDocument, documentList, searchQuery]);
-
-  const visibleDocuments = useMemo(
-    () => (pinnedCurrentDocument ? [pinnedCurrentDocument, ...documentList] : documentList),
-    [documentList, pinnedCurrentDocument],
+  const currentDocumentOutsideWindow = Boolean(
+    currentDocument &&
+      !currentHiddenBySearch &&
+      !documentList.some((document) => document.id === currentDocument.id),
   );
+  const visibleDocuments = documentList;
 
   function handleShortcutPanelToggle() {
     setShortcutOpen((current) => !current);
@@ -570,12 +561,35 @@ export function ProjectShell({
     if (!bundle || visibleDocuments.length === 0 || !currentDocument || workspaceBusy) {
       return;
     }
+    const focusWindowForDocument = async (documentId: string) => {
+      const focusedDocuments = await focusDocumentListWindow(documentId);
+      return focusedDocuments.some((document) => document.id === documentId);
+    };
     const currentIndex = visibleDocuments.findIndex((document) => document.id === currentDocument.id);
     if (currentIndex < 0) {
-      requestAction({
-        type: "doc",
-        docId: direction > 0 ? visibleDocuments[0].id : visibleDocuments[visibleDocuments.length - 1].id,
-      });
+      try {
+        const navigation = await api.getDocumentNavigation(bundle.project.id, currentDocument.id, {
+          search: searchQuery,
+          sort: sortMode,
+        });
+        const targetId = pendingOnly
+          ? direction > 0
+            ? navigation.next_pending_document_id
+            : navigation.prev_pending_document_id
+          : direction > 0
+            ? navigation.next_document_id
+            : navigation.prev_document_id;
+        if (!targetId) {
+          await focusDocumentListWindow(currentDocument.id);
+          return;
+        }
+        if (!(await focusWindowForDocument(targetId))) {
+          return;
+        }
+        requestAction({ type: "doc", docId: targetId });
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : t("projectShell.toasts.noDestination"), "error");
+      }
       return;
     }
     let index = currentIndex + direction;
@@ -1154,12 +1168,13 @@ export function ProjectShell({
               currentDocumentLoading={currentDocumentLoading}
               currentHiddenBySearch={currentHiddenBySearch}
               visibleDocuments={visibleDocuments}
-              pinnedCurrentDocument={pinnedCurrentDocument}
+              currentDocumentOutsideWindow={currentDocumentOutsideWindow}
               pendingDocumentTotal={displayedPendingDocumentTotal}
               documentTotal={documentTotal}
               searchQuery={searchQuery}
               sortMode={sortMode}
               documentsLoadingMore={documentsLoadingMore}
+              documentWindowStartOffset={documentWindowStartOffset}
               documentNextOffset={documentNextOffset}
               documentListScrollRef={documentListScrollRef}
               focusedLabel={focusedLabel}
@@ -1182,13 +1197,15 @@ export function ProjectShell({
               sameSurfaceExamplesOffset={sameSurfaceExamplesOffset}
               sameSurfaceExamplesLoadingMore={sameSurfaceExamplesLoadingMore}
               sameSurfaceExamplesScrollRef={sameSurfaceExamplesScrollRef}
-            sameSurfaceTargetLabelId={sameSurfaceTargetLabelId}
-            getDisplayDocumentStatus={getDisplayDocumentStatus}
-            dirty={dirty}
-            saving={workspaceBusy}
-            onOpenCreateDocument={() => setCreateDocOpen(true)}
-            onSearchQueryChange={setSearchQuery}
-            onSortModeChange={setSortMode}
+              sameSurfaceTargetLabelId={sameSurfaceTargetLabelId}
+              getDisplayDocumentStatus={getDisplayDocumentStatus}
+              dirty={dirty}
+              saving={workspaceBusy}
+              onOpenCreateDocument={() => setCreateDocOpen(true)}
+              onSearchQueryChange={setSearchQuery}
+              onSortModeChange={setSortMode}
+              onReturnToSelectedDocument={() => focusDocumentListWindow(currentDocument?.id ?? null)}
+              onLoadPreviousDocuments={() => fetchDocumentPage("previous")}
               onLoadMoreDocuments={() => void fetchDocumentPage(false)}
               onSelectDocument={(docId) => {
                 if (workspaceBusy) {
@@ -1209,12 +1226,12 @@ export function ProjectShell({
               onFocusLabel={setFocusedLabelId}
               onSelectAnnotation={setSelectedAnnotationId}
               onCreateAnnotation={handleCreateAnnotation}
-            onClearSelection={() => {
-              clearWorkspaceSelection();
-            }}
-            onSelectionDraftChange={setSelectionPreview}
-            onSave={() => void handleSave()}
-            onSubmit={() => void handleSubmit()}
+              onClearSelection={() => {
+                clearWorkspaceSelection();
+              }}
+              onSelectionDraftChange={setSelectionPreview}
+              onSave={() => void handleSave()}
+              onSubmit={() => void handleSubmit()}
               onRightTabChange={setRightTab}
               onLoadMoreSameLabelExamples={() => void loadSameLabelExamples(false)}
               onEnsureSameLabelDetails={(surfaceKey, surfaceText, duplicateCount) =>

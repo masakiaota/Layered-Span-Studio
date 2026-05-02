@@ -593,6 +593,17 @@
             ],
             "title": "Prev Document Id"
           },
+          "prev_pending_document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Pending Document Id"
+          },
           "search": {
             "title": "Search",
             "type": "string"
