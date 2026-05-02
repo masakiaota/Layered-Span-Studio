@@ -336,6 +336,7 @@ function DocumentAnnotationListPanel({
                     key={annotation.id}
                     role="button"
                     tabIndex={0}
+                    aria-pressed={annotation.id === selectedAnnotationId}
                     ref={(element) => {
                       if (element) {
                         annotationRowRefs.current[annotation.id] = element;

@@ -676,6 +676,10 @@ export function ProjectShell({
     clearWorkspaceSelection();
     setSelectedAnnotationId(next.id);
     setFocusedLabelId(next.label_id);
+    setAccordionOpen((current) => ({
+      ...current,
+      [next.label_id]: true,
+    }));
   }
 
   function selectNextPendingAnnotation() {
@@ -1061,6 +1065,10 @@ export function ProjectShell({
     if (!label || label.id === selectedAnnotation.label_id) {
       return;
     }
+    const originalAnnotationId = replacementAnnotationIds[selectedAnnotation.id] ?? null;
+    const originalAnnotation = originalAnnotationId
+      ? currentDocumentSnapshot?.annotations.find((annotation) => annotation.id === originalAnnotationId) ?? null
+      : null;
     const hasOverlap = currentDocument?.annotations.some(
       (annotation) =>
         annotation.id !== selectedAnnotation.id &&
@@ -1070,6 +1078,32 @@ export function ProjectShell({
     );
     if (hasOverlap) {
       showToast(t("projectShell.toasts.duplicateSpanInSameLabel"), "warning");
+      return;
+    }
+    if (originalAnnotation && label.id === originalAnnotation.label_id) {
+      mutateCurrentDocument((draft) => {
+        const annotationIndex = draft.annotations.findIndex((item) => item.id === selectedAnnotation.id);
+        if (annotationIndex >= 0) {
+          draft.annotations[annotationIndex] = {
+            ...draft.annotations[annotationIndex],
+            id: originalAnnotation.id,
+            label_id: originalAnnotation.label_id,
+            label_name: originalAnnotation.label_name,
+            status: originalAnnotation.status,
+          };
+        }
+      });
+      setReplacementAnnotationIds((current) => {
+        const next = { ...current };
+        delete next[selectedAnnotation.id];
+        return next;
+      });
+      setSelectedAnnotationId(originalAnnotation.id);
+      setFocusedLabelId(originalAnnotation.label_id);
+      setAccordionOpen((current) => ({
+        ...current,
+        [originalAnnotation.label_id]: true,
+      }));
       return;
     }
     const nextAnnotationId = makeLocalId("annotation");

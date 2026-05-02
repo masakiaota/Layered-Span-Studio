@@ -465,7 +465,7 @@ describe("ProjectShell document deletion", () => {
     await screen.findByText("2 pending / 2 docs");
     await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
     await userEventSetup.click(screen.getByText("0-5"));
-    await userEventSetup.click(screen.getByText("選択中 Annotation"));
+    await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     await userEventSetup.type(await screen.findByLabelText("Comment"), "dirty");
 
     await userEventSetup.click(within(getDocumentRow("Doc 1")).getByRole("button", { name: "Delete document Doc 1" }));

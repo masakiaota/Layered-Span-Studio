@@ -298,6 +298,72 @@ describe("ProjectShell submit behavior", () => {
     });
   }, 15000);
 
+  it("restores the persisted annotation when changing the label back before saving", async () => {
+    const userEventSetup = userEvent.setup();
+    const annotation = createAnnotation({ status: "verified" });
+    const initialDocument = createDocument({ annotations: [annotation] });
+    const savedDocument = createDocument({
+      annotations: [annotation],
+      updated_at: "2026-03-02T00:00:00Z",
+    });
+
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [{ ...initialDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: [{ ...savedDocument, annotations: undefined } as Omit<DocumentRecord, "annotations">],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      });
+    vi.spyOn(api, "getDocument").mockResolvedValue(initialDocument);
+    const saveDocumentBundleSpy = vi.spyOn(api, "saveDocumentBundle").mockResolvedValue(savedDocument);
+
+    renderWorkspace();
+
+    await screen.findByText("1 pending / 1 docs");
+    await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
+    await userEventSetup.click(screen.getByText("0-5"));
+    await userEventSetup.click(screen.getByRole("combobox", { name: "Label" }));
+    await userEventSetup.click(await screen.findByRole("option", { name: "所見" }));
+    await userEventSetup.click(screen.getByRole("combobox", { name: "Label" }));
+    await userEventSetup.click(await screen.findByRole("option", { name: "主訴" }));
+    expect(within(screen.getByTestId("selected-annotation-dock")).getByText("verified")).toBeInTheDocument();
+    await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
+    await userEventSetup.type(await screen.findByLabelText("Comment"), "updated comment");
+    await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(saveDocumentBundleSpy).toHaveBeenCalledWith(
+        "project-1",
+        "doc-1",
+        [
+          {
+            id: "annotation-1",
+            label_id: "label-1",
+            start: 0,
+            end: 5,
+            span_text: "Hello",
+            comment: "updated comment",
+            status: "verified",
+            meta: {},
+          },
+        ],
+        false,
+      );
+    });
+  }, 15000);
+
   it("keeps the related examples tab open when selecting the next pending annotation", async () => {
     const userEventSetup = userEvent.setup();
     const firstAnnotation = createAnnotation();
@@ -374,12 +440,14 @@ describe("ProjectShell submit behavior", () => {
 
     await screen.findByText("1 pending / 1 docs");
     await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
+    await userEventSetup.click(within(screen.getByTestId("document-annotation-list")).getByRole("button", { name: /所見/ }));
     await userEventSetup.click(screen.getByText("6-11"));
     await userEventSetup.click(screen.getByRole("button", { name: "Next pending" }));
 
     const dock = within(screen.getByTestId("selected-annotation-dock"));
     expect(dock.getByDisplayValue("所見")).toBeInTheDocument();
     expect(dock.getByText("pending")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /0-5/ })).toBeVisible();
   });
 
   it("shows verified doc as pending while unsaved and returns to verified after save", async () => {

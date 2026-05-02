@@ -734,9 +734,27 @@ describe("WorkspaceView", () => {
     expect(onToggleAnnotationGroup).toHaveBeenCalledWith("label-1");
 
     const rowButton = annotationList.getByRole("button", { name: /0-5/ });
+    expect(rowButton).toHaveAttribute("aria-pressed", "false");
     rowButton.focus();
     await user.keyboard(" ");
     expect(onSelectAnnotation).toHaveBeenCalledWith("ann-1");
+  });
+
+  it("marks the selected annotation row for assistive technology", () => {
+    render(
+      <WorkspaceView
+        {...createProps({
+          currentDocument: annotationCurrentDocument,
+          selectedAnnotationId: "ann-1",
+          rightTab: "annotations",
+        })}
+      />,
+    );
+
+    const annotationList = within(screen.getByTestId("document-annotation-list"));
+
+    expect(annotationList.getByRole("button", { name: /0-5/ })).toHaveAttribute("aria-pressed", "true");
+    expect(annotationList.getByRole("button", { name: /6-10/ })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("shows an empty state when the current document has no annotations", () => {
