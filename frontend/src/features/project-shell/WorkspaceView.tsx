@@ -36,6 +36,8 @@ import { groupAnnotationsByLabel } from "../../utils";
 import { useI18n } from "../../i18n/useI18n";
 import { DocumentListPane } from "./DocumentListPane";
 
+const examplesGuideMaxHeight = "calc((100% - 32px) / 3)";
+
 function scrollRowIntoView(row: Element | null) {
   if (!row || typeof row.scrollIntoView !== "function") {
     return;
@@ -375,15 +377,28 @@ export function WorkspaceView({
           {rightTab === "examples" ? (
             <>
               <Paper
+                data-testid="annotation-guide-panel"
                 variant="outlined"
-                sx={{ p: 2, display: "flex", flexDirection: "column", flexShrink: 0 }}
+                sx={{
+                  p: 2,
+                  display: "flex",
+                  flexDirection: "column",
+                  maxHeight: examplesGuideMaxHeight,
+                  minHeight: 0,
+                  overflow: "hidden",
+                }}
               >
                 <Typography variant="subtitle2">
                   {t("projectShell.workspace.annotationGuideTitle", {
                     label: focusedLabel?.name ?? t("projectShell.workspace.fallbackLabel"),
                   })}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1.2, whiteSpace: "pre-wrap" }}>
+                <Typography
+                  data-testid="annotation-guide-content"
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 1.2, minHeight: 0, overflow: "auto", whiteSpace: "pre-wrap" }}
+                >
                   {focusedLabel?.description || t("projectShell.workspace.annotationGuideEmpty")}
                 </Typography>
               </Paper>

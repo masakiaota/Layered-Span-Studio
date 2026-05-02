@@ -17,6 +17,8 @@ import type {
 
 type WorkspaceViewProps = ComponentProps<typeof WorkspaceView>;
 
+const examplesGuideMaxHeight = "calc((100% - 32px) / 3)";
+
 const project: ProjectRecord = {
   id: "project-1",
   name: "Medical NER",
@@ -622,7 +624,43 @@ describe("WorkspaceView", () => {
     expect(annotationList.queryByText("所見")).not.toBeInTheDocument();
   });
 
-  it("splits the remaining examples area equally between the same-label and same-surface panels", () => {
+  it("caps long annotation guide content while keeping both examples panels visible", () => {
+    const longDescription = Array.from({ length: 20 }, (_value, index) => `基準 ${index + 1}`).join("\n");
+
+    render(
+      <WorkspaceView
+        {...createProps({
+          focusedLabel: { ...label, description: longDescription },
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId("examples-panels-grid")).toHaveStyle({
+      display: "grid",
+      gridTemplateRows: "minmax(0,1fr) minmax(0,1fr)",
+      minHeight: "0",
+      flex: "1 1 0%",
+    });
+    expect(screen.getByTestId("annotation-guide-panel")).toHaveStyle({
+      maxHeight: examplesGuideMaxHeight,
+      minHeight: "0",
+      overflow: "hidden",
+    });
+    expect(screen.getByTestId("annotation-guide-content")).toHaveStyle({
+      minHeight: "0",
+      overflow: "auto",
+    });
+    expect(screen.getByTestId("same-label-examples-panel")).toHaveStyle({
+      minHeight: "0",
+      overflow: "hidden",
+    });
+    expect(screen.getByTestId("same-surface-examples-panel")).toHaveStyle({
+      minHeight: "0",
+      overflow: "hidden",
+    });
+  });
+
+  it("allows short annotation guide content to use natural height", () => {
     render(<WorkspaceView {...createProps()} />);
 
     expect(screen.getByTestId("examples-panels-grid")).toHaveStyle({
@@ -630,6 +668,11 @@ describe("WorkspaceView", () => {
       gridTemplateRows: "minmax(0,1fr) minmax(0,1fr)",
       minHeight: "0",
       flex: "1 1 0%",
+    });
+    expect(screen.getByTestId("annotation-guide-panel")).toHaveStyle({
+      maxHeight: examplesGuideMaxHeight,
+      minHeight: "0",
+      overflow: "hidden",
     });
     expect(screen.getByTestId("same-label-examples-panel")).toHaveStyle({
       minHeight: "0",
