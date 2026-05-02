@@ -798,8 +798,8 @@ export function WorkspaceView({
             </>
           ) : (
             <>
-              <Paper variant="outlined" sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
+              <Box sx={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0, px: 2 }}>
                   <Typography variant="subtitle2" sx={{ flex: 1 }}>
                     {t("projectShell.workspace.documentAnnotationsTitle")}
                   </Typography>
@@ -880,7 +880,7 @@ export function WorkspaceView({
                     </Paper>
                   ))}
                 </Stack>
-              </Paper>
+              </Box>
             </>
           )}
         </Box>
