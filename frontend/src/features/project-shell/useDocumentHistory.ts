@@ -31,7 +31,13 @@ export function useDocumentHistory({
   });
 
   useEffect(() => {
-    if (!currentDocument || historyState.documentId === currentDocument.id) {
+    if (!currentDocument) {
+      if (historyState.documentId !== null) {
+        setHistoryState({ documentId: null, entries: [], index: -1 });
+      }
+      return;
+    }
+    if (historyState.documentId === currentDocument.id) {
       return;
     }
     setHistoryState({

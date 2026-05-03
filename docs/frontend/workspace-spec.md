@@ -67,6 +67,7 @@
 - Label Selector は幅に応じて最大 3 行まで折り返し、3 行を超える場合は領域内で縦スクロール可能とする。
 - Label は単一選択とする（注目ラベルは1つ）。
 - 中央ペインは現在選択中 Document の本文と annotations を表示対象とし、左ペインの仮想化や古い行の破棄とは独立して保持する。
+- frontend が保持する Document 詳細（本文と annotations）は、現在選択中 Document、未保存変更中 Document、直近利用 Document の短期 cache に限定する。cache から破棄する場合は、対応する snapshot も同じ方針で破棄する。
 - 本文フォントサイズは `18px` とする。
 - Label Selector の表示色は各 Label の色定義に合わせる（マーカー色と統一）。
 - Layered 表示ルールは以下で確定する。
