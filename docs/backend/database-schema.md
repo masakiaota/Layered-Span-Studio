@@ -276,6 +276,8 @@ CREATE INDEX idx_annotations_document ON annotations(document_id);
 CREATE INDEX idx_annotations_label ON annotations(label_id);
 CREATE INDEX idx_annotations_status ON annotations(status);
 CREATE INDEX idx_annotations_position ON annotations(document_id, start, end);
+CREATE INDEX idx_annotations_surface_search ON annotations(span_text, status, document_id, label_id, start, id);
+CREATE INDEX idx_annotations_label_surface_groups ON annotations(label_id, status, span_text, document_id, start, id);
 ```
 
 | カラム | 型 | NULL | 説明 |
@@ -331,7 +333,8 @@ CREATE TABLE IF NOT EXISTS project (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
-    meta TEXT
+    meta TEXT,
+    created_at TEXT NOT NULL
 );
 
 -- labels テーブル
@@ -343,6 +346,7 @@ CREATE TABLE IF NOT EXISTS labels (
     description TEXT NOT NULL,
     shortcut TEXT,
     meta TEXT,
+    display_order INTEGER,
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE
 );
 
@@ -390,6 +394,10 @@ CREATE INDEX IF NOT EXISTS idx_annotations_document ON annotations(document_id);
 CREATE INDEX IF NOT EXISTS idx_annotations_label ON annotations(label_id);
 CREATE INDEX IF NOT EXISTS idx_annotations_status ON annotations(status);
 CREATE INDEX IF NOT EXISTS idx_annotations_position ON annotations(document_id, start, end);
+CREATE INDEX IF NOT EXISTS idx_annotations_surface_search
+    ON annotations(span_text, status, document_id, label_id, start, id);
+CREATE INDEX IF NOT EXISTS idx_annotations_label_surface_groups
+    ON annotations(label_id, status, span_text, document_id, start, id);
 ```
 
 ## 主要クエリ
@@ -589,11 +597,13 @@ UUID形式のIDを使用しているため、ID衝突の心配なくインポー
 - `idx_annotations_label`: 特定ラベルのアノテーション検索
 - `idx_annotations_status`: 未確認/確認済みの絞り込み
 - `idx_annotations_position`: 位置ベースの検索
+- `idx_annotations_surface_search`: `annotations/search` の `span_text` 完全一致、`status` 絞り込み、document/label join の軽量化
+- `idx_annotations_label_surface_groups`: label surface group の `label_id` / `status` / `span_text` 絞り込みと表層集約の軽量化
 
 補足:
-- `span_text` 向けの専用インデックスは追加しません。annotation は追加頻度が高く、書き込みコストと運用複雑性を増やしたくないためです。
-- `surface-groups` や `annotations/search` のようなラベル別検索・集約は、まず SQL 側で絞り込み・集約・ページングを行うことで対応します。
-- 専用インデックスの追加は、実運用での観測結果が必要になった時点で別判断とします。
+- `span_text` 単独ではなく、関連例 API の主要条件に合わせた composite index を使います。これにより同一表層検索と label surface group の query plan が annotation 全体走査に寄りにくくなります。
+- 既存 project DB は project DB 初回アクセス時に `CREATE INDEX IF NOT EXISTS` で移行されます。SQLite lock が一時的に発生した場合は短い retry を行います。
+- `surface-groups` や `annotations/search` は SQL 側で絞り込み・集約・ページングを行います。total count も同じ composite index を利用する前提です。
 
 ### スケーラビリティ
 

@@ -830,6 +830,124 @@ def test_label_surface_groups_ignore_empty_surface_text(
     assert [item["surface_text"] for item in payload["items"]] == ["alpha"]
 
 
+def test_label_surface_groups_query_plan_uses_label_surface_index(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Surface Plan Project", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    label = create_label_via_sync(
+        client, auth_headers, project["id"], name="Disease", color="#AA3322", description="desc", meta={}
+    )
+    doc = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "DocA", "text": "alpha", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-alpha",
+        document_id=doc["id"],
+        label_id=label["id"],
+        start=0,
+        end=5,
+        span_text="alpha",
+    )
+    engine = get_project_engine(str(project_db_path(settings, project["id"])))
+
+    with engine.connect() as conn:
+        plan_rows = conn.exec_driver_sql(
+            """
+            EXPLAIN QUERY PLAN
+            SELECT count(distinct annotations.span_text)
+            FROM annotations
+            JOIN documents ON annotations.document_id = documents.id
+            WHERE documents.project_id = ?
+              AND annotations.label_id = ?
+              AND annotations.status IN ('pending', 'verified')
+              AND annotations.span_text != ''
+            """,
+            (project["id"], label["id"]),
+        ).mappings().all()
+
+    assert any("idx_annotations_label_surface_groups" in row["detail"] for row in plan_rows)
+
+
+def test_label_surface_groups_representative_query_plan_uses_label_surface_index(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project = client.post(
+        "/projects",
+        json={"name": "Surface Representative Plan Project", "description": "desc", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    label = create_label_via_sync(
+        client, auth_headers, project["id"], name="Disease", color="#AA3322", description="desc", meta={}
+    )
+    doc = client.post(
+        f"/projects/{project['id']}/documents",
+        json={"document_name": "DocA", "text": "alpha", "meta": {}},
+        headers=auth_headers,
+    ).json()
+    _insert_annotation_row(
+        settings,
+        project["id"],
+        annotation_id="ann-alpha",
+        document_id=doc["id"],
+        label_id=label["id"],
+        start=0,
+        end=5,
+        span_text="alpha",
+    )
+    engine = get_project_engine(str(project_db_path(settings, project["id"])))
+
+    with engine.connect() as conn:
+        plan_rows = conn.exec_driver_sql(
+            """
+            EXPLAIN QUERY PLAN
+            WITH surface_group_candidates AS (
+                SELECT
+                    annotations.id AS annotation_id,
+                    annotations.document_id,
+                    documents.document_name,
+                    documents.text AS document_text,
+                    annotations.span_text AS surface_text,
+                    annotations.start,
+                    annotations.end,
+                    annotations.status,
+                    CASE WHEN annotations.status = 'verified' THEN 0 ELSE 1 END AS representative_rank,
+                    count(*) OVER (PARTITION BY annotations.span_text) AS duplicate_count,
+                    row_number() OVER (
+                        PARTITION BY annotations.span_text
+                        ORDER BY
+                            CASE WHEN annotations.status = 'verified' THEN 0 ELSE 1 END ASC,
+                            documents.document_name ASC,
+                            annotations.start ASC,
+                            annotations.id ASC
+                    ) AS surface_rank
+                FROM annotations
+                JOIN documents ON annotations.document_id = documents.id
+                WHERE documents.project_id = ?
+                  AND annotations.label_id = ?
+                  AND annotations.status IN ('pending', 'verified')
+                  AND annotations.span_text != ''
+            )
+            SELECT surface_text, duplicate_count, annotation_id
+            FROM surface_group_candidates
+            WHERE surface_rank = 1
+            ORDER BY representative_rank ASC, document_name ASC, start ASC, annotation_id ASC
+            LIMIT 20 OFFSET 0
+            """,
+            (project["id"], label["id"]),
+        ).mappings().all()
+
+    assert any("idx_annotations_label_surface_groups" in row["detail"] for row in plan_rows)
+    assert not any(row["detail"] == "SCAN annotations" for row in plan_rows)
+
+
 def test_label_surface_groups_do_not_normalize_surface_text(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:

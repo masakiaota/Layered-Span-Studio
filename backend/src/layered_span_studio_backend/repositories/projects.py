@@ -4,6 +4,7 @@ import shutil
 import time
 import uuid
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -12,7 +13,14 @@ from sqlalchemy.exc import OperationalError
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.label_sync import load_label_rows, sync_labels
-from layered_span_studio_backend.storage.project_db import documents_table, get_project_engine, init_project_db, labels_table, project_table
+from layered_span_studio_backend.storage.project_db import (
+    documents_table,
+    ensure_project_indexes,
+    get_project_engine,
+    init_project_db,
+    labels_table,
+    project_table,
+)
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
 
 
@@ -140,6 +148,23 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
         )
     projects.sort(key=_project_sort_key)
     return projects
+
+
+def _ensure_project_indexes_with_retry(db_path: Path) -> None:
+    engine = get_project_engine(str(db_path))
+    for attempt in range(len(PROJECT_SCHEMA_RETRY_DELAYS) + 1):
+        try:
+            ensure_project_indexes(engine)
+            return
+        except OperationalError as exc:
+            if attempt == len(PROJECT_SCHEMA_RETRY_DELAYS) or not _is_sqlite_lock_error(exc):
+                raise
+            time.sleep(PROJECT_SCHEMA_RETRY_DELAYS[attempt])
+
+
+@lru_cache
+def _ensure_project_indexes_once(db_path: str) -> None:
+    _ensure_project_indexes_with_retry(Path(db_path))
 
 
 def get_project(settings: Settings, project_id: str) -> Optional[Dict[str, Any]]:
@@ -312,4 +337,7 @@ def delete_project(settings: Settings, project_id: str) -> bool:
 
 
 def project_db_path(settings: Settings, project_id: str) -> Path:
-    return _project_db_path(settings, project_id)
+    db_path = _project_db_path(settings, project_id)
+    if db_path.exists():
+        _ensure_project_indexes_once(str(db_path))
+    return db_path
