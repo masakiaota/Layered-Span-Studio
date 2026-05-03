@@ -378,7 +378,9 @@ describe("useProjectBundle", () => {
     });
 
     for (const document of documents.slice(1)) {
-      rerender({ selectedDocId: document.id });
+      await act(async () => {
+        rerender({ selectedDocId: document.id });
+      });
       await waitFor(() => {
         expect(result.current.bundle?.documents.some((item) => item.id === document.id)).toBe(true);
       });
@@ -389,13 +391,17 @@ describe("useProjectBundle", () => {
     expect(result.current.documentSnapshotsById["doc-2"]).toBeUndefined();
 
     const callsBeforeCacheHit = getDocumentSpy.mock.calls.length;
-    rerender({ selectedDocId: "doc-4" });
+    await act(async () => {
+      rerender({ selectedDocId: "doc-4" });
+    });
     await waitFor(() => {
       expect(result.current.bundle?.documents.some((item) => item.id === "doc-4")).toBe(true);
     });
     expect(getDocumentSpy).toHaveBeenCalledTimes(callsBeforeCacheHit);
 
-    rerender({ selectedDocId: "doc-2" });
+    await act(async () => {
+      rerender({ selectedDocId: "doc-2" });
+    });
     await waitFor(() => {
       expect(result.current.bundle?.documents.some((item) => item.id === "doc-2")).toBe(true);
     });

@@ -127,9 +127,11 @@ describe("useDocumentHistory", () => {
 
     expect(result.current.historyState.entries).toHaveLength(2);
 
-    rerender({
-      currentDocument: null,
-      currentDocumentSnapshot: null,
+    await act(async () => {
+      rerender({
+        currentDocument: null,
+        currentDocumentSnapshot: null,
+      });
     });
 
     expect(result.current.historyState.documentId).toBe("doc-1");
