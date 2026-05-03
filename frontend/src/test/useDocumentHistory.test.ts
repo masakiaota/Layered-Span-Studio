@@ -34,6 +34,11 @@ function createBundle(document: DocumentRecord): ProjectBundle {
   };
 }
 
+type DocumentHistoryProps = {
+  currentDocument: DocumentRecord | null;
+  currentDocumentSnapshot: DocumentRecord | null;
+};
+
 describe("useDocumentHistory", () => {
   it("initializes with empty history and then resets when document is present", async () => {
     const doc = createDocument();
@@ -81,6 +86,57 @@ describe("useDocumentHistory", () => {
     expect(result.current.historyState.index).toBe(-1);
     expect(result.current.canUndo).toBe(false);
     expect(result.current.canRedo).toBe(false);
+  });
+
+  it("preserves history while the selected document is loading", async () => {
+    const doc = createDocument();
+    const bundle = createBundle(doc);
+    let currentBundle = bundle;
+    const setBundle = (updater: React.SetStateAction<ProjectBundle | null>) => {
+      if (typeof updater === "function") {
+        const next = updater(currentBundle);
+        if (next) currentBundle = next;
+      } else if (updater) {
+        currentBundle = updater;
+      }
+    };
+
+    const { result, rerender } = renderHook(
+      ({ currentDocument, currentDocumentSnapshot }: DocumentHistoryProps) =>
+        useDocumentHistory({
+          bundle: currentBundle,
+          setBundle,
+          currentDocument,
+          currentDocumentSnapshot,
+          view: "workspace",
+        }),
+      {
+        initialProps: {
+          currentDocument: currentBundle.documents[0],
+          currentDocumentSnapshot: currentBundle.documents[0],
+        } as DocumentHistoryProps,
+      },
+    );
+
+    await act(async () => {});
+    act(() => {
+      result.current.mutateCurrentDocument((draft) => {
+        draft.document_name = "Modified";
+      });
+    });
+
+    expect(result.current.historyState.entries).toHaveLength(2);
+
+    await act(async () => {
+      rerender({
+        currentDocument: null,
+        currentDocumentSnapshot: null,
+      });
+    });
+
+    expect(result.current.historyState.documentId).toBe("doc-1");
+    expect(result.current.historyState.entries).toHaveLength(2);
+    expect(result.current.historyState.index).toBe(1);
   });
 
   it("mutateCurrentDocument pushes to history and updates bundle", async () => {

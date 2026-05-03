@@ -1,7 +1,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
-import { DOCUMENT_PAGE_SIZE, DOCUMENT_WINDOW_SIZE } from "../features/project-shell/projectShellConstants";
+import {
+  DOCUMENT_DETAIL_CACHE_RECENT_SIZE,
+  DOCUMENT_PAGE_SIZE,
+  DOCUMENT_WINDOW_SIZE,
+} from "../features/project-shell/projectShellConstants";
 import { useProjectBundle } from "../features/project-shell/useProjectBundle";
 import type { DocumentRecord, DocumentSortValue, LabelRecord, ProjectRecord } from "../api-contract";
 import type { DocumentListItem } from "../types";
@@ -27,6 +31,10 @@ const labels: LabelRecord[] = [
   },
 ];
 const labelsRevision = "labels-revision-1";
+
+type SelectedDocumentProps = {
+  selectedDocId: string | null;
+};
 
 function createDocument(overrides: Partial<DocumentRecord> = {}): DocumentRecord {
   return {
@@ -322,6 +330,154 @@ describe("useProjectBundle", () => {
     expect(result.current.documentList).toHaveLength(1);
     expect(result.current.documentList[0].id).toBe("doc-2");
     expect(result.current.documentSnapshotsById["doc-1"]).toBeUndefined();
+  });
+
+  it("keeps selected document details within the recent document cache", async () => {
+    const documents = Array.from({ length: DOCUMENT_DETAIL_CACHE_RECENT_SIZE + 3 }, (_, index) =>
+      createDocument({
+        id: `doc-${index + 1}`,
+        document_name: `Doc ${index + 1}`,
+      }),
+    );
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: documents.map((document) => createDocumentListItem({
+        id: document.id,
+        document_name: document.document_name,
+      })),
+      total: documents.length,
+      pending_total: documents.length,
+      offset: 0,
+      limit: DOCUMENT_PAGE_SIZE,
+      search: "",
+      sort: "created",
+    });
+    const getDocumentSpy = vi.spyOn(api, "getDocument").mockImplementation(async (_projectId, documentId) => {
+      const document = documents.find((item) => item.id === documentId);
+      if (!document) {
+        throw new Error("Document not found");
+      }
+      return document;
+    });
+
+    const { result, rerender } = renderHook(
+      ({ selectedDocId }: SelectedDocumentProps) =>
+        useProjectBundle({
+          projectId: "project-1",
+          searchQuery: "",
+          sortMode: "created",
+          selectedDocId,
+          showToast: makeShowToast(),
+        }),
+      { initialProps: { selectedDocId: null } as SelectedDocumentProps },
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+
+    for (const document of documents.slice(1)) {
+      await act(async () => {
+        rerender({ selectedDocId: document.id });
+      });
+      await waitFor(() => {
+        expect(result.current.bundle?.documents.some((item) => item.id === document.id)).toBe(true);
+      });
+    }
+
+    expect(result.current.bundle?.documents).toHaveLength(DOCUMENT_DETAIL_CACHE_RECENT_SIZE);
+    expect(result.current.documentSnapshotsById["doc-1"]).toBeUndefined();
+    expect(result.current.documentSnapshotsById["doc-2"]).toBeUndefined();
+
+    const callsBeforeCacheHit = getDocumentSpy.mock.calls.length;
+    await act(async () => {
+      rerender({ selectedDocId: "doc-4" });
+    });
+    await waitFor(() => {
+      expect(result.current.bundle?.documents.some((item) => item.id === "doc-4")).toBe(true);
+    });
+    expect(getDocumentSpy).toHaveBeenCalledTimes(callsBeforeCacheHit);
+
+    await act(async () => {
+      rerender({ selectedDocId: "doc-2" });
+    });
+    await waitFor(() => {
+      expect(result.current.bundle?.documents.some((item) => item.id === "doc-2")).toBe(true);
+    });
+    expect(getDocumentSpy).toHaveBeenCalledTimes(callsBeforeCacheHit + 1);
+  });
+
+  it("does not evict dirty document details or their snapshots", async () => {
+    const documents = Array.from({ length: DOCUMENT_DETAIL_CACHE_RECENT_SIZE + 3 }, (_, index) =>
+      createDocument({
+        id: `doc-${index + 1}`,
+        document_name: `Doc ${index + 1}`,
+      }),
+    );
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+    vi.spyOn(api, "listDocuments").mockResolvedValue({
+      documents: documents.map((document) => createDocumentListItem({
+        id: document.id,
+        document_name: document.document_name,
+      })),
+      total: documents.length,
+      pending_total: documents.length,
+      offset: 0,
+      limit: DOCUMENT_PAGE_SIZE,
+      search: "",
+      sort: "created",
+    });
+    vi.spyOn(api, "getDocument").mockImplementation(async (_projectId, documentId) => {
+      const document = documents.find((item) => item.id === documentId);
+      if (!document) {
+        throw new Error("Document not found");
+      }
+      return document;
+    });
+
+    const { result, rerender } = renderHook(
+      ({ selectedDocId }: SelectedDocumentProps) =>
+        useProjectBundle({
+          projectId: "project-1",
+          searchQuery: "",
+          sortMode: "created",
+          selectedDocId,
+          showToast: makeShowToast(),
+        }),
+      { initialProps: { selectedDocId: "doc-1" } },
+    );
+
+    await act(async () => {
+      await result.current.loadBundle();
+    });
+    act(() => {
+      result.current.setBundle((current) =>
+        current
+          ? {
+              ...current,
+              documents: current.documents.map((document) =>
+                document.id === "doc-1"
+                  ? { ...document, text: "Dirty text" }
+                  : document,
+              ),
+            }
+          : current,
+      );
+    });
+
+    for (const document of documents.slice(1)) {
+      rerender({ selectedDocId: document.id });
+      await waitFor(() => {
+        expect(result.current.bundle?.documents.some((item) => item.id === document.id)).toBe(true);
+      });
+    }
+
+    expect(result.current.bundle?.documents.some((document) => document.id === "doc-1")).toBe(true);
+    expect(result.current.documentSnapshotsById["doc-1"]).toBeDefined();
+    expect(result.current.bundle?.documents).toHaveLength(DOCUMENT_DETAIL_CACHE_RECENT_SIZE + 1);
+    expect(result.current.documentSnapshotsById["doc-2"]).toBeUndefined();
   });
 
   it("fetchDocumentPage appends to document list when not resetting", async () => {

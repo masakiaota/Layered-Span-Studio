@@ -6,7 +6,11 @@ import type {
 } from "../../api-contract";
 import type { DocumentListItem, ProjectBundle } from "../../types";
 import { deepClone } from "../../utils";
-import { DOCUMENT_PAGE_SIZE, DOCUMENT_WINDOW_SIZE } from "./projectShellConstants";
+import {
+  DOCUMENT_DETAIL_CACHE_RECENT_SIZE,
+  DOCUMENT_PAGE_SIZE,
+  DOCUMENT_WINDOW_SIZE,
+} from "./projectShellConstants";
 import {
   mergeDocumentScrollWindow,
   toDocumentListItem,
@@ -19,6 +23,62 @@ type DocumentPageRequest = boolean | "reset" | "next" | "previous";
 export type OnBundleLoaded = (bundle: ProjectBundle, firstDocId: string | null) => void;
 type SettingsSnapshot = Pick<ProjectBundle, "project" | "labels"> & { labelsRevision: string };
 type SettingsBundleDraft = Pick<ProjectBundle, "project" | "labels">;
+
+function isDocumentDirty(
+  document: DocumentRecord,
+  snapshotsById: Record<string, DocumentRecord>,
+) {
+  const snapshot = snapshotsById[document.id];
+  return Boolean(snapshot) && JSON.stringify(document) !== JSON.stringify(snapshot);
+}
+
+function moveDocumentToRecent(documentIds: string[], documentId: string) {
+  return [
+    documentId,
+    ...documentIds.filter((id) => id !== documentId),
+  ];
+}
+
+function buildDocumentDetailCacheIds({
+  documents,
+  snapshotsById,
+  selectedDocId,
+  recentDocumentIds,
+}: {
+  documents: DocumentRecord[];
+  snapshotsById: Record<string, DocumentRecord>;
+  selectedDocId: string | null;
+  recentDocumentIds: string[];
+}) {
+  const loadedIds = new Set(documents.map((document) => document.id));
+  const keepIds = new Set<string>();
+  if (selectedDocId && loadedIds.has(selectedDocId)) {
+    keepIds.add(selectedDocId);
+  }
+  for (const document of documents) {
+    if (isDocumentDirty(document, snapshotsById)) {
+      keepIds.add(document.id);
+    }
+  }
+  const recentDocumentIdSet = new Set(recentDocumentIds);
+  const orderedRecentIds = [
+    ...recentDocumentIds,
+    ...documents
+      .map((document) => document.id)
+      .filter((documentId) => !recentDocumentIdSet.has(documentId)),
+  ];
+  let recentCount = 0;
+  for (const documentId of orderedRecentIds) {
+    if (loadedIds.has(documentId)) {
+      keepIds.add(documentId);
+      recentCount += 1;
+    }
+    if (recentCount >= DOCUMENT_DETAIL_CACHE_RECENT_SIZE) {
+      break;
+    }
+  }
+  return keepIds;
+}
 
 function buildDocumentWindowLookupOffsets(startOffset: number, total: number) {
   const maxOffset = Math.max(0, total - DOCUMENT_PAGE_SIZE);
@@ -77,6 +137,7 @@ export function useProjectBundle({
   const bundleLoadRequestIdRef = useRef(0);
   const documentLoadMoreRequestIdRef = useRef(0);
   const initialDocumentListLoadedRef = useRef(false);
+  const recentDocumentDetailIdsRef = useRef<string[]>([]);
   const searchDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function clearSearchDebounceTimer() {
@@ -131,6 +192,7 @@ export function useProjectBundle({
           loadedDocuments.map((document) => [document.id, deepClone(document)]),
         ),
       );
+      recentDocumentDetailIdsRef.current = loadedDocuments.map((document) => document.id);
       setDocumentList(trimDocumentScrollWindow(documentsResponse.documents, "start"));
       setDocumentTotal(documentsResponse.total);
       setPendingDocumentTotal(documentsResponse.pending_total);
@@ -197,6 +259,53 @@ export function useProjectBundle({
       active = false;
     };
   }, [bundle, projectId, selectedDocId]);
+
+  useEffect(() => {
+    if (!bundle || !selectedDocId) {
+      return;
+    }
+    if (!bundle.documents.some((document) => document.id === selectedDocId)) {
+      return;
+    }
+    recentDocumentDetailIdsRef.current = moveDocumentToRecent(
+      recentDocumentDetailIdsRef.current,
+      selectedDocId,
+    );
+  }, [bundle, selectedDocId]);
+
+  useEffect(() => {
+    if (!bundle) {
+      return;
+    }
+    const keepIds = buildDocumentDetailCacheIds({
+      documents: bundle.documents,
+      snapshotsById: documentSnapshotsById,
+      selectedDocId,
+      recentDocumentIds: recentDocumentDetailIdsRef.current,
+    });
+    const nextDocuments = bundle.documents.filter((document) => keepIds.has(document.id));
+    const documentCacheChanged = nextDocuments.length !== bundle.documents.length;
+    const nextSnapshots = Object.fromEntries(
+      Object.entries(documentSnapshotsById).filter(([documentId]) => keepIds.has(documentId)),
+    );
+    const snapshotsChanged = Object.keys(nextSnapshots).length !== Object.keys(documentSnapshotsById).length;
+    recentDocumentDetailIdsRef.current = recentDocumentDetailIdsRef.current.filter((documentId) =>
+      keepIds.has(documentId),
+    );
+    if (documentCacheChanged) {
+      setBundle((current) =>
+        current
+          ? {
+              ...current,
+              documents: current.documents.filter((document) => keepIds.has(document.id)),
+            }
+          : current,
+      );
+    }
+    if (snapshotsChanged) {
+      setDocumentSnapshotsById(nextSnapshots);
+    }
+  }, [bundle, documentSnapshotsById, selectedDocId]);
 
   async function fetchDocumentPage(
     request: DocumentPageRequest,

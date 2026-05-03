@@ -1,6 +1,7 @@
 import type { Theme } from "@mui/material/styles";
 
 export const EXAMPLES_BATCH_SIZE = 8;
+export const DOCUMENT_DETAIL_CACHE_RECENT_SIZE = 20;
 export const DOCUMENT_PAGE_SIZE = 40;
 export const DOCUMENT_WINDOW_SIZE = 120;
 export const DEFAULT_LABEL_COLOR = "#1a73e8";
