@@ -60,11 +60,12 @@ function buildDocumentDetailCacheIds({
       keepIds.add(document.id);
     }
   }
+  const recentDocumentIdSet = new Set(recentDocumentIds);
   const orderedRecentIds = [
     ...recentDocumentIds,
     ...documents
       .map((document) => document.id)
-      .filter((documentId) => !recentDocumentIds.includes(documentId)),
+      .filter((documentId) => !recentDocumentIdSet.has(documentId)),
   ];
   let recentCount = 0;
   for (const documentId of orderedRecentIds) {
