@@ -47,9 +47,37 @@ export default defineConfig({
     },
   },
   test: {
-    environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
-    css: true,
-    testTimeout: 30_000,
+    projects: [
+      {
+        test: {
+          name: "node",
+          include: [
+            "src/test/importValidation.test.ts",
+            "src/test/projectShellUtils.test.ts",
+            "src/test/utils.test.ts",
+          ],
+          environment: "node",
+          testTimeout: 30_000,
+        },
+      },
+      {
+        test: {
+          name: "dom",
+          include: [
+            "src/test/**/*.test.ts",
+            "src/test/**/*.test.tsx",
+          ],
+          exclude: [
+            "src/test/importValidation.test.ts",
+            "src/test/projectShellUtils.test.ts",
+            "src/test/utils.test.ts",
+          ],
+          environment: "jsdom",
+          setupFiles: ["./src/test/setup.ts"],
+          css: true,
+          testTimeout: 30_000,
+        },
+      },
+    ],
   },
 });

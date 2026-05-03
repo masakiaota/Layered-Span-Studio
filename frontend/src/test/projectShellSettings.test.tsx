@@ -33,6 +33,10 @@ vi.mock("../features/project-shell/useProjectShortcuts", () => ({
   useProjectShortcuts: () => {},
 }));
 
+vi.mock("../features/project-shell/WorkspaceView", () => ({
+  WorkspaceView: () => <div>Workspace View Mock</div>,
+}));
+
 const project: ProjectRecord = {
   id: "project-1",
   name: "Medical NER",
