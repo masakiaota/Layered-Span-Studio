@@ -3,7 +3,7 @@ import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
-import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
+import { LayeredSpanIcon } from "../../components/LayeredSpanIcon";
 import { LanguageSwitcher } from "../../components/LanguageSwitcher";
 import { useI18n } from "../../i18n/useI18n";
 import type { UserRecord } from "../../api-contract";
@@ -51,7 +51,7 @@ export function ProjectShellHeader({
           </Typography>
         </Stack>
         <Tabs value={view} onChange={(_event, nextView) => onChangeView(nextView)} sx={{ minHeight: 0, flexShrink: 0 }}>
-          <Tab value="workspace" label={t("projectShell.header.workspace")} icon={<WorkspacesRoundedIcon />} iconPosition="start" />
+          <Tab value="workspace" label={t("projectShell.header.workspace")} icon={<LayeredSpanIcon />} iconPosition="start" />
           <Tab value="settings" label={t("projectShell.header.settings")} icon={<SettingsRoundedIcon />} iconPosition="start" />
         </Tabs>
         <LanguageSwitcher sx={{ flexShrink: 0 }} />
