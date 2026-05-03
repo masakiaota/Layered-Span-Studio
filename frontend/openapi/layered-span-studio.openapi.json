@@ -1798,7 +1798,7 @@
   },
   "info": {
     "title": "Layered Span Studio API",
-    "version": "0.1.1"
+    "version": "0.2.1"
   },
   "openapi": "3.1.0",
   "paths": {
