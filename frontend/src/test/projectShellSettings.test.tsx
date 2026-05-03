@@ -8,14 +8,14 @@ import type { LabelDraft } from "../features/project-shell/projectShellTypes";
 import { SettingsView } from "../features/project-shell/SettingsView";
 import {
   createEmptyLabelDraft,
-  findConflictingLabelName,
   isHexColor,
   normalizeHexColor,
+  submitLabelDraft,
   toLabelDraft,
 } from "../features/project-shell/projectShellUtils";
 import { DEFAULT_LABEL_COLOR } from "../features/project-shell/projectShellConstants";
 import type { ProjectBundle } from "../types";
-import { makeLocalId, setProjectGuideline } from "../utils";
+import { setProjectGuideline } from "../utils";
 
 vi.mock("../features/project-shell/useProjectExamples", () => ({
   useProjectExamples: () => ({
@@ -148,34 +148,19 @@ function renderSettingsView(locale: "ja" | "en" | "zh-CN" = "ja") {
     }
 
     function handleSubmitLabelDraft() {
-      if (!labelDraft.name.trim() || !labelColorValid) {
+      const result = submitLabelDraft(bundle.project, bundle.labels, labelDraft);
+      if (result.status === "empty-name" || result.status === "invalid-color") {
         return;
       }
-      if (findConflictingLabelName(bundle.labels, labelDraft)) {
+      if (result.status === "duplicate") {
         setDuplicateMessage("同名 label は保存できない");
         return;
       }
-      const editingLabel = bundle.labels.find((label) => label.id === labelDraft.id);
-      const nextLabel: LabelRecord = {
-        id: labelDraft.id || makeLocalId("label"),
-        project_id: bundle.project.id,
-        project_name: bundle.project.name,
-        name: labelDraft.name.trim(),
-        color: normalizedLabelColor,
-        description: labelDraft.description,
-        shortcut: editingLabel?.shortcut ?? null,
-        meta: {},
-      };
       updateBundle((draft) => {
-        const index = draft.labels.findIndex((label) => label.id === nextLabel.id);
-        if (index >= 0) {
-          draft.labels[index] = nextLabel;
-          return;
-        }
-        draft.labels.push(nextLabel);
+        draft.labels = result.labels;
       });
-      setSelectedLabelId(nextLabel.id);
-      setLabelDraft(toLabelDraft(nextLabel));
+      setSelectedLabelId(result.label.id);
+      setLabelDraft(toLabelDraft(result.label));
       setDuplicateMessage(null);
     }
 
