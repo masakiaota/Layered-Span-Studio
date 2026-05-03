@@ -1132,4 +1132,185 @@ describe("useProjectBundle", () => {
       await Promise.allSettled([resetDeferred.promise, loadMoreDeferred.promise]);
     });
   });
+
+  describe("searchQuery debounce", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function makeListDocumentsMock() {
+      return vi.spyOn(api, "listDocuments").mockResolvedValue({
+        documents: [createDocumentListItem()],
+        total: 1,
+        pending_total: 0,
+        offset: 0,
+        limit: 20,
+        search: "",
+        sort: "created",
+      });
+    }
+
+    async function advanceDebounceTime(ms: number) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    }
+
+    async function setupLoadedBundle(searchQuery: string, sortMode: DocumentSortValue = "created") {
+      vi.spyOn(api, "getProject").mockResolvedValue(project);
+      vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+      const listDocumentsSpy = makeListDocumentsMock();
+      vi.spyOn(api, "getDocument").mockResolvedValue(createDocument());
+
+      const showToast = makeShowToast();
+      let currentSearchQuery = searchQuery;
+      let currentSortMode = sortMode;
+      let currentProjectId = "project-1";
+
+      const { result, rerender } = renderHook(() =>
+        useProjectBundle({
+          projectId: currentProjectId,
+          searchQuery: currentSearchQuery,
+          sortMode: currentSortMode,
+          selectedDocId: null,
+          showToast,
+        }),
+      );
+
+      await act(async () => {
+        await result.current.loadBundle();
+      });
+
+      return {
+        result,
+        rerender: (overrides: {
+          projectId?: string;
+          searchQuery?: string;
+          sortMode?: DocumentSortValue;
+        } = {}) => {
+          if (overrides.projectId !== undefined) currentProjectId = overrides.projectId;
+          if (overrides.searchQuery !== undefined) currentSearchQuery = overrides.searchQuery;
+          if (overrides.sortMode !== undefined) currentSortMode = overrides.sortMode;
+          rerender();
+        },
+        listDocumentsSpy,
+      };
+    }
+
+    it("does not call listDocuments before the 200ms debounce window expires", async () => {
+      const { rerender, listDocumentsSpy } = await setupLoadedBundle("");
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      act(() => {
+        rerender({ searchQuery: "hello" });
+      });
+
+      await advanceDebounceTime(199);
+
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad);
+    });
+
+    it("calls listDocuments after 200ms debounce when searchQuery changes", async () => {
+      const { rerender, listDocumentsSpy } = await setupLoadedBundle("");
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      act(() => {
+        rerender({ searchQuery: "hello" });
+      });
+
+      await advanceDebounceTime(199);
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad);
+
+      await advanceDebounceTime(1);
+
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad + 1);
+      expect(listDocumentsSpy.mock.calls[listDocumentsSpy.mock.calls.length - 1]?.[1]).toEqual(
+        expect.objectContaining({ search: "hello", sort: "created" }),
+      );
+    });
+
+    it("calls listDocuments only once when searchQuery changes rapidly", async () => {
+      const { rerender, listDocumentsSpy } = await setupLoadedBundle("");
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      // Simulate rapid typing: each keystroke within debounce window
+      for (const query of ["h", "he", "hel", "hell", "hello"]) {
+        act(() => {
+          rerender({ searchQuery: query });
+        });
+        await advanceDebounceTime(20);
+      }
+
+      await advanceDebounceTime(179);
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad);
+
+      await advanceDebounceTime(1);
+
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad + 1);
+      expect(listDocumentsSpy.mock.calls[listDocumentsSpy.mock.calls.length - 1]?.[1]).toEqual(
+        expect.objectContaining({ search: "hello", sort: "created" }),
+      );
+    });
+
+    it("calls listDocuments without debounce when sortMode changes", async () => {
+      const { rerender, listDocumentsSpy } = await setupLoadedBundle("", "created");
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      await act(async () => {
+        rerender({ sortMode: "name" });
+      });
+
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad + 1);
+      expect(listDocumentsSpy.mock.calls[listDocumentsSpy.mock.calls.length - 1]?.[1]).toEqual(
+        expect.objectContaining({ search: "", sort: "name" }),
+      );
+    });
+
+    it("cancels a pending search debounce when sortMode changes", async () => {
+      const { rerender, listDocumentsSpy } = await setupLoadedBundle("", "created");
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      act(() => {
+        rerender({ searchQuery: "hello" });
+      });
+
+      await advanceDebounceTime(50);
+
+      act(() => {
+        rerender({ sortMode: "name" });
+      });
+
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad + 1);
+      expect(listDocumentsSpy.mock.calls[listDocumentsSpy.mock.calls.length - 1]?.[1]).toEqual(
+        expect.objectContaining({ search: "hello", sort: "name" }),
+      );
+
+      await advanceDebounceTime(200);
+
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad + 1);
+    });
+
+    it("cancels a pending search debounce when projectId changes", async () => {
+      const { rerender, listDocumentsSpy } = await setupLoadedBundle("");
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      act(() => {
+        rerender({ searchQuery: "hello" });
+      });
+
+      await advanceDebounceTime(50);
+
+      act(() => {
+        rerender({ projectId: "project-2" });
+      });
+
+      await advanceDebounceTime(200);
+
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad);
+    });
+  });
 });
