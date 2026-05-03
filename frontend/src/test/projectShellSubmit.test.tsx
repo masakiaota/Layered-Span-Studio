@@ -1,6 +1,6 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { setupUserEvent } from "./userEvent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
 import { api } from "../api";
@@ -30,6 +30,128 @@ vi.mock("../features/project-shell/useBodyScrollLock", () => ({
 
 vi.mock("../features/project-shell/useProjectShortcuts", () => ({
   useProjectShortcuts: () => {},
+}));
+
+vi.mock("../features/project-shell/SettingsView", () => ({
+  SettingsView: () => <div>Settings View Mock</div>,
+}));
+
+vi.mock("../features/project-shell/WorkspaceView", () => ({
+  WorkspaceView: ({
+    bundle,
+    currentDocument,
+    visibleDocuments,
+    selectedDocumentId,
+    selectedAnnotation,
+    rightTab,
+    pendingDocumentTotal,
+    documentTotal,
+    currentHiddenBySearch,
+    getDisplayDocumentStatus,
+    onSelectAnnotation,
+    onUpdateSelectedAnnotationLabel,
+    onUpdateSelectedAnnotationComment,
+    onRightTabChange,
+    onSelectNextPendingAnnotation,
+    onSearchQueryChange,
+    onSave,
+    onSubmit,
+  }: {
+    bundle: { labels: LabelRecord[] };
+    currentDocument: DocumentRecord | null;
+    visibleDocuments: Array<Omit<DocumentRecord, "annotations">>;
+    selectedDocumentId: string | null;
+    selectedAnnotation: AnnotationRecord | null;
+    rightTab: string;
+    pendingDocumentTotal: number;
+    documentTotal: number;
+    currentHiddenBySearch: boolean;
+    getDisplayDocumentStatus: (document: Omit<DocumentRecord, "annotations"> | DocumentRecord) => string;
+    onSelectAnnotation: (annotationId: string) => void;
+    onUpdateSelectedAnnotationLabel: (labelId: string) => void;
+    onUpdateSelectedAnnotationComment: (comment: string) => void;
+    onRightTabChange: (tab: string) => void;
+    onSelectNextPendingAnnotation: () => void;
+    onSearchQueryChange: (query: string) => void;
+    onSave: () => void;
+    onSubmit: () => void;
+  }) => (
+    <div>
+      <div>
+        {pendingDocumentTotal} pending / {documentTotal} docs
+      </div>
+      <input placeholder="本文検索" onChange={(event) => onSearchQueryChange(event.target.value)} />
+      {currentHiddenBySearch ? <div>現在表示中の Document は検索結果外である。</div> : null}
+      {visibleDocuments.length === 0 ? <div>一致する Document がない</div> : null}
+      {visibleDocuments.map((document) => (
+        <div
+          key={document.id}
+          role="button"
+          tabIndex={0}
+          className={selectedDocumentId === document.id ? "Mui-selected" : ""}
+        >
+          <span>{document.document_name}</span>
+          <span>{getDisplayDocumentStatus(document)}</span>
+        </div>
+      ))}
+      <button type="button" role="tab">
+        注釈一覧
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={rightTab === "examples" ? "true" : "false"}
+        onClick={() => onRightTabChange("examples")}
+      >
+        関連例
+      </button>
+      <div data-testid="document-annotation-list">
+        {currentDocument?.annotations.map((annotation) => (
+          <button
+            key={annotation.id}
+            type="button"
+            aria-label={`${annotation.label_name} ${selectedAnnotation?.id === annotation.id ? `${annotation.start}-${annotation.end}` : ""}`}
+            onClick={() => onSelectAnnotation(annotation.id)}
+          >
+            <span>{annotation.label_name}</span>
+            <span>{annotation.start}-{annotation.end}</span>
+            <span>{annotation.span_text}</span>
+          </button>
+        ))}
+      </div>
+      <button type="button">Annotation details</button>
+      <label>
+        Comment
+        <input onChange={(event) => onUpdateSelectedAnnotationComment(event.target.value)} />
+      </label>
+      {selectedAnnotation ? (
+        <div data-testid="selected-annotation-dock">
+          <span>{selectedAnnotation.status}</span>
+          <input readOnly value={selectedAnnotation.label_name} />
+          <button type="button" role="combobox" aria-label="Label">
+            {selectedAnnotation.label_name}
+          </button>
+          <div>
+            {bundle.labels.map((label) => (
+              <button key={label.id} type="button" role="option" onClick={() => onUpdateSelectedAnnotationLabel(label.id)}>
+                {label.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <button type="button" onClick={onSelectNextPendingAnnotation}>
+        Next pending
+      </button>
+      <button type="button" onClick={onSave}>
+        Save
+      </button>
+      <button type="button" onClick={onSubmit}>
+        Submit
+      </button>
+      {currentDocument?.annotations.map((annotation) => <span key={`surface-${annotation.id}`}>{annotation.span_text}</span>)}
+    </div>
+  ),
 }));
 
 const project: ProjectRecord = {
@@ -136,7 +258,7 @@ describe("ProjectShell submit behavior", () => {
   });
 
   it("submits an empty pending document as verified and updates pending count", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const pendingDocument = createDocument();
     const verifiedDocument = createDocument({ status: "verified", updated_at: "2026-03-02T00:00:00Z" });
 
@@ -174,7 +296,7 @@ describe("ProjectShell submit behavior", () => {
   });
 
   it("saves edited annotations without submit flag", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation();
     const initialDocument = createDocument({ annotations: [annotation] });
     const savedDocument = createDocument({
@@ -211,7 +333,7 @@ describe("ProjectShell submit behavior", () => {
     await userEventSetup.click(screen.getByText("0-5"));
     await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
-    await userEventSetup.type(commentInput, "updated comment");
+    fireEvent.change(commentInput, { target: { value: "updated comment" } });
     await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
@@ -236,7 +358,7 @@ describe("ProjectShell submit behavior", () => {
   }, 15000);
 
   it("saves selected annotation label changes as replacement annotations", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation({ status: "verified" });
     const initialDocument = createDocument({ annotations: [annotation] });
     const savedAnnotation = createAnnotation({ id: "annotation-2", label_id: "label-2", label_name: "所見" });
@@ -299,7 +421,7 @@ describe("ProjectShell submit behavior", () => {
   }, 15000);
 
   it("restores the persisted annotation when changing the label back before saving", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation({ status: "verified" });
     const initialDocument = createDocument({ annotations: [annotation] });
     const savedDocument = createDocument({
@@ -340,7 +462,7 @@ describe("ProjectShell submit behavior", () => {
     await userEventSetup.click(await screen.findByRole("option", { name: "主訴" }));
     expect(within(screen.getByTestId("selected-annotation-dock")).getByText("verified")).toBeInTheDocument();
     await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
-    await userEventSetup.type(await screen.findByLabelText("Comment"), "updated comment");
+    fireEvent.change(await screen.findByLabelText("Comment"), { target: { value: "updated comment" } });
     await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
@@ -365,7 +487,7 @@ describe("ProjectShell submit behavior", () => {
   }, 15000);
 
   it("keeps the related examples tab open when selecting the next pending annotation", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const firstAnnotation = createAnnotation();
     const secondAnnotation = createAnnotation({
       id: "annotation-2",
@@ -399,7 +521,7 @@ describe("ProjectShell submit behavior", () => {
   });
 
   it("selects the next pending annotation after the current annotation position", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const firstAnnotation = createAnnotation({
       id: "annotation-1",
       start: 0,
@@ -451,7 +573,7 @@ describe("ProjectShell submit behavior", () => {
   });
 
   it("shows verified doc as pending while unsaved and returns to verified after save", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation({ status: "verified" });
     const initialDocument = createDocument({ status: "verified", annotations: [annotation] });
     const savedDocument = createDocument({
@@ -491,7 +613,7 @@ describe("ProjectShell submit behavior", () => {
     await userEventSetup.click(screen.getByText("0-5"));
     await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
-    await userEventSetup.type(commentInput, "updated comment");
+    fireEvent.change(commentInput, { target: { value: "updated comment" } });
 
     await waitFor(() => {
       expect(within(getDocumentRow("Doc 1")).getByText("pending")).toBeInTheDocument();
@@ -525,7 +647,7 @@ describe("ProjectShell submit behavior", () => {
   });
 
   it("does not add a hidden dirty verified doc to the pending total", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation({ status: "verified" });
     const initialDocument = createDocument({ status: "verified", annotations: [annotation] });
 
@@ -557,13 +679,13 @@ describe("ProjectShell submit behavior", () => {
     await userEventSetup.click(screen.getByText("0-5"));
     await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
-    await userEventSetup.type(commentInput, "updated comment");
+    fireEvent.change(commentInput, { target: { value: "updated comment" } });
 
     await waitFor(() => {
       expect(screen.getByText("1 pending / 1 docs")).toBeInTheDocument();
     });
 
-    await userEventSetup.type(screen.getByPlaceholderText("本文検索"), "z");
+    fireEvent.change(screen.getByPlaceholderText("本文検索"), { target: { value: "z" } });
 
     await waitFor(() => {
       expect(screen.getByText("0 pending / 0 docs")).toBeInTheDocument();

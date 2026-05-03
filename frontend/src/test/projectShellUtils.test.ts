@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_LABEL_COLOR, DOCUMENT_WINDOW_SIZE } from "../features/project-shell/projectShellConstants";
 import {
   collectDocumentNames,
@@ -7,10 +7,11 @@ import {
   isHexColor,
   mergeDocumentWindow,
   normalizeHexColor,
+  submitLabelDraft,
   toLabelDraft,
   trimDocumentWindow,
 } from "../features/project-shell/projectShellUtils";
-import type { LabelRecord } from "../api-contract";
+import type { LabelRecord, ProjectRecord } from "../api-contract";
 import type { DocumentListItem } from "../types";
 
 function makeDocument(id: string): DocumentListItem {
@@ -26,6 +27,28 @@ function makeDocument(id: string): DocumentListItem {
     meta: {},
   };
 }
+
+const project: Pick<ProjectRecord, "id" | "name"> = {
+  id: "project-1",
+  name: "Project 1",
+};
+
+function makeLabel(id: string, name: string, shortcut: string | null = null): LabelRecord {
+  return {
+    id,
+    project_id: project.id,
+    project_name: project.name,
+    name,
+    color: "#112233",
+    description: "",
+    shortcut,
+    meta: {},
+  };
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("color helpers", () => {
   it("normalizes hex color with or without prefix", () => {
@@ -80,6 +103,68 @@ describe("label draft helpers", () => {
     expect(findConflictingLabelName(labels, { id: "label-1", name: " Finding " })).toEqual({
       id: "label-2",
       name: "Finding",
+    });
+  });
+
+  it("submits a new label with normalized values", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.123456789);
+
+    const result = submitLabelDraft(project, [makeLabel("label-1", "Disease", "1")], {
+      id: "",
+      name: " Finding ",
+      color: "AABBCC",
+      description: "desc",
+    });
+
+    expect(result).toMatchObject({
+      status: "submitted",
+      label: {
+        id: "local-label-4fzzzxjy",
+        project_id: "project-1",
+        project_name: "Project 1",
+        name: "Finding",
+        color: "#aabbcc",
+        description: "desc",
+        shortcut: null,
+        meta: {},
+      },
+    });
+    expect(result.status === "submitted" ? result.labels.map((label) => label.name) : []).toEqual([
+      "Disease",
+      "Finding",
+    ]);
+  });
+
+  it("updates the edited label and preserves its shortcut", () => {
+    const result = submitLabelDraft(project, [makeLabel("label-1", "Disease", "1")], {
+      id: "label-1",
+      name: " Updated Disease ",
+      color: "#445566",
+      description: "updated",
+    });
+
+    expect(result).toMatchObject({
+      status: "submitted",
+      label: {
+        id: "label-1",
+        name: "Updated Disease",
+        shortcut: "1",
+      },
+    });
+    expect(result.status === "submitted" ? result.labels : []).toHaveLength(1);
+  });
+
+  it("rejects duplicate label names before mutating labels", () => {
+    const labels = [makeLabel("label-1", "Disease"), makeLabel("label-2", "Finding")];
+
+    expect(submitLabelDraft(project, labels, {
+      id: "label-1",
+      name: " Finding ",
+      color: "#445566",
+      description: "",
+    })).toEqual({
+      status: "duplicate",
+      conflictingLabel: labels[1],
     });
   });
 });

@@ -37,6 +37,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "agentation": "^2.3.3",
     "agentation-mcp": "^1.2.0",
+    "happy-dom": "^20.9.0",
     "jsdom": "^28.1.0",
     "openapi-typescript": "^7.13.0",
     "typescript": "^5.9.2",

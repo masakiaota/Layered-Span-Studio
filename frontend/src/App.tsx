@@ -19,9 +19,9 @@ import {
 import type { LabelDraft, PendingAction, RightTab, SelectionPreview } from "./features/project-shell/projectShellTypes";
 import {
   createEmptyLabelDraft,
-  findConflictingLabelName,
   isHexColor,
   normalizeHexColor,
+  submitLabelDraft,
   toLabelDraft,
   toDocumentListItem,
   trimDocumentWindow,
@@ -1170,39 +1170,26 @@ export function ProjectShell({
   }
 
   function handleLabelDraftSubmit() {
-    if (!labelDraft.name.trim() || !bundle) {
+    if (!bundle) {
       return;
     }
-    if (!labelColorValid) {
+    const result = submitLabelDraft(bundle.project, bundle.labels, labelDraft);
+    if (result.status === "empty-name") {
+      return;
+    }
+    if (result.status === "invalid-color") {
       showToast(t("projectShell.settings.invalidColorHelper"), "warning");
       return;
     }
-    const existing = findConflictingLabelName(bundle.labels, labelDraft);
-    const editingLabel = bundle.labels.find((label) => label.id === labelDraft.id);
-    if (existing) {
+    if (result.status === "duplicate") {
       showToast(t("projectShell.toasts.duplicateLabelName"), "warning");
       return;
     }
-    const nextLabel = {
-      id: labelDraft.id || makeLocalId("label"),
-      project_id: bundle.project.id,
-      project_name: bundle.project.name,
-      name: labelDraft.name.trim(),
-      color: normalizedLabelColor,
-      description: labelDraft.description,
-      shortcut: editingLabel?.shortcut ?? null,
-      meta: {},
-    };
     mutateSettingsBundle((draft) => {
-      const index = draft.labels.findIndex((label) => label.id === nextLabel.id);
-      if (index >= 0) {
-        draft.labels[index] = nextLabel;
-        return;
-      }
-      draft.labels.push(nextLabel);
+      draft.labels = result.labels;
     });
-    setSelectedSettingsLabelId(nextLabel.id);
-    setLabelDraft(toLabelDraft(nextLabel));
+    setSelectedSettingsLabelId(result.label.id);
+    setLabelDraft(toLabelDraft(result.label));
   }
 
   function handleDeleteLabel(labelId: string) {

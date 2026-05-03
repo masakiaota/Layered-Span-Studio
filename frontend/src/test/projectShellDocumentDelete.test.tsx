@@ -1,11 +1,13 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { setupUserEvent } from "./userEvent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
 import { ApiError, api } from "../api";
-import type { AnnotationRecord, DocumentRecord, LabelRecord, ProjectRecord, UserRecord } from "../api-contract";
+import type { AnnotationRecord, DocumentRecord, DocumentSortValue, LabelRecord, ProjectRecord, UserRecord } from "../api-contract";
+import { DocumentListPane } from "../features/project-shell/DocumentListPane";
 import type { DocumentListItem } from "../types";
+import { I18nProvider } from "../i18n/I18nProvider";
 
 vi.mock("../features/project-shell/useProjectExamples", () => ({
   useProjectExamples: () => ({
@@ -31,6 +33,90 @@ vi.mock("../features/project-shell/useBodyScrollLock", () => ({
 
 vi.mock("../features/project-shell/useProjectShortcuts", () => ({
   useProjectShortcuts: () => {},
+}));
+
+vi.mock("../features/project-shell/SettingsView", () => ({
+  SettingsView: () => <div>Settings View Mock</div>,
+}));
+
+vi.mock("../features/project-shell/WorkspaceView", () => ({
+  WorkspaceView: ({
+    currentDocument,
+    currentDocumentLoading,
+    visibleDocuments,
+    selectedDocumentId,
+    currentHiddenBySearch,
+    pendingDocumentTotal,
+    documentTotal,
+    getDisplayDocumentStatus,
+    onSelectDocument,
+    onRequestDeleteDocument,
+    onSelectAnnotation,
+    onUpdateSelectedAnnotationComment,
+  }: {
+    currentDocument: DocumentRecord | null;
+    currentDocumentLoading: boolean;
+    visibleDocuments: DocumentListItem[];
+    selectedDocumentId: string | null;
+    currentHiddenBySearch: boolean;
+    pendingDocumentTotal: number;
+    documentTotal: number;
+    getDisplayDocumentStatus: (document: DocumentListItem) => string;
+    onSelectDocument: (documentId: string) => void;
+    onRequestDeleteDocument: (documentId: string) => void;
+    onSelectAnnotation: (annotationId: string) => void;
+    onUpdateSelectedAnnotationComment: (comment: string) => void;
+  }) => (
+    <div>
+      <div>
+        {pendingDocumentTotal} pending / {documentTotal} docs
+      </div>
+      {currentDocumentLoading ? <div>Document を読み込み中</div> : null}
+      {currentHiddenBySearch ? <div>現在表示中の Document は検索結果外である。</div> : null}
+      {visibleDocuments.length === 0 ? (
+        <>
+          <div>一致する Document がない</div>
+          <div>Document がない</div>
+        </>
+      ) : null}
+      {visibleDocuments.map((document) => (
+        <div
+          key={document.id}
+          role="button"
+          tabIndex={0}
+          className={selectedDocumentId === document.id ? "Mui-selected" : ""}
+          onClick={() => onSelectDocument(document.id)}
+        >
+          <span>{document.document_name}</span>
+          <span>{getDisplayDocumentStatus(document)}</span>
+          <button
+            type="button"
+            aria-label={`Delete document ${document.document_name}`}
+            style={{ visibility: "visible" }}
+            onClick={(event) => {
+              event.stopPropagation();
+              onRequestDeleteDocument(document.id);
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      ))}
+      <button type="button" role="tab">
+        注釈一覧
+      </button>
+      {currentDocument?.annotations.map((annotation) => (
+        <button key={annotation.id} type="button" onClick={() => onSelectAnnotation(annotation.id)}>
+          {annotation.start}-{annotation.end}
+        </button>
+      ))}
+      <button type="button">Annotation details</button>
+      <label>
+        Comment
+        <input onChange={(event) => onUpdateSelectedAnnotationComment(event.target.value)} />
+      </label>
+    </div>
+  ),
 }));
 
 const project: ProjectRecord = {
@@ -208,6 +294,45 @@ function renderWorkspace() {
   );
 }
 
+function renderDocumentListPane({
+  documents,
+  selectedDocumentId = documents[0]?.id ?? null,
+  sortMode = "created",
+}: {
+  documents: DocumentRecord[];
+  selectedDocumentId?: string | null;
+  sortMode?: DocumentSortValue;
+}) {
+  return render(
+    <I18nProvider initialLocale="ja">
+      <DocumentListPane
+        selectedDocumentId={selectedDocumentId}
+        currentHiddenBySearch={false}
+        visibleDocuments={documents.map(toListItem)}
+        currentDocumentOutsideWindow={false}
+        pendingDocumentTotal={documents.filter((document) => document.status === "pending").length}
+        documentTotal={documents.length}
+        searchQuery=""
+        sortMode={sortMode}
+        documentsLoadingMore={false}
+        documentWindowStartOffset={0}
+        documentNextOffset={documents.length}
+        documentListScrollRef={{ current: null }}
+        getDisplayDocumentStatus={(document) => document.status}
+        saving={false}
+        onOpenCreateDocument={vi.fn()}
+        onSearchQueryChange={vi.fn()}
+        onSortModeChange={vi.fn()}
+        onReturnToSelectedDocument={vi.fn()}
+        onLoadPreviousDocuments={vi.fn()}
+        onLoadMoreDocuments={vi.fn()}
+        onSelectDocument={vi.fn()}
+        onRequestDeleteDocument={vi.fn()}
+      />
+    </I18nProvider>,
+  );
+}
+
 function getDocumentRow(documentName: string) {
   const row = screen
     .getAllByText(documentName)
@@ -219,7 +344,7 @@ function getDocumentRow(documentName: string) {
   return row;
 }
 
-async function revealDeleteButton(userEventSetup: ReturnType<typeof userEvent.setup>, documentName: string) {
+async function revealDeleteButton(userEventSetup: ReturnType<typeof setupUserEvent>, documentName: string) {
   const row = getDocumentRow(documentName);
   await userEventSetup.hover(row);
   const button = await within(row).findByRole("button", { name: `Delete document ${documentName}` });
@@ -237,13 +362,13 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("shows the delete button only on hover for non-selected rows and always for the selected row", async () => {
-    const userEventSetup = userEvent.setup();
-    setupDocumentApis([
+    const userEventSetup = setupUserEvent();
+    renderDocumentListPane({
+      documents: [
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
-    ]);
-
-    renderWorkspace();
+      ],
+    });
 
     await screen.findByText("2 pending / 2 docs");
 
@@ -260,12 +385,12 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("shows the delete button when a non-selected row receives keyboard focus", async () => {
-    setupDocumentApis([
+    renderDocumentListPane({
+      documents: [
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
-    ]);
-
-    renderWorkspace();
+      ],
+    });
 
     await screen.findByText("2 pending / 2 docs");
 
@@ -278,7 +403,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("keeps the newly selected row highlighted while its document is loading for the first time", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const apiState = setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -315,7 +440,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("does not change the current selection when deleting from a non-selected row", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -340,7 +465,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("keeps the current document selected when a different document is deleted", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -363,7 +488,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("moves to the next visible document when deleting the current document", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -384,7 +509,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("confirms document deletion with Enter from the dialog", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -409,7 +534,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("moves to the previous visible document when deleting the last visible document", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -434,7 +559,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("shows the empty state after deleting the last document", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([createDocument({ id: "doc-1", document_name: "Doc 1" })]);
 
     renderWorkspace();
@@ -449,7 +574,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("shows the unsaved warning when deleting the dirty current document", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation();
     setupDocumentApis([
       createDocument({
@@ -466,7 +591,7 @@ describe("ProjectShell document deletion", () => {
     await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
     await userEventSetup.click(screen.getByText("0-5"));
     await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
-    await userEventSetup.type(await screen.findByLabelText("Comment"), "dirty");
+    fireEvent.change(await screen.findByLabelText("Comment"), { target: { value: "dirty" } });
 
     await userEventSetup.click(within(getDocumentRow("Doc 1")).getByRole("button", { name: "Delete document Doc 1" }));
 
@@ -474,7 +599,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("treats not-found deletion as already deleted and recovers the UI", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const apiState = setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -496,7 +621,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("keeps the dialog open and preserves state when deletion fails", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const apiState = setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),

@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { createTheme } from "@mui/material/styles";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUserEvent } from "./userEvent";
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceView } from "../features/project-shell/WorkspaceView";
 import { getAnnotationGuideMaxHeight } from "../features/project-shell/projectShellConstants";
@@ -279,7 +279,7 @@ describe("WorkspaceView", () => {
   });
 
   it("shows a compact return banner instead of pinning the selected document outside the scroll window", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const onReturnToSelectedDocument = vi.fn();
 
     render(
@@ -301,7 +301,7 @@ describe("WorkspaceView", () => {
   });
 
   it("shows a return banner when the selected document row is mounted but outside the scroll viewport", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const scrollIntoView = vi.fn();
     const originalScrollIntoView = window.HTMLElement.prototype.scrollIntoView;
     const originalGetBoundingClientRect = Object.getOwnPropertyDescriptor(
@@ -610,7 +610,7 @@ describe("WorkspaceView", () => {
   });
 
   it("shows selected annotation controls in the center dock and removes the right-pane editor", async () => {
-    const user = userEvent.setup();
+    const user = setupUserEvent();
     const onSelectNextPendingAnnotation = vi.fn();
     const onVerifySelectedAnnotation = vi.fn();
     render(
@@ -640,7 +640,7 @@ describe("WorkspaceView", () => {
   });
 
   it("keeps selected annotation details open when selection changes", async () => {
-    const user = userEvent.setup();
+    const user = setupUserEvent();
     const { rerender } = render(
       <WorkspaceView
         {...createProps({
@@ -671,7 +671,7 @@ describe("WorkspaceView", () => {
   });
 
   it("exposes selected annotation details as an accessible disclosure", async () => {
-    const user = userEvent.setup();
+    const user = setupUserEvent();
     render(
       <WorkspaceView
         {...createProps({
@@ -694,7 +694,7 @@ describe("WorkspaceView", () => {
   });
 
   it("clears the range selection preview when selecting an annotation from the list", async () => {
-    const user = userEvent.setup();
+    const user = setupUserEvent();
     const onSelectionDraftChange = vi.fn();
     const onSelectAnnotation = vi.fn();
     render(
@@ -716,7 +716,7 @@ describe("WorkspaceView", () => {
   });
 
   it("lets keyboard users operate annotation groups and rows", async () => {
-    const user = userEvent.setup();
+    const user = setupUserEvent();
     const onToggleAnnotationGroup = vi.fn();
     const onSelectAnnotation = vi.fn();
     render(

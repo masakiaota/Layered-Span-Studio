@@ -1,7 +1,8 @@
 import type { LabelDraft } from "./projectShellTypes";
-import type { DocumentListResponse, DocumentRecord, LabelRecord } from "../../api-contract";
+import type { DocumentListResponse, DocumentRecord, LabelRecord, ProjectRecord } from "../../api-contract";
 import type { DocumentListItem } from "../../types";
 import { DEFAULT_LABEL_COLOR, DOCUMENT_WINDOW_SIZE } from "./projectShellConstants";
+import { makeLocalId } from "../../utils";
 
 export function normalizeHexColor(value: string) {
   const trimmed = value.trim();
@@ -42,6 +43,50 @@ export function findConflictingLabelName(
 ) {
   const normalizedName = draft.name.trim();
   return labels.find((label) => label.id !== draft.id && label.name.trim() === normalizedName) ?? null;
+}
+
+export type LabelDraftSubmitResult =
+  | { status: "submitted"; label: LabelRecord; labels: LabelRecord[] }
+  | { status: "empty-name" }
+  | { status: "invalid-color" }
+  | { status: "duplicate"; conflictingLabel: Pick<LabelRecord, "id" | "name"> };
+
+export function submitLabelDraft(
+  project: Pick<ProjectRecord, "id" | "name">,
+  labels: LabelRecord[],
+  labelDraft: LabelDraft,
+): LabelDraftSubmitResult {
+  if (!labelDraft.name.trim()) {
+    return { status: "empty-name" };
+  }
+  if (!isHexColor(labelDraft.color)) {
+    return { status: "invalid-color" };
+  }
+
+  const conflictingLabel = findConflictingLabelName(labels, labelDraft);
+  if (conflictingLabel) {
+    return { status: "duplicate", conflictingLabel };
+  }
+
+  const editingLabel = labels.find((label) => label.id === labelDraft.id);
+  const nextLabel: LabelRecord = {
+    id: labelDraft.id || makeLocalId("label"),
+    project_id: project.id,
+    project_name: project.name,
+    name: labelDraft.name.trim(),
+    color: normalizeHexColor(labelDraft.color),
+    description: labelDraft.description,
+    shortcut: editingLabel?.shortcut ?? null,
+    meta: {},
+  };
+  const index = labels.findIndex((label) => label.id === nextLabel.id);
+  const nextLabels = [...labels];
+  if (index >= 0) {
+    nextLabels[index] = nextLabel;
+  } else {
+    nextLabels.push(nextLabel);
+  }
+  return { status: "submitted", label: nextLabel, labels: nextLabels };
 }
 
 export function toDocumentListItem(document: DocumentRecord): DocumentListItem {

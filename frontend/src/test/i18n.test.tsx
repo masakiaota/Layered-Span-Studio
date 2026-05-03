@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUserEvent } from "./userEvent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
 import { ProjectShellHeader } from "../features/project-shell/ProjectShellHeader";
@@ -102,7 +102,7 @@ describe("i18n locale layer", () => {
   });
 
   it("switches LoginPage copy between ja and en", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     renderWithI18n(<LoginPage loading={false} error="" onLogin={vi.fn()} />, "en");
 
     expect(screen.getByText("A tool for annotating text and reviewing it while organizing labels. Sign in here to continue to the project list.")).toBeInTheDocument();
@@ -112,7 +112,7 @@ describe("i18n locale layer", () => {
   });
 
   it("shows all locales in the language menu", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     renderWithI18n(<LoginPage loading={false} error="" onLogin={vi.fn()} />, "en");
 
     await userEventSetup.click(screen.getByRole("button", { name: "Language switcher" }));
@@ -122,7 +122,7 @@ describe("i18n locale layer", () => {
   });
 
   it("switches ProjectsPage copy between ja and en", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: [] });
 
     renderProjectsPage("en");
@@ -134,7 +134,7 @@ describe("i18n locale layer", () => {
   });
 
   it("switches ProjectsPage copy to zh-CN and points guide links to zh-CN docs", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: [] });
 
     renderProjectsPage("en");
@@ -150,7 +150,7 @@ describe("i18n locale layer", () => {
   });
 
   it("localizes the invalid import file validation message in en", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: [] });
 
     renderProjectsPage("en");
@@ -173,7 +173,7 @@ describe("i18n locale layer", () => {
   });
 
   it("switches ProjectShellHeader copy between ja and en", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     renderWithI18n(
       <ProjectShellHeader
         bundle={bundle}
@@ -195,7 +195,7 @@ describe("i18n locale layer", () => {
   });
 
   it("switches ProjectShellHeader copy to zh-CN", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     renderWithI18n(
       <ProjectShellHeader
         bundle={bundle}
