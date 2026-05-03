@@ -34,10 +34,10 @@ import PendingActionsRoundedIcon from "@mui/icons-material/PendingActionsRounded
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
-import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { LayeredSpanIcon } from "../components/LayeredSpanIcon";
 import { CreateProjectDialog } from "../features/projects/CreateProjectDialog";
 import { ImportProjectDialog } from "../features/projects/ImportProjectDialog";
 import { useToast } from "../hooks/useToast";
@@ -311,8 +311,8 @@ export function ProjectsPage({
       >
         <Toolbar sx={{ gap: 2, minHeight: 76 }}>
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexGrow: 1, minWidth: 0 }}>
-            <Avatar sx={{ bgcolor: "primary.main", width: 44, height: 44 }}>
-              <WorkspacesRoundedIcon />
+            <Avatar sx={{ bgcolor: alpha("#1a73e8", 0.12), width: 44, height: 44 }}>
+              <LayeredSpanIcon sx={{ fontSize: 30 }} />
             </Avatar>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="h6" noWrap>
@@ -326,7 +326,7 @@ export function ProjectsPage({
           <Stack direction="row" spacing={1.25}>
             <Button
               variant="outlined"
-              startIcon={<WorkspacesRoundedIcon />}
+              startIcon={<LayeredSpanIcon />}
               onClick={() => setCreateDialogOpen(true)}
               disabled={mutationBusy}
             >
@@ -470,7 +470,7 @@ export function ProjectsPage({
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="center" sx={{ mt: 3 }}>
                 <Button
                   variant="outlined"
-                  startIcon={<WorkspacesRoundedIcon />}
+                  startIcon={<LayeredSpanIcon />}
                   onClick={() => setCreateDialogOpen(true)}
                   disabled={mutationBusy}
                 >
@@ -573,7 +573,7 @@ export function ProjectsPage({
                     <CardActions sx={{ px: 2.5, pb: 2.5, pt: 0, mt: "auto", justifyContent: "space-between" }}>
                       <Button
                         variant="contained"
-                        startIcon={<WorkspacesRoundedIcon />}
+                        startIcon={<LayeredSpanIcon tone="light" />}
                         onClick={() => navigate(`/projects/${project.id}`)}
                       >
                         {t("projects.actions.openWorkspace")}
