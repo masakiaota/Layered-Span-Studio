@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from layered_span_studio_backend.core.config import Settings
+from layered_span_studio_backend.repositories import annotations as annotations_repo
 from layered_span_studio_backend.repositories import bulk_import as bulk_import_repo
 from layered_span_studio_backend.repositories import documents as documents_repo
 from layered_span_studio_backend.repositories import labels as labels_repo
@@ -312,18 +313,25 @@ def export_project(
 
     labels = labels_repo.list_labels(settings, project_id)
     documents = documents_repo.list_all_documents(settings, project_id)
-    allowed_statuses = set()
+
+    allowed_statuses: List[str] = []
     if include_pending:
-        allowed_statuses.add("pending")
+        allowed_statuses.append("pending")
     if include_verified:
-        allowed_statuses.add("verified")
+        allowed_statuses.append("verified")
+
+    annotations_by_doc: Dict[str, List[Dict[str, Any]]] = {doc["id"]: [] for doc in documents}
+    if allowed_statuses:
+        bulk_annotations = annotations_repo.list_project_annotations_for_export(
+            settings, project_id, allowed_statuses
+        )
+        for ann in bulk_annotations:
+            doc_id = ann["document_id"]
+            if doc_id in annotations_by_doc:
+                annotations_by_doc[doc_id].append(ann)
+
     for doc in documents:
-        annotations = documents_repo.list_document_annotations(settings, project_id, doc["id"])
-        if allowed_statuses:
-            annotations = [ann for ann in annotations if ann["status"] in allowed_statuses]
-        else:
-            annotations = []
-        doc["annotations"] = annotations
+        doc["annotations"] = annotations_by_doc[doc["id"]]
 
     return {"project": project, "labels": labels, "documents": documents, "meta": EXPORT_META}
 

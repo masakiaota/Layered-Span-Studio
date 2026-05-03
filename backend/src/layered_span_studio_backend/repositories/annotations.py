@@ -189,6 +189,64 @@ def delete_annotation(settings: Settings, project_id: str, document_id: str, ann
     return result.rowcount > 0
 
 
+def list_project_annotations_for_export(
+    settings: Settings, project_id: str, statuses: List[str]
+) -> List[Dict[str, Any]]:
+    """Bulk-fetch all annotations for a project in a single query.
+
+    Returns the full set of fields needed for export (including comment and meta),
+    filtered to the given statuses, ordered by document_id then start position.
+    """
+    db_path = project_db_path(settings, project_id)
+    engine = get_project_engine(str(db_path))
+    with engine.connect() as conn:
+        rows = (
+            conn.execute(
+                select(
+                    annotations_table.c.id,
+                    annotations_table.c.document_id,
+                    annotations_table.c.label_id,
+                    annotations_table.c.start,
+                    annotations_table.c.end,
+                    annotations_table.c.span_text,
+                    annotations_table.c.comment,
+                    annotations_table.c.status,
+                    annotations_table.c.meta,
+                    documents_table.c.document_name,
+                    labels_table.c.name.label("label_name"),
+                )
+                .select_from(
+                    annotations_table.join(
+                        documents_table, annotations_table.c.document_id == documents_table.c.id
+                    ).join(labels_table, annotations_table.c.label_id == labels_table.c.id)
+                )
+                .where(
+                    documents_table.c.project_id == project_id,
+                    annotations_table.c.status.in_(statuses),
+                )
+                .order_by(annotations_table.c.document_id, annotations_table.c.start)
+            )
+            .mappings()
+            .all()
+        )
+    return [
+        {
+            "id": row["id"],
+            "document_id": row["document_id"],
+            "document_name": row["document_name"],
+            "label_id": row["label_id"],
+            "label_name": row["label_name"],
+            "start": row["start"],
+            "end": row["end"],
+            "span_text": row["span_text"],
+            "comment": row["comment"],
+            "status": row["status"],
+            "meta": decode_meta(row["meta"]),
+        }
+        for row in rows
+    ]
+
+
 def list_project_annotations(settings: Settings, project_id: str, statuses: List[str]) -> List[Dict[str, Any]]:
     db_path = project_db_path(settings, project_id)
     engine = get_project_engine(str(db_path))
