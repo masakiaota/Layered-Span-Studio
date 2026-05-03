@@ -4,6 +4,7 @@ import shutil
 import time
 import uuid
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -149,15 +150,21 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
     return projects
 
 
-def ensure_project_dbs(settings: Settings) -> None:
-    if not settings.projects_dir.exists():
-        return
-    for entry in settings.projects_dir.iterdir():
-        db_path = entry / PROJECT_DB_FILENAME
-        if not entry.is_dir() or not db_path.exists():
-            continue
-        engine = get_project_engine(str(db_path))
-        ensure_project_indexes(engine)
+def _ensure_project_indexes_with_retry(db_path: Path) -> None:
+    engine = get_project_engine(str(db_path))
+    for attempt in range(len(PROJECT_SCHEMA_RETRY_DELAYS) + 1):
+        try:
+            ensure_project_indexes(engine)
+            return
+        except OperationalError as exc:
+            if attempt == len(PROJECT_SCHEMA_RETRY_DELAYS) or not _is_sqlite_lock_error(exc):
+                raise
+            time.sleep(PROJECT_SCHEMA_RETRY_DELAYS[attempt])
+
+
+@lru_cache
+def _ensure_project_indexes_once(db_path: str) -> None:
+    _ensure_project_indexes_with_retry(Path(db_path))
 
 
 def get_project(settings: Settings, project_id: str) -> Optional[Dict[str, Any]]:
@@ -330,4 +337,7 @@ def delete_project(settings: Settings, project_id: str) -> bool:
 
 
 def project_db_path(settings: Settings, project_id: str) -> Path:
-    return _project_db_path(settings, project_id)
+    db_path = _project_db_path(settings, project_id)
+    if db_path.exists():
+        _ensure_project_indexes_once(str(db_path))
+    return db_path

@@ -133,5 +133,12 @@ def init_project_db(db_path: Path) -> None:
 
 def ensure_project_indexes(engine: Engine) -> None:
     with engine.begin() as conn:
+        has_annotations_table = (
+            conn.exec_driver_sql("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'annotations'")
+            .first()
+            is not None
+        )
+        if not has_annotations_table:
+            return
         for ddl in PROJECT_INDEX_DDL:
             conn.exec_driver_sql(ddl)
