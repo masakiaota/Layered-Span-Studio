@@ -1132,4 +1132,116 @@ describe("useProjectBundle", () => {
       await Promise.allSettled([resetDeferred.promise, loadMoreDeferred.promise]);
     });
   });
+
+  describe("searchQuery debounce", () => {
+    function makeListDocumentsMock() {
+      return vi.spyOn(api, "listDocuments").mockResolvedValue({
+        documents: [createDocumentListItem()],
+        total: 1,
+        pending_total: 0,
+        offset: 0,
+        limit: 20,
+        search: "",
+        sort: "created",
+      });
+    }
+
+    async function setupLoadedBundle(searchQuery: string, sortMode: DocumentSortValue = "created") {
+      vi.spyOn(api, "getProject").mockResolvedValue(project);
+      vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+      const listDocumentsSpy = makeListDocumentsMock();
+      vi.spyOn(api, "getDocument").mockResolvedValue(createDocument());
+
+      const showToast = makeShowToast();
+      let currentSearchQuery = searchQuery;
+      let currentSortMode = sortMode;
+
+      const { result, rerender } = renderHook(() =>
+        useProjectBundle({
+          projectId: "project-1",
+          searchQuery: currentSearchQuery,
+          sortMode: currentSortMode,
+          selectedDocId: null,
+          showToast,
+        }),
+      );
+
+      await act(async () => {
+        await result.current.loadBundle();
+      });
+
+      return {
+        result,
+        rerender: (overrides: { searchQuery?: string; sortMode?: DocumentSortValue } = {}) => {
+          if (overrides.searchQuery !== undefined) currentSearchQuery = overrides.searchQuery;
+          if (overrides.sortMode !== undefined) currentSortMode = overrides.sortMode;
+          rerender();
+        },
+        listDocumentsSpy,
+      };
+    }
+
+    it("does not call listDocuments immediately when searchQuery changes", async () => {
+      const { rerender, listDocumentsSpy } = await setupLoadedBundle("");
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      act(() => {
+        rerender({ searchQuery: "hello" });
+      });
+
+      // Should not call listDocuments immediately (debounce pending)
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad);
+    });
+
+    it("calls listDocuments after 200ms debounce when searchQuery changes", async () => {
+      const { rerender, listDocumentsSpy } = await setupLoadedBundle("");
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      act(() => {
+        rerender({ searchQuery: "hello" });
+      });
+
+      await waitFor(
+        () => expect(listDocumentsSpy.mock.calls.length).toBeGreaterThan(callCountAfterLoad),
+        { timeout: 500 },
+      );
+    });
+
+    it("calls listDocuments only once when searchQuery changes rapidly", async () => {
+      const { rerender, listDocumentsSpy } = await setupLoadedBundle("");
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      // Simulate rapid typing: each keystroke within debounce window
+      for (const query of ["h", "he", "hel", "hell", "hello"]) {
+        act(() => {
+          rerender({ searchQuery: query });
+        });
+        await new Promise((r) => setTimeout(r, 20));
+      }
+
+      // Wait for the final debounce to settle
+      await waitFor(
+        () => expect(listDocumentsSpy.mock.calls.length).toBeGreaterThan(callCountAfterLoad),
+        { timeout: 500 },
+      );
+
+      // Only one API call should have been made (not one per keystroke)
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad + 1);
+    });
+
+    it("calls listDocuments without debounce when sortMode changes", async () => {
+      const { rerender, listDocumentsSpy } = await setupLoadedBundle("", "created");
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      await act(async () => {
+        rerender({ sortMode: "name" });
+      });
+
+      // sortMode change should trigger a fetch without waiting for debounce
+      await waitFor(
+        () => expect(listDocumentsSpy.mock.calls.length).toBeGreaterThan(callCountAfterLoad),
+        { timeout: 100 },
+      );
+    });
+  });
 });

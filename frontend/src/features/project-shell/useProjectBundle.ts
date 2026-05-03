@@ -319,7 +319,17 @@ export function useProjectBundle({
       return;
     }
     void fetchDocumentPage(true);
-  }, [searchQuery, sortMode]);
+  }, [sortMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!bundle || !initialDocumentListLoadedRef.current) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      void fetchDocumentPage(true);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!bundle) {
