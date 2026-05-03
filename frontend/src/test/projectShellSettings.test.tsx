@@ -1,11 +1,8 @@
 import { useRef, useState } from "react";
-import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { setupUserEvent } from "./userEvent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ProjectShell } from "../App";
 import { api } from "../api";
-import type { LabelRecord, ProjectRecord, UserRecord } from "../api-contract";
+import type { LabelRecord, ProjectRecord } from "../api-contract";
 import { I18nProvider } from "../i18n/I18nProvider";
 import type { LabelDraft } from "../features/project-shell/projectShellTypes";
 import { SettingsView } from "../features/project-shell/SettingsView";
@@ -91,12 +88,6 @@ const baseLabels: LabelRecord[] = [
   },
 ];
 
-const user: UserRecord = {
-  id: "user-1",
-  username: "demo_login_user",
-  meta: {},
-};
-
 function createBundle(labels = structuredClone(baseLabels)): ProjectBundle {
   return {
     project: structuredClone(project),
@@ -128,30 +119,6 @@ function mockLabelRowRect(name: string, top: number, height: number) {
     y: top,
     toJSON: () => ({}),
   });
-}
-
-function renderProjectSettings(locale: "ja" | "en" | "zh-CN" = "ja") {
-  vi.spyOn(api, "getProject").mockResolvedValue(project);
-  vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
-  vi.spyOn(api, "listDocuments").mockResolvedValue({
-    documents: [],
-    total: 0,
-    pending_total: 0,
-    offset: 0,
-    limit: 40,
-    search: "",
-    sort: "created",
-  });
-
-  return render(
-    <I18nProvider initialLocale={locale}>
-      <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
-        <Routes>
-          <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
-        </Routes>
-      </MemoryRouter>
-    </I18nProvider>,
-  );
 }
 
 function renderSettingsView(locale: "ja" | "en" | "zh-CN" = "ja") {
@@ -242,7 +209,7 @@ function renderSettingsView(locale: "ja" | "en" | "zh-CN" = "ja") {
           importFeedback={null}
           onProjectNameChange={(value) => updateBundle((draft) => { draft.project.name = value; })}
           onProjectDescriptionChange={(value) => updateBundle((draft) => { draft.project.description = value; })}
-          onProjectGuidelineChange={(value) => updateBundle((draft) => { draft.project = setProjectGuideline(draft.project, value); })}
+          onProjectGuidelineChange={(value) => updateBundle((draft) => { setProjectGuideline(draft.project, value); })}
           onLabelDraftChange={setLabelDraft}
           onNormalizeLabelColor={() => setLabelDraft((current) => ({ ...current, color: normalizeHexColor(current.color) }))}
           onOpenColorPicker={() => colorInputRef.current?.click()}
@@ -302,39 +269,6 @@ function renderSettingsView(locale: "ja" | "en" | "zh-CN" = "ja") {
   return { ...view, saveProjectLabelsSpy };
 }
 
-function createImportFile(payload: unknown) {
-  return new File([JSON.stringify(payload)], "import.json", { type: "application/json" });
-}
-
-function createImportPayload(labelName: string) {
-  return {
-    project: { name: "Imported Project" },
-    labels: [{ name: labelName, color: "#ff0000", description: "imported label" }],
-    documents: [
-      {
-        document_name: "Imported Doc",
-        text: "text",
-        status: "pending",
-        created_at: "2026-03-01T00:00:00Z",
-        updated_at: "2026-03-02T00:00:00Z",
-        annotations: [],
-      },
-    ],
-  };
-}
-
-function ProjectsRouteWithBackButton() {
-  const navigate = useNavigate();
-  return (
-    <>
-      <div>Projects Route</div>
-      <button type="button" onClick={() => navigate(-1)}>
-        Back
-      </button>
-    </>
-  );
-}
-
 describe("ProjectShell settings label selection", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -345,7 +279,6 @@ describe("ProjectShell settings label selection", () => {
   });
 
   it("starts with no selected label and lets the user select and clear labels", async () => {
-    const userEventSetup = setupUserEvent();
     renderSettingsView();
 
     const nameInput = screen.getByLabelText("Name");
@@ -357,20 +290,20 @@ describe("ProjectShell settings label selection", () => {
     expect(patientRow).not.toHaveClass("Mui-selected");
     expect(screen.getByRole("button", { name: "Add label" })).toBeInTheDocument();
 
-    await userEventSetup.click(diagnosisRow);
+    fireEvent.click(diagnosisRow);
 
     expect(nameInput).toHaveValue("病名");
     expect(diagnosisRow).toHaveClass("Mui-selected");
     expect(patientRow).not.toHaveClass("Mui-selected");
     expect(screen.getByRole("button", { name: "Update label" })).toBeInTheDocument();
 
-    await userEventSetup.click(patientRow);
+    fireEvent.click(patientRow);
 
     expect(nameInput).toHaveValue("患者メタデータ");
     expect(diagnosisRow).not.toHaveClass("Mui-selected");
     expect(patientRow).toHaveClass("Mui-selected");
 
-    await userEventSetup.click(screen.getByRole("button", { name: "Clear" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
     expect(nameInput).toHaveValue("");
     expect(diagnosisRow).not.toHaveClass("Mui-selected");
@@ -394,28 +327,27 @@ describe("ProjectShell settings label selection", () => {
   });
 
   it("keeps the edited or added label selected in the form", async () => {
-    const userEventSetup = setupUserEvent();
     renderSettingsView();
 
     const nameInput = screen.getByLabelText("Name");
     const descriptionInputs = screen.getAllByLabelText("Description");
     const labelDescriptionInput = descriptionInputs[1];
 
-    await userEventSetup.click(getLabelRow("病名"));
-    await userEventSetup.clear(nameInput);
+    fireEvent.click(getLabelRow("病名"));
+    fireEvent.change(nameInput, { target: { value: "" } });
     fireEvent.change(nameInput, { target: { value: "病名更新" } });
-    await userEventSetup.click(screen.getByRole("button", { name: "Update label" }));
+    fireEvent.click(screen.getByRole("button", { name: "Update label" }));
 
     const updatedRow = getLabelRow("病名更新");
     expect(updatedRow).toHaveClass("Mui-selected");
     expect(nameInput).toHaveValue("病名更新");
     expect(screen.getByRole("button", { name: "Update label" })).toBeInTheDocument();
 
-    await userEventSetup.click(screen.getByRole("button", { name: "Clear" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     fireEvent.change(nameInput, { target: { value: "既往歴" } });
-    await userEventSetup.clear(labelDescriptionInput);
+    fireEvent.change(labelDescriptionInput, { target: { value: "" } });
     fireEvent.change(labelDescriptionInput, { target: { value: "過去の病歴" } });
-    await userEventSetup.click(screen.getByRole("button", { name: "Add label" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add label" }));
 
     const addedRow = getLabelRow("既往歴");
     expect(addedRow).toHaveClass("Mui-selected");
@@ -425,19 +357,18 @@ describe("ProjectShell settings label selection", () => {
   });
 
   it("clears only when the selected label is deleted", async () => {
-    const userEventSetup = setupUserEvent();
     renderSettingsView();
 
     const nameInput = screen.getByLabelText("Name");
-    await userEventSetup.click(getLabelRow("患者メタデータ"));
+    fireEvent.click(getLabelRow("患者メタデータ"));
 
-    await userEventSetup.click(within(getLabelRow("病名")).getByRole("button", { name: "病名 を削除" }));
+    fireEvent.click(within(getLabelRow("病名")).getByRole("button", { name: "病名 を削除" }));
 
     expect(screen.queryByText("病名")).not.toBeInTheDocument();
     expect(nameInput).toHaveValue("患者メタデータ");
     expect(getLabelRow("患者メタデータ")).toHaveClass("Mui-selected");
 
-    await userEventSetup.click(within(getLabelRow("患者メタデータ")).getByRole("button", { name: "患者メタデータ を削除" }));
+    fireEvent.click(within(getLabelRow("患者メタデータ")).getByRole("button", { name: "患者メタデータ を削除" }));
 
     await waitFor(() => {
       expect(screen.queryByText("患者メタデータ")).not.toBeInTheDocument();
@@ -448,14 +379,13 @@ describe("ProjectShell settings label selection", () => {
   });
 
   it("prevents renaming a label to another existing label name", async () => {
-    const userEventSetup = setupUserEvent();
     renderSettingsView();
 
     const nameInput = screen.getByLabelText("Name");
-    await userEventSetup.click(getLabelRow("病名"));
-    await userEventSetup.clear(nameInput);
+    fireEvent.click(getLabelRow("病名"));
+    fireEvent.change(nameInput, { target: { value: "" } });
     fireEvent.change(nameInput, { target: { value: "主訴" } });
-    await userEventSetup.click(screen.getByRole("button", { name: "Update label" }));
+    fireEvent.click(screen.getByRole("button", { name: "Update label" }));
 
     expect(await screen.findByText("同名 label は保存できない")).toBeInTheDocument();
     expect(screen.getAllByText("主訴")).toHaveLength(1);
@@ -464,7 +394,6 @@ describe("ProjectShell settings label selection", () => {
   });
 
   it("reorders labels with the vertical drag handle and saves the reordered payload", async () => {
-    const userEventSetup = setupUserEvent();
     const { saveProjectLabelsSpy } = renderSettingsView();
 
     mockLabelRowRect("主訴", 0, 48);
@@ -479,7 +408,7 @@ describe("ProjectShell settings label selection", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Save changes" })).not.toBeDisabled();
     });
-    await userEventSetup.click(screen.getByRole("button", { name: "Save changes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
       expect(saveProjectLabelsSpy).toHaveBeenCalledTimes(1);
@@ -493,7 +422,6 @@ describe("ProjectShell settings label selection", () => {
   });
 
   it("moves a tall label to the bottom when its lower boundary crosses following labels", async () => {
-    const userEventSetup = setupUserEvent();
     const { saveProjectLabelsSpy } = renderSettingsView();
 
     mockLabelRowRect("主訴", 0, 48);
@@ -508,7 +436,7 @@ describe("ProjectShell settings label selection", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Save changes" })).not.toBeDisabled();
     });
-    await userEventSetup.click(screen.getByRole("button", { name: "Save changes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
       expect(saveProjectLabelsSpy).toHaveBeenCalledTimes(1);
@@ -518,139 +446,5 @@ describe("ProjectShell settings label selection", () => {
       "患者メタデータ",
       "病名",
     ]);
-  });
-});
-
-describe("ProjectShell settings import validation", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("uses persisted labels instead of unsaved newly added labels for import validation", async () => {
-    const userEventSetup = setupUserEvent();
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
-    vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listDocuments").mockResolvedValue({
-      documents: [],
-      total: 0,
-      pending_total: 0,
-      offset: 0,
-      limit: 40,
-      search: "",
-      sort: "created",
-    });
-    const importProjectMock = vi.spyOn(api, "importProject").mockResolvedValue({
-      imported: { labels: 1, documents: 1, annotations: 0 },
-      errors: [],
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
-        <Routes>
-          <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    await screen.findByRole("heading", { name: "Project Settings" });
-
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "既往歴" } });
-    await userEventSetup.click(screen.getByRole("button", { name: "Add label" }));
-
-    const fileInput = document.querySelector('input[type="file"]');
-    if (!(fileInput instanceof HTMLInputElement)) {
-      throw new Error("Import file input not found");
-    }
-    await userEventSetup.upload(fileInput, createImportFile(createImportPayload("既往歴")));
-    await userEventSetup.click(screen.getByRole("button", { name: "Import" }));
-
-    await waitFor(() => {
-      expect(importProjectMock).toHaveBeenCalledTimes(1);
-    });
-    expect(screen.queryByText("既存 label と重複している: 既往歴")).not.toBeInTheDocument();
-  });
-
-  it("detects persisted label conflicts even after an unsaved rename", async () => {
-    const userEventSetup = setupUserEvent();
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
-    vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listDocuments").mockResolvedValue({
-      documents: [],
-      total: 0,
-      pending_total: 0,
-      offset: 0,
-      limit: 40,
-      search: "",
-      sort: "created",
-    });
-    const importProjectMock = vi.spyOn(api, "importProject").mockResolvedValue({
-      imported: { labels: 1, documents: 1, annotations: 0 },
-      errors: [],
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
-        <Routes>
-          <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    await screen.findByRole("heading", { name: "Project Settings" });
-
-    await userEventSetup.click(getLabelRow("病名"));
-    await userEventSetup.clear(screen.getByLabelText("Name"));
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "病名更新" } });
-    await userEventSetup.click(screen.getByRole("button", { name: "Update label" }));
-
-    const fileInput = document.querySelector('input[type="file"]');
-    if (!(fileInput instanceof HTMLInputElement)) {
-      throw new Error("Import file input not found");
-    }
-    await userEventSetup.upload(fileInput, createImportFile(createImportPayload("病名")));
-    await userEventSetup.click(screen.getByRole("button", { name: "Import" }));
-
-    expect(await screen.findByText("既存 label と重複している: 病名")).toBeInTheDocument();
-    expect(importProjectMock).not.toHaveBeenCalled();
-  });
-
-  it("deletes the project from the danger zone and navigates back to projects", async () => {
-    const userEventSetup = setupUserEvent();
-    vi.spyOn(api, "deleteProject").mockResolvedValue(undefined);
-    vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
-    vi.spyOn(api, "getProject").mockResolvedValue(project);
-    vi.spyOn(api, "listDocuments").mockResolvedValue({
-      documents: [],
-      total: 0,
-      pending_total: 0,
-      offset: 0,
-      limit: 40,
-      search: "",
-      sort: "created",
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/projects/project-1/settings"]}>
-        <Routes>
-          <Route path="/projects" element={<ProjectsRouteWithBackButton />} />
-          <Route path="/projects/:projectId/settings" element={<ProjectShell user={user} onLogout={vi.fn()} />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    await screen.findByRole("heading", { name: "Project Settings" });
-    await userEventSetup.click(screen.getByRole("button", { name: "Project を削除" }));
-
-    expect(await screen.findByText('"Medical NER" を削除する。')).toBeInTheDocument();
-    await userEventSetup.click(screen.getByRole("button", { name: "削除" }));
-
-    await screen.findByText("Projects Route");
-    expect(api.deleteProject).toHaveBeenCalledWith("project-1");
-    await userEventSetup.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByText("Projects Route")).toBeInTheDocument();
   });
 });

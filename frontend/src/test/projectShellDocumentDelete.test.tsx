@@ -4,8 +4,10 @@ import { setupUserEvent } from "./userEvent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
 import { ApiError, api } from "../api";
-import type { AnnotationRecord, DocumentRecord, LabelRecord, ProjectRecord, UserRecord } from "../api-contract";
+import type { AnnotationRecord, DocumentRecord, DocumentSortValue, LabelRecord, ProjectRecord, UserRecord } from "../api-contract";
+import { DocumentListPane } from "../features/project-shell/DocumentListPane";
 import type { DocumentListItem } from "../types";
+import { I18nProvider } from "../i18n/I18nProvider";
 
 vi.mock("../features/project-shell/useProjectExamples", () => ({
   useProjectExamples: () => ({
@@ -35,6 +37,86 @@ vi.mock("../features/project-shell/useProjectShortcuts", () => ({
 
 vi.mock("../features/project-shell/SettingsView", () => ({
   SettingsView: () => <div>Settings View Mock</div>,
+}));
+
+vi.mock("../features/project-shell/WorkspaceView", () => ({
+  WorkspaceView: ({
+    currentDocument,
+    currentDocumentLoading,
+    visibleDocuments,
+    selectedDocumentId,
+    currentHiddenBySearch,
+    pendingDocumentTotal,
+    documentTotal,
+    getDisplayDocumentStatus,
+    onSelectDocument,
+    onRequestDeleteDocument,
+    onSelectAnnotation,
+    onUpdateSelectedAnnotationComment,
+  }: {
+    currentDocument: DocumentRecord | null;
+    currentDocumentLoading: boolean;
+    visibleDocuments: DocumentListItem[];
+    selectedDocumentId: string | null;
+    currentHiddenBySearch: boolean;
+    pendingDocumentTotal: number;
+    documentTotal: number;
+    getDisplayDocumentStatus: (document: DocumentListItem) => string;
+    onSelectDocument: (documentId: string) => void;
+    onRequestDeleteDocument: (documentId: string) => void;
+    onSelectAnnotation: (annotationId: string) => void;
+    onUpdateSelectedAnnotationComment: (comment: string) => void;
+  }) => (
+    <div>
+      <div>
+        {pendingDocumentTotal} pending / {documentTotal} docs
+      </div>
+      {currentDocumentLoading ? <div>Document を読み込み中</div> : null}
+      {currentHiddenBySearch ? <div>現在表示中の Document は検索結果外である。</div> : null}
+      {visibleDocuments.length === 0 ? (
+        <>
+          <div>一致する Document がない</div>
+          <div>Document がない</div>
+        </>
+      ) : null}
+      {visibleDocuments.map((document) => (
+        <div
+          key={document.id}
+          role="button"
+          tabIndex={0}
+          className={selectedDocumentId === document.id ? "Mui-selected" : ""}
+          onClick={() => onSelectDocument(document.id)}
+        >
+          <span>{document.document_name}</span>
+          <span>{getDisplayDocumentStatus(document)}</span>
+          <button
+            type="button"
+            aria-label={`Delete document ${document.document_name}`}
+            style={{ visibility: "visible" }}
+            onClick={(event) => {
+              event.stopPropagation();
+              onRequestDeleteDocument(document.id);
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      ))}
+      <button type="button" role="tab">
+        注釈一覧
+      </button>
+      {currentDocument?.annotations.map((annotation) => (
+        <button key={annotation.id} type="button" onClick={() => onSelectAnnotation(annotation.id)}>
+          {annotation.start}-{annotation.end}
+        </button>
+      ))}
+      <button type="button">Annotation details</button>
+      <label>
+        Comment
+        <input onChange={(event) => onUpdateSelectedAnnotationComment(event.target.value)} />
+      </label>
+    </div>
+  ),
 }));
 
 const project: ProjectRecord = {
@@ -212,6 +294,45 @@ function renderWorkspace() {
   );
 }
 
+function renderDocumentListPane({
+  documents,
+  selectedDocumentId = documents[0]?.id ?? null,
+  sortMode = "created",
+}: {
+  documents: DocumentRecord[];
+  selectedDocumentId?: string | null;
+  sortMode?: DocumentSortValue;
+}) {
+  return render(
+    <I18nProvider initialLocale="ja">
+      <DocumentListPane
+        selectedDocumentId={selectedDocumentId}
+        currentHiddenBySearch={false}
+        visibleDocuments={documents.map(toListItem)}
+        currentDocumentOutsideWindow={false}
+        pendingDocumentTotal={documents.filter((document) => document.status === "pending").length}
+        documentTotal={documents.length}
+        searchQuery=""
+        sortMode={sortMode}
+        documentsLoadingMore={false}
+        documentWindowStartOffset={0}
+        documentNextOffset={documents.length}
+        documentListScrollRef={{ current: null }}
+        getDisplayDocumentStatus={(document) => document.status}
+        saving={false}
+        onOpenCreateDocument={vi.fn()}
+        onSearchQueryChange={vi.fn()}
+        onSortModeChange={vi.fn()}
+        onReturnToSelectedDocument={vi.fn()}
+        onLoadPreviousDocuments={vi.fn()}
+        onLoadMoreDocuments={vi.fn()}
+        onSelectDocument={vi.fn()}
+        onRequestDeleteDocument={vi.fn()}
+      />
+    </I18nProvider>,
+  );
+}
+
 function getDocumentRow(documentName: string) {
   const row = screen
     .getAllByText(documentName)
@@ -242,12 +363,12 @@ describe("ProjectShell document deletion", () => {
 
   it("shows the delete button only on hover for non-selected rows and always for the selected row", async () => {
     const userEventSetup = setupUserEvent();
-    setupDocumentApis([
+    renderDocumentListPane({
+      documents: [
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
-    ]);
-
-    renderWorkspace();
+      ],
+    });
 
     await screen.findByText("2 pending / 2 docs");
 
@@ -264,12 +385,12 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("shows the delete button when a non-selected row receives keyboard focus", async () => {
-    setupDocumentApis([
+    renderDocumentListPane({
+      documents: [
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
-    ]);
-
-    renderWorkspace();
+      ],
+    });
 
     await screen.findByText("2 pending / 2 docs");
 

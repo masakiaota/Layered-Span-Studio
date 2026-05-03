@@ -36,6 +36,124 @@ vi.mock("../features/project-shell/SettingsView", () => ({
   SettingsView: () => <div>Settings View Mock</div>,
 }));
 
+vi.mock("../features/project-shell/WorkspaceView", () => ({
+  WorkspaceView: ({
+    bundle,
+    currentDocument,
+    visibleDocuments,
+    selectedDocumentId,
+    selectedAnnotation,
+    rightTab,
+    pendingDocumentTotal,
+    documentTotal,
+    currentHiddenBySearch,
+    getDisplayDocumentStatus,
+    onSelectAnnotation,
+    onUpdateSelectedAnnotationLabel,
+    onUpdateSelectedAnnotationComment,
+    onRightTabChange,
+    onSelectNextPendingAnnotation,
+    onSearchQueryChange,
+    onSave,
+    onSubmit,
+  }: {
+    bundle: { labels: LabelRecord[] };
+    currentDocument: DocumentRecord | null;
+    visibleDocuments: Array<Omit<DocumentRecord, "annotations">>;
+    selectedDocumentId: string | null;
+    selectedAnnotation: AnnotationRecord | null;
+    rightTab: string;
+    pendingDocumentTotal: number;
+    documentTotal: number;
+    currentHiddenBySearch: boolean;
+    getDisplayDocumentStatus: (document: Omit<DocumentRecord, "annotations"> | DocumentRecord) => string;
+    onSelectAnnotation: (annotationId: string) => void;
+    onUpdateSelectedAnnotationLabel: (labelId: string) => void;
+    onUpdateSelectedAnnotationComment: (comment: string) => void;
+    onRightTabChange: (tab: string) => void;
+    onSelectNextPendingAnnotation: () => void;
+    onSearchQueryChange: (query: string) => void;
+    onSave: () => void;
+    onSubmit: () => void;
+  }) => (
+    <div>
+      <div>
+        {pendingDocumentTotal} pending / {documentTotal} docs
+      </div>
+      <input placeholder="本文検索" onChange={(event) => onSearchQueryChange(event.target.value)} />
+      {currentHiddenBySearch ? <div>現在表示中の Document は検索結果外である。</div> : null}
+      {visibleDocuments.length === 0 ? <div>一致する Document がない</div> : null}
+      {visibleDocuments.map((document) => (
+        <div
+          key={document.id}
+          role="button"
+          tabIndex={0}
+          className={selectedDocumentId === document.id ? "Mui-selected" : ""}
+        >
+          <span>{document.document_name}</span>
+          <span>{getDisplayDocumentStatus(document)}</span>
+        </div>
+      ))}
+      <button type="button" role="tab">
+        注釈一覧
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={rightTab === "examples" ? "true" : "false"}
+        onClick={() => onRightTabChange("examples")}
+      >
+        関連例
+      </button>
+      <div data-testid="document-annotation-list">
+        {currentDocument?.annotations.map((annotation) => (
+          <button
+            key={annotation.id}
+            type="button"
+            aria-label={`${annotation.label_name} ${selectedAnnotation?.id === annotation.id ? `${annotation.start}-${annotation.end}` : ""}`}
+            onClick={() => onSelectAnnotation(annotation.id)}
+          >
+            <span>{annotation.label_name}</span>
+            <span>{annotation.start}-{annotation.end}</span>
+            <span>{annotation.span_text}</span>
+          </button>
+        ))}
+      </div>
+      <button type="button">Annotation details</button>
+      <label>
+        Comment
+        <input onChange={(event) => onUpdateSelectedAnnotationComment(event.target.value)} />
+      </label>
+      {selectedAnnotation ? (
+        <div data-testid="selected-annotation-dock">
+          <span>{selectedAnnotation.status}</span>
+          <input readOnly value={selectedAnnotation.label_name} />
+          <button type="button" role="combobox" aria-label="Label">
+            {selectedAnnotation.label_name}
+          </button>
+          <div>
+            {bundle.labels.map((label) => (
+              <button key={label.id} type="button" role="option" onClick={() => onUpdateSelectedAnnotationLabel(label.id)}>
+                {label.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <button type="button" onClick={onSelectNextPendingAnnotation}>
+        Next pending
+      </button>
+      <button type="button" onClick={onSave}>
+        Save
+      </button>
+      <button type="button" onClick={onSubmit}>
+        Submit
+      </button>
+      {currentDocument?.annotations.map((annotation) => <span key={`surface-${annotation.id}`}>{annotation.span_text}</span>)}
+    </div>
+  ),
+}));
+
 const project: ProjectRecord = {
   id: "project-1",
   name: "Medical NER",
