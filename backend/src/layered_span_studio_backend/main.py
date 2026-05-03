@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from layered_span_studio_backend.api.router import router as api_router
 from layered_span_studio_backend.core.config import Settings, get_settings
+from layered_span_studio_backend.repositories.projects import ensure_project_dbs
 from layered_span_studio_backend.repositories.users import ensure_users_db
 from layered_span_studio_backend.version import get_app_version
 
@@ -18,6 +19,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.state.settings = settings
     ensure_users_db(settings)
+    ensure_project_dbs(settings)
 
     app.add_middleware(
         CORSMiddleware,

@@ -5,6 +5,9 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from conftest import create_label_via_sync
+from layered_span_studio_backend.core.config import Settings
+from layered_span_studio_backend.repositories.projects import project_db_path
+from layered_span_studio_backend.storage.project_db import get_project_engine
 
 JSONDict = dict[str, Any]
 
@@ -332,6 +335,42 @@ def test_search_annotations_does_not_normalize_surface_text(
     payload = response.json()
     assert payload["total"] == 1
     assert payload["items"][0]["span_text"] == "COVID-19"
+
+
+def test_search_annotations_query_plan_uses_surface_search_index(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project, label, doc = _setup(client, auth_headers)
+    client.post(
+        f"/projects/{project['id']}/documents/{doc['id']}/annotations",
+        json={
+            "label_id": label["id"],
+            "start": 0,
+            "end": 5,
+            "span_text": "Hello",
+            "comment": "",
+            "status": "verified",
+        },
+        headers=auth_headers,
+    )
+    engine = get_project_engine(str(project_db_path(settings, project["id"])))
+
+    with engine.connect() as conn:
+        plan_rows = conn.exec_driver_sql(
+            """
+            EXPLAIN QUERY PLAN
+            SELECT count(*)
+            FROM annotations
+            JOIN documents ON annotations.document_id = documents.id
+            JOIN labels ON annotations.label_id = labels.id
+            WHERE documents.project_id = ?
+              AND annotations.status IN ('pending', 'verified')
+              AND annotations.span_text = ?
+            """,
+            (project["id"], "Hello"),
+        ).mappings().all()
+
+    assert any("idx_annotations_surface_search" in row["detail"] for row in plan_rows)
 
 
 def test_search_annotations_pages_and_sorts_in_sql(

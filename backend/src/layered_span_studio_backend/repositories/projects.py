@@ -12,7 +12,14 @@ from sqlalchemy.exc import OperationalError
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.label_sync import load_label_rows, sync_labels
-from layered_span_studio_backend.storage.project_db import documents_table, get_project_engine, init_project_db, labels_table, project_table
+from layered_span_studio_backend.storage.project_db import (
+    documents_table,
+    ensure_project_indexes,
+    get_project_engine,
+    init_project_db,
+    labels_table,
+    project_table,
+)
 from layered_span_studio_backend.utils.json_utils import decode_meta, encode_meta
 
 
@@ -140,6 +147,17 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
         )
     projects.sort(key=_project_sort_key)
     return projects
+
+
+def ensure_project_dbs(settings: Settings) -> None:
+    if not settings.projects_dir.exists():
+        return
+    for entry in settings.projects_dir.iterdir():
+        db_path = entry / PROJECT_DB_FILENAME
+        if not entry.is_dir() or not db_path.exists():
+            continue
+        engine = get_project_engine(str(db_path))
+        ensure_project_indexes(engine)
 
 
 def get_project(settings: Settings, project_id: str) -> Optional[Dict[str, Any]]:
