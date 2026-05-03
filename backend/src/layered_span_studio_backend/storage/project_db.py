@@ -88,17 +88,23 @@ Index("idx_annotations_document", annotations_table.c.document_id)
 Index("idx_annotations_label", annotations_table.c.label_id)
 Index("idx_annotations_status", annotations_table.c.status)
 Index("idx_annotations_position", annotations_table.c.document_id, annotations_table.c.start, annotations_table.c.end)
-RELATED_EXAMPLE_INDEX_COLUMNS = (
-    ("idx_annotations_surface_search", ("span_text", "status", "document_id", "label_id", "start", "id")),
-    ("idx_annotations_label_surface_groups", ("label_id", "status", "span_text", "document_id", "start", "id")),
+Index(
+    "idx_annotations_surface_search",
+    annotations_table.c.span_text,
+    annotations_table.c.status,
+    annotations_table.c.document_id,
+    annotations_table.c.label_id,
+    annotations_table.c.start,
+    annotations_table.c.id,
 )
-
-for index_name, column_names in RELATED_EXAMPLE_INDEX_COLUMNS:
-    Index(index_name, *(annotations_table.c[column_name] for column_name in column_names))
-
-PROJECT_INDEX_DDL = tuple(
-    f"CREATE INDEX IF NOT EXISTS {index_name} ON annotations ({', '.join(column_names)})"
-    for index_name, column_names in RELATED_EXAMPLE_INDEX_COLUMNS
+Index(
+    "idx_annotations_label_surface_groups",
+    annotations_table.c.label_id,
+    annotations_table.c.status,
+    annotations_table.c.span_text,
+    annotations_table.c.document_id,
+    annotations_table.c.start,
+    annotations_table.c.id,
 )
 
 
@@ -128,17 +134,3 @@ def init_project_db(db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     engine = _engine_for_path(db_path)
     metadata.create_all(engine)
-    ensure_project_indexes(engine)
-
-
-def ensure_project_indexes(engine: Engine) -> None:
-    with engine.begin() as conn:
-        has_annotations_table = (
-            conn.exec_driver_sql("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'annotations'")
-            .first()
-            is not None
-        )
-        if not has_annotations_table:
-            return
-        for ddl in PROJECT_INDEX_DDL:
-            conn.exec_driver_sql(ddl)

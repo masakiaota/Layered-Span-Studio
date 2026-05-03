@@ -163,9 +163,6 @@ CREATE TABLE project (
 | meta | TEXT | NULL | 任意の拡張情報（JSON文字列） |
 | created_at | TEXT | NOT NULL | プロジェクト作成日時（ISO 8601 UTC） |
 
-メモ:
-- 既存 project DB に `created_at` が無い場合は、初回アクセス時に `database.db` のファイル時刻を使って補完する
-
 ---
 
 ### labels テーブル
@@ -602,7 +599,7 @@ UUID形式のIDを使用しているため、ID衝突の心配なくインポー
 
 補足:
 - `span_text` 単独ではなく、関連例 API の主要条件に合わせた composite index を使います。これにより同一表層検索と label surface group の query plan が annotation 全体走査に寄りにくくなります。
-- 既存 project DB は project DB 初回アクセス時に `CREATE INDEX IF NOT EXISTS` で移行されます。SQLite lock が一時的に発生した場合は短い retry を行います。
+- 既存 project DB は明示的な migration 操作でこの index を作成済みとして扱います。アプリケーションコードは既存 DB の自動変換を行いません。
 - `surface-groups` や `annotations/search` は SQL 側で絞り込み・集約・ページングを行います。total count も同じ composite index を利用する前提です。
 
 ### スケーラビリティ

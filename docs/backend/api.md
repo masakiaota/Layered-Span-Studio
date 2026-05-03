@@ -247,7 +247,7 @@ Authorization: Bearer <token>
 ```
 
 **注記:**
-- `created_at`: project 作成時刻。既存 project は `database.db` のファイル時刻で補完する
+- `created_at`: project 作成時刻。backend が project 作成時に UTC ISO 8601 で保存する
 - `summary.labels_count`: project 配下 label の総数
 - `summary.documents_count`: project 配下 document の総数
 - `summary.pending_documents_count`: `document.status != verified` の document 総数
