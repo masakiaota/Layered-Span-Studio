@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime
 
 from fastapi.testclient import TestClient
 
 from conftest import create_label_via_sync
-from layered_span_studio_backend.repositories.projects import _parse_timestamp
+from layered_span_studio_backend.repositories.projects import PROJECT_DB_FILENAME, PROJECT_DB_MIGRATION_MESSAGE, _parse_timestamp
 
 
 def test_project_crud(client: TestClient, auth_headers: dict[str, str]) -> None:
@@ -401,3 +402,59 @@ def test_projects_list_is_sorted_by_pending_then_updated_then_name(client: TestC
 def test_project_timestamp_parser_rejects_naive_datetime() -> None:
     assert _parse_timestamp("2026-03-01T00:00:00") is None
     assert _parse_timestamp("2026-03-01T00:00:00Z") is not None
+
+
+def test_projects_list_reports_unmigrated_project_db(settings, client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = "unmigrated-project"
+    project_dir = settings.projects_dir / project_id
+    project_dir.mkdir(parents=True, exist_ok=True)
+    db_path = project_dir / PROJECT_DB_FILENAME
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE project (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, meta TEXT)")
+        conn.execute(
+            "CREATE TABLE labels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL, description TEXT NOT NULL, shortcut TEXT, meta TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE documents (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, document_name TEXT NOT NULL, text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, meta TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO project (id, name, description, meta) VALUES (?, ?, ?, ?)",
+            (project_id, "Unmigrated Project", "desc", "{}"),
+        )
+
+    response = client.get("/projects", headers=auth_headers)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == PROJECT_DB_MIGRATION_MESSAGE
+
+
+def test_project_detail_reports_null_created_at_project_db(
+    settings,
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    project_id = "null-created-at-project"
+    project_dir = settings.projects_dir / project_id
+    project_dir.mkdir(parents=True, exist_ok=True)
+    db_path = project_dir / PROJECT_DB_FILENAME
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE project (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, meta TEXT, created_at TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE labels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL, description TEXT NOT NULL, shortcut TEXT, meta TEXT, display_order INTEGER)"
+        )
+        conn.execute(
+            "CREATE TABLE documents (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, document_name TEXT NOT NULL, text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, meta TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO project (id, name, description, meta, created_at) VALUES (?, ?, ?, ?, ?)",
+            (project_id, "Null Created At Project", "desc", "{}", None),
+        )
+
+    response = client.get(f"/projects/{project_id}", headers=auth_headers)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == PROJECT_DB_MIGRATION_MESSAGE

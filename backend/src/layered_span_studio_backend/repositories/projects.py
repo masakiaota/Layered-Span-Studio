@@ -21,6 +21,11 @@ from layered_span_studio_backend.utils.json_utils import decode_meta, encode_met
 
 
 PROJECT_DB_FILENAME = "database.db"
+PROJECT_DB_MIGRATION_MESSAGE = "Project database migration is required. Run the explicit project DB migration."
+
+
+class ProjectDatabaseMigrationRequired(RuntimeError):
+    pass
 
 
 def _project_dir(settings: Settings, project_id: str) -> Path:
@@ -47,6 +52,18 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _require_current_project_schema(conn) -> None:
+    project_columns = {row["name"] for row in conn.exec_driver_sql("PRAGMA table_info(project)").mappings()}
+    label_columns = {row["name"] for row in conn.exec_driver_sql("PRAGMA table_info(labels)").mappings()}
+    if "created_at" not in project_columns or "display_order" not in label_columns:
+        raise ProjectDatabaseMigrationRequired(PROJECT_DB_MIGRATION_MESSAGE)
+
+
+def _require_created_at(row: Dict[str, Any] | Any) -> None:
+    if not row["created_at"]:
+        raise ProjectDatabaseMigrationRequired(PROJECT_DB_MIGRATION_MESSAGE)
+
+
 def _project_sort_key(project: Dict[str, Any]) -> tuple[Any, ...]:
     summary = project["summary"]
     updated_at_timestamp = _parse_timestamp(summary["updated_at"])
@@ -70,9 +87,11 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
             continue
         engine = get_project_engine(str(db_path))
         with engine.begin() as conn:
+            _require_current_project_schema(conn)
             row = conn.execute(select(project_table)).mappings().first()
             if not row:
                 continue
+            _require_created_at(row)
 
             labels_count = conn.execute(select(func.count()).select_from(labels_table)).scalar_one()
             documents_count = conn.execute(select(func.count()).select_from(documents_table)).scalar_one()
@@ -106,9 +125,11 @@ def get_project(settings: Settings, project_id: str) -> Optional[Dict[str, Any]]
         return None
     engine = get_project_engine(str(db_path))
     with engine.begin() as conn:
+        _require_current_project_schema(conn)
         row = conn.execute(select(project_table)).mappings().first()
     if not row:
         return None
+    _require_created_at(row)
     return {
         "id": row["id"],
         "name": row["name"],
