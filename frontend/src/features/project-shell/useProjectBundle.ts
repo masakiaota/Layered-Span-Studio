@@ -77,6 +77,15 @@ export function useProjectBundle({
   const bundleLoadRequestIdRef = useRef(0);
   const documentLoadMoreRequestIdRef = useRef(0);
   const initialDocumentListLoadedRef = useRef(false);
+  const searchDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearSearchDebounceTimer() {
+    if (searchDebounceTimerRef.current === null) {
+      return;
+    }
+    clearTimeout(searchDebounceTimerRef.current);
+    searchDebounceTimerRef.current = null;
+  }
 
   async function loadBundle(onLoaded?: OnBundleLoaded) {
     setLoading(true);
@@ -318,6 +327,7 @@ export function useProjectBundle({
     if (!bundle || !initialDocumentListLoadedRef.current) {
       return;
     }
+    clearSearchDebounceTimer();
     void fetchDocumentPage(true);
   }, [sortMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -325,10 +335,12 @@ export function useProjectBundle({
     if (!bundle || !initialDocumentListLoadedRef.current) {
       return;
     }
-    const timer = setTimeout(() => {
+    clearSearchDebounceTimer();
+    searchDebounceTimerRef.current = setTimeout(() => {
+      searchDebounceTimerRef.current = null;
       void fetchDocumentPage(true);
     }, 200);
-    return () => clearTimeout(timer);
+    return clearSearchDebounceTimer;
   }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

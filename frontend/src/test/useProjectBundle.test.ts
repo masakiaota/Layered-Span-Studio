@@ -1243,5 +1243,32 @@ describe("useProjectBundle", () => {
         { timeout: 100 },
       );
     });
+
+    it("cancels a pending search debounce when sortMode changes", async () => {
+      const { rerender, listDocumentsSpy } = await setupLoadedBundle("", "created");
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      act(() => {
+        rerender({ searchQuery: "hello" });
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      act(() => {
+        rerender({ sortMode: "name" });
+      });
+
+      await waitFor(
+        () => expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad + 1),
+        { timeout: 100 },
+      );
+      expect(listDocumentsSpy.mock.calls[listDocumentsSpy.mock.calls.length - 1]?.[1]).toEqual(
+        expect.objectContaining({ search: "hello", sort: "name" }),
+      );
+
+      await new Promise((r) => setTimeout(r, 250));
+
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad + 1);
+    });
   });
 });
