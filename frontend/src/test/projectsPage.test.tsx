@@ -1,6 +1,6 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUserEvent } from "./userEvent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
 import { ProjectsPage } from "../pages/ProjectsPage";
@@ -81,7 +81,7 @@ describe("ProjectsPage", () => {
   });
 
   it("creates a new project from the toolbar dialog and navigates to settings", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
     const createProjectSpy = vi.spyOn(api, "createProject").mockResolvedValue({
       id: "project-2",
@@ -97,8 +97,8 @@ describe("ProjectsPage", () => {
     await userEventSetup.click(screen.getByRole("button", { name: "New Project" }));
 
     await screen.findByRole("dialog", { name: "Create Project" });
-    await userEventSetup.type(screen.getByLabelText("Project name"), "New Project");
-    await userEventSetup.type(screen.getByLabelText("Description"), "fresh project");
+    fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "New Project" } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "fresh project" } });
     await userEventSetup.click(screen.getByRole("button", { name: "Create" }));
 
     await screen.findByText("Project Settings Route");
@@ -120,7 +120,7 @@ describe("ProjectsPage", () => {
   });
 
   it("opens an import dialog with guide link and dropzone", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
 
     renderProjectsPage();
@@ -134,7 +134,7 @@ describe("ProjectsPage", () => {
   });
 
   it("keeps the dropzone separate from the Select JSON button", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
 
     renderProjectsPage();
@@ -147,7 +147,7 @@ describe("ProjectsPage", () => {
   });
 
   it("disables the new project entry point while import is in flight", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
     let resolveImport!: (value: ProjectImportResponse) => void;
     vi.spyOn(api, "importProjectAsNew").mockImplementation(
@@ -188,7 +188,7 @@ describe("ProjectsPage", () => {
   });
 
   it("accepts a dropped JSON file in the import dialog", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
     const importProjectSpy = vi.spyOn(api, "importProjectAsNew").mockResolvedValue({
       project: { id: "project-2", name: "Imported Project", description: "desc", meta: {}, created_at: "2026-03-10T00:00:00Z" },
@@ -223,7 +223,7 @@ describe("ProjectsPage", () => {
   });
 
   it("rejects non-json files dropped into the import dialog", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
 
     renderProjectsPage();
@@ -249,7 +249,7 @@ describe("ProjectsPage", () => {
   });
 
   it("rejects non-json files selected from the picker", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listProjects").mockResolvedValue({ projects: structuredClone(baseProjects) });
 
     renderProjectsPage();
@@ -278,7 +278,7 @@ describe("ProjectsPage", () => {
   });
 
   it("sorts projects locally and does not refetch when the user changes sort controls", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const listProjectsSpy = vi.spyOn(api, "listProjects").mockResolvedValue({
       projects: [
         createProject({
@@ -336,13 +336,13 @@ describe("ProjectsPage", () => {
     await userEventSetup.click(screen.getByRole("button", { name: "↓ 降順" }));
     expect(getRenderedProjectNames()).toEqual(["Medical NER", "Zeta Corpus", "Alpha Suite"]);
 
-    await userEventSetup.type(screen.getByPlaceholderText("Project 名や説明で検索"), "suite");
+    fireEvent.change(screen.getByPlaceholderText("Project 名や説明で検索"), { target: { value: "suite" } });
     expect(getRenderedProjectNames()).toEqual(["Alpha Suite"]);
     expect(listProjectsSpy).toHaveBeenCalledTimes(1);
   });
 
   it("sorts created_at by numeric timestamp and keeps missing values last", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listProjects").mockResolvedValue({
       projects: [
         createProject({

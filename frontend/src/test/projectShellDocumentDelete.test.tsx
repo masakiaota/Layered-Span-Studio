@@ -1,6 +1,6 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { setupUserEvent } from "./userEvent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
 import { ApiError, api } from "../api";
@@ -219,7 +219,7 @@ function getDocumentRow(documentName: string) {
   return row;
 }
 
-async function revealDeleteButton(userEventSetup: ReturnType<typeof userEvent.setup>, documentName: string) {
+async function revealDeleteButton(userEventSetup: ReturnType<typeof setupUserEvent>, documentName: string) {
   const row = getDocumentRow(documentName);
   await userEventSetup.hover(row);
   const button = await within(row).findByRole("button", { name: `Delete document ${documentName}` });
@@ -237,7 +237,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("shows the delete button only on hover for non-selected rows and always for the selected row", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -278,7 +278,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("keeps the newly selected row highlighted while its document is loading for the first time", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const apiState = setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -315,7 +315,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("does not change the current selection when deleting from a non-selected row", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -340,7 +340,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("keeps the current document selected when a different document is deleted", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -363,7 +363,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("moves to the next visible document when deleting the current document", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -384,7 +384,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("confirms document deletion with Enter from the dialog", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -409,7 +409,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("moves to the previous visible document when deleting the last visible document", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -434,7 +434,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("shows the empty state after deleting the last document", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     setupDocumentApis([createDocument({ id: "doc-1", document_name: "Doc 1" })]);
 
     renderWorkspace();
@@ -449,7 +449,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("shows the unsaved warning when deleting the dirty current document", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation();
     setupDocumentApis([
       createDocument({
@@ -466,7 +466,7 @@ describe("ProjectShell document deletion", () => {
     await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
     await userEventSetup.click(screen.getByText("0-5"));
     await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
-    await userEventSetup.type(await screen.findByLabelText("Comment"), "dirty");
+    fireEvent.change(await screen.findByLabelText("Comment"), { target: { value: "dirty" } });
 
     await userEventSetup.click(within(getDocumentRow("Doc 1")).getByRole("button", { name: "Delete document Doc 1" }));
 
@@ -474,7 +474,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("treats not-found deletion as already deleted and recovers the UI", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const apiState = setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),
@@ -496,7 +496,7 @@ describe("ProjectShell document deletion", () => {
   });
 
   it("keeps the dialog open and preserves state when deletion fails", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const apiState = setupDocumentApis([
       createDocument({ id: "doc-1", document_name: "Doc 1" }),
       createDocument({ id: "doc-2", document_name: "Doc 2", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }),

@@ -1,6 +1,6 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { setupUserEvent } from "./userEvent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
 import { api } from "../api";
@@ -136,7 +136,7 @@ describe("ProjectShell submit behavior", () => {
   });
 
   it("submits an empty pending document as verified and updates pending count", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const pendingDocument = createDocument();
     const verifiedDocument = createDocument({ status: "verified", updated_at: "2026-03-02T00:00:00Z" });
 
@@ -174,7 +174,7 @@ describe("ProjectShell submit behavior", () => {
   });
 
   it("saves edited annotations without submit flag", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation();
     const initialDocument = createDocument({ annotations: [annotation] });
     const savedDocument = createDocument({
@@ -211,7 +211,7 @@ describe("ProjectShell submit behavior", () => {
     await userEventSetup.click(screen.getByText("0-5"));
     await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
-    await userEventSetup.type(commentInput, "updated comment");
+    fireEvent.change(commentInput, { target: { value: "updated comment" } });
     await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
@@ -236,7 +236,7 @@ describe("ProjectShell submit behavior", () => {
   }, 15000);
 
   it("saves selected annotation label changes as replacement annotations", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation({ status: "verified" });
     const initialDocument = createDocument({ annotations: [annotation] });
     const savedAnnotation = createAnnotation({ id: "annotation-2", label_id: "label-2", label_name: "所見" });
@@ -299,7 +299,7 @@ describe("ProjectShell submit behavior", () => {
   }, 15000);
 
   it("restores the persisted annotation when changing the label back before saving", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation({ status: "verified" });
     const initialDocument = createDocument({ annotations: [annotation] });
     const savedDocument = createDocument({
@@ -340,7 +340,7 @@ describe("ProjectShell submit behavior", () => {
     await userEventSetup.click(await screen.findByRole("option", { name: "主訴" }));
     expect(within(screen.getByTestId("selected-annotation-dock")).getByText("verified")).toBeInTheDocument();
     await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
-    await userEventSetup.type(await screen.findByLabelText("Comment"), "updated comment");
+    fireEvent.change(await screen.findByLabelText("Comment"), { target: { value: "updated comment" } });
     await userEventSetup.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
@@ -365,7 +365,7 @@ describe("ProjectShell submit behavior", () => {
   }, 15000);
 
   it("keeps the related examples tab open when selecting the next pending annotation", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const firstAnnotation = createAnnotation();
     const secondAnnotation = createAnnotation({
       id: "annotation-2",
@@ -399,7 +399,7 @@ describe("ProjectShell submit behavior", () => {
   });
 
   it("selects the next pending annotation after the current annotation position", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const firstAnnotation = createAnnotation({
       id: "annotation-1",
       start: 0,
@@ -451,7 +451,7 @@ describe("ProjectShell submit behavior", () => {
   });
 
   it("shows verified doc as pending while unsaved and returns to verified after save", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation({ status: "verified" });
     const initialDocument = createDocument({ status: "verified", annotations: [annotation] });
     const savedDocument = createDocument({
@@ -491,7 +491,7 @@ describe("ProjectShell submit behavior", () => {
     await userEventSetup.click(screen.getByText("0-5"));
     await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
-    await userEventSetup.type(commentInput, "updated comment");
+    fireEvent.change(commentInput, { target: { value: "updated comment" } });
 
     await waitFor(() => {
       expect(within(getDocumentRow("Doc 1")).getByText("pending")).toBeInTheDocument();
@@ -525,7 +525,7 @@ describe("ProjectShell submit behavior", () => {
   });
 
   it("does not add a hidden dirty verified doc to the pending total", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation({ status: "verified" });
     const initialDocument = createDocument({ status: "verified", annotations: [annotation] });
 
@@ -557,13 +557,13 @@ describe("ProjectShell submit behavior", () => {
     await userEventSetup.click(screen.getByText("0-5"));
     await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
     const commentInput = await screen.findByLabelText("Comment");
-    await userEventSetup.type(commentInput, "updated comment");
+    fireEvent.change(commentInput, { target: { value: "updated comment" } });
 
     await waitFor(() => {
       expect(screen.getByText("1 pending / 1 docs")).toBeInTheDocument();
     });
 
-    await userEventSetup.type(screen.getByPlaceholderText("本文検索"), "z");
+    fireEvent.change(screen.getByPlaceholderText("本文検索"), { target: { value: "z" } });
 
     await waitFor(() => {
       expect(screen.getByText("0 pending / 0 docs")).toBeInTheDocument();

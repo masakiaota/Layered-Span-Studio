@@ -1,6 +1,6 @@
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUserEvent } from "./userEvent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
 import { api } from "../api";
@@ -172,7 +172,7 @@ describe("ProjectShell settings label selection", () => {
   });
 
   it("starts with no selected label and lets the user select and clear labels", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     renderProjectSettings();
 
     await screen.findByRole("heading", { name: "Project Settings" });
@@ -227,7 +227,7 @@ describe("ProjectShell settings label selection", () => {
   });
 
   it("keeps the edited or added label selected in the form", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     renderProjectSettings();
 
     await screen.findByRole("heading", { name: "Project Settings" });
@@ -238,7 +238,7 @@ describe("ProjectShell settings label selection", () => {
 
     await userEventSetup.click(getLabelRow("病名"));
     await userEventSetup.clear(nameInput);
-    await userEventSetup.type(nameInput, "病名更新");
+    fireEvent.change(nameInput, { target: { value: "病名更新" } });
     await userEventSetup.click(screen.getByRole("button", { name: "Update label" }));
 
     const updatedRow = getLabelRow("病名更新");
@@ -247,9 +247,9 @@ describe("ProjectShell settings label selection", () => {
     expect(screen.getByRole("button", { name: "Update label" })).toBeInTheDocument();
 
     await userEventSetup.click(screen.getByRole("button", { name: "Clear" }));
-    await userEventSetup.type(nameInput, "既往歴");
+    fireEvent.change(nameInput, { target: { value: "既往歴" } });
     await userEventSetup.clear(labelDescriptionInput);
-    await userEventSetup.type(labelDescriptionInput, "過去の病歴");
+    fireEvent.change(labelDescriptionInput, { target: { value: "過去の病歴" } });
     await userEventSetup.click(screen.getByRole("button", { name: "Add label" }));
 
     const addedRow = getLabelRow("既往歴");
@@ -260,7 +260,7 @@ describe("ProjectShell settings label selection", () => {
   }, 15000);
 
   it("clears only when the selected label is deleted", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     renderProjectSettings();
 
     await screen.findByRole("heading", { name: "Project Settings" });
@@ -285,7 +285,7 @@ describe("ProjectShell settings label selection", () => {
   });
 
   it("prevents renaming a label to another existing label name", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     renderProjectSettings();
 
     await screen.findByRole("heading", { name: "Project Settings" });
@@ -293,7 +293,7 @@ describe("ProjectShell settings label selection", () => {
     const nameInput = screen.getByLabelText("Name");
     await userEventSetup.click(getLabelRow("病名"));
     await userEventSetup.clear(nameInput);
-    await userEventSetup.type(nameInput, "主訴");
+    fireEvent.change(nameInput, { target: { value: "主訴" } });
     await userEventSetup.click(screen.getByRole("button", { name: "Update label" }));
 
     expect(await screen.findByText("同名 label は保存できない")).toBeInTheDocument();
@@ -303,7 +303,7 @@ describe("ProjectShell settings label selection", () => {
   });
 
   it("reorders labels with the vertical drag handle and saves the reordered payload", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const saveProjectLabelsSpy = vi.spyOn(api, "saveProjectLabels").mockResolvedValue({
       labels: [baseLabels[1], baseLabels[0], baseLabels[2]],
       revision: "labels-revision-2",
@@ -338,7 +338,7 @@ describe("ProjectShell settings label selection", () => {
   });
 
   it("moves a tall label to the bottom when its lower boundary crosses following labels", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const saveProjectLabelsSpy = vi.spyOn(api, "saveProjectLabels").mockResolvedValue({
       labels: [baseLabels[0], baseLabels[2], baseLabels[1]],
       revision: "labels-revision-2",
@@ -382,7 +382,7 @@ describe("ProjectShell settings import validation", () => {
   });
 
   it("uses persisted labels instead of unsaved newly added labels for import validation", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
     vi.spyOn(api, "getProject").mockResolvedValue(project);
     vi.spyOn(api, "listDocuments").mockResolvedValue({
@@ -409,7 +409,7 @@ describe("ProjectShell settings import validation", () => {
 
     await screen.findByRole("heading", { name: "Project Settings" });
 
-    await userEventSetup.type(screen.getByLabelText("Name"), "既往歴");
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "既往歴" } });
     await userEventSetup.click(screen.getByRole("button", { name: "Add label" }));
 
     const fileInput = document.querySelector('input[type="file"]');
@@ -426,7 +426,7 @@ describe("ProjectShell settings import validation", () => {
   });
 
   it("detects persisted label conflicts even after an unsaved rename", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
     vi.spyOn(api, "getProject").mockResolvedValue(project);
     vi.spyOn(api, "listDocuments").mockResolvedValue({
@@ -455,7 +455,7 @@ describe("ProjectShell settings import validation", () => {
 
     await userEventSetup.click(getLabelRow("病名"));
     await userEventSetup.clear(screen.getByLabelText("Name"));
-    await userEventSetup.type(screen.getByLabelText("Name"), "病名更新");
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "病名更新" } });
     await userEventSetup.click(screen.getByRole("button", { name: "Update label" }));
 
     const fileInput = document.querySelector('input[type="file"]');
@@ -470,7 +470,7 @@ describe("ProjectShell settings import validation", () => {
   });
 
   it("deletes the project from the danger zone and navigates back to projects", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     vi.spyOn(api, "deleteProject").mockResolvedValue(undefined);
     vi.spyOn(api, "listLabels").mockResolvedValue({ labels: structuredClone(baseLabels), revision: "labels-revision-1" });
     vi.spyOn(api, "getProject").mockResolvedValue(project);

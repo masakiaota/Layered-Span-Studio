@@ -1,6 +1,6 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUserEvent } from "./userEvent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
 import { api } from "../api";
@@ -93,7 +93,7 @@ function createAnnotation(overrides: Partial<AnnotationRecord> = {}): Annotation
   };
 }
 
-async function dirtyWorkspaceDocument(userEventSetup: ReturnType<typeof userEvent.setup>, comment = "dirty comment") {
+async function dirtyWorkspaceDocument(userEventSetup: ReturnType<typeof setupUserEvent>, comment = "dirty comment") {
   await userEventSetup.click(screen.getByRole("tab", { name: "注釈一覧" }));
   await userEventSetup.click(screen.getByText("0-5"));
   await userEventSetup.click(screen.getByRole("button", { name: "Annotation details" }));
@@ -148,7 +148,7 @@ describe("ProjectShell pending changes navigation guard", () => {
   });
 
   it("shows a confirmation dialog and stays on the workspace when the user cancels leaving with unsaved changes", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation();
     const initialDocument = createDocument({ annotations: [annotation] });
 
@@ -182,7 +182,7 @@ describe("ProjectShell pending changes navigation guard", () => {
   }, 15000);
 
   it("saves the dirty workspace document before navigating back to projects", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation();
     const initialDocument = createDocument({ annotations: [annotation] });
     const savedDocument = createDocument({
@@ -242,7 +242,7 @@ describe("ProjectShell pending changes navigation guard", () => {
   });
 
   it("discards a dirty workspace document before switching to another document", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation();
     const firstDocument = createDocument({ annotations: [annotation] });
     const secondDocument = createDocument({
@@ -289,7 +289,7 @@ describe("ProjectShell pending changes navigation guard", () => {
   });
 
   it("keeps the confirmation dialog open when saving before navigation fails", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation();
     const initialDocument = createDocument({ annotations: [annotation] });
 
@@ -321,7 +321,7 @@ describe("ProjectShell pending changes navigation guard", () => {
   });
 
   it("prompts before logout when the workspace has unsaved changes", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const annotation = createAnnotation();
     const initialDocument = createDocument({ annotations: [annotation] });
     const onLogout = vi.fn();
@@ -354,7 +354,7 @@ describe("ProjectShell pending changes navigation guard", () => {
   });
 
   it("discards dirty settings and navigates back to projects without saving", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
 
     vi.spyOn(api, "listDocuments").mockResolvedValue({
       documents: [],
@@ -373,7 +373,7 @@ describe("ProjectShell pending changes navigation guard", () => {
     renderSettingsShell();
 
     await screen.findByRole("heading", { name: "Project Settings" });
-    await userEventSetup.type(screen.getByLabelText("Project name"), " updated");
+    fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "Medical NER updated" } });
     await userEventSetup.click(screen.getByRole("button", { name: "Projects" }));
     await userEventSetup.click(screen.getByRole("button", { name: "破棄して移動" }));
 
@@ -383,7 +383,7 @@ describe("ProjectShell pending changes navigation guard", () => {
   });
 
   it("saves settings before switching back to workspace", async () => {
-    const userEventSetup = userEvent.setup();
+    const userEventSetup = setupUserEvent();
     const updatedProject = { ...project, name: "Medical NER updated" };
 
     vi.spyOn(api, "listDocuments").mockResolvedValue({
@@ -401,8 +401,7 @@ describe("ProjectShell pending changes navigation guard", () => {
 
     await screen.findByRole("heading", { name: "Project Settings" });
     const projectNameInput = screen.getByLabelText("Project name");
-    await userEventSetup.clear(projectNameInput);
-    await userEventSetup.type(projectNameInput, updatedProject.name);
+    fireEvent.change(projectNameInput, { target: { value: updatedProject.name } });
     await userEventSetup.click(screen.getByRole("tab", { name: "Workspace" }));
     await userEventSetup.click(screen.getByRole("button", { name: /保存して移動/ }));
 
