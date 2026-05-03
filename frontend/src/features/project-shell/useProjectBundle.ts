@@ -137,8 +137,18 @@ export function useProjectBundle({
   const documentLoadMoreRequestIdRef = useRef(0);
   const initialDocumentListLoadedRef = useRef(false);
   const recentDocumentDetailIdsRef = useRef<string[]>([]);
+  const searchDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearSearchDebounceTimer() {
+    if (searchDebounceTimerRef.current === null) {
+      return;
+    }
+    clearTimeout(searchDebounceTimerRef.current);
+    searchDebounceTimerRef.current = null;
+  }
 
   async function loadBundle(onLoaded?: OnBundleLoaded) {
+    clearSearchDebounceTimer();
     setLoading(true);
     documentListRequestIdRef.current += 1;
     documentLoadMoreRequestIdRef.current += 1;
@@ -423,11 +433,28 @@ export function useProjectBundle({
   }
 
   useEffect(() => {
+    return clearSearchDebounceTimer;
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     if (!bundle || !initialDocumentListLoadedRef.current) {
       return;
     }
+    clearSearchDebounceTimer();
     void fetchDocumentPage(true);
-  }, [searchQuery, sortMode]);
+  }, [sortMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!bundle || !initialDocumentListLoadedRef.current) {
+      return;
+    }
+    clearSearchDebounceTimer();
+    searchDebounceTimerRef.current = setTimeout(() => {
+      searchDebounceTimerRef.current = null;
+      void fetchDocumentPage(true);
+    }, 200);
+    return clearSearchDebounceTimer;
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!bundle) {
