@@ -9,7 +9,6 @@ from sqlalchemy import case, func, select
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.label_sync import (
-    ensure_label_display_order_column,
     load_label_rows,
     next_label_display_order,
     sync_labels,
@@ -89,7 +88,6 @@ def get_label(settings: Settings, project_id: str, label_id: str) -> Optional[Di
     engine = get_project_engine(str(db_path))
     project_name = _project_name(settings, project_id)
     with engine.begin() as conn:
-        ensure_label_display_order_column(conn, project_id)
         row = (
             conn.execute(
                 select(labels_table).where(
@@ -119,7 +117,6 @@ def get_label_by_name(settings: Settings, project_id: str, name: str) -> Optiona
     engine = get_project_engine(str(db_path))
     project_name = _project_name(settings, project_id)
     with engine.begin() as conn:
-        ensure_label_display_order_column(conn, project_id)
         row = (
             conn.execute(
                 select(labels_table).where(

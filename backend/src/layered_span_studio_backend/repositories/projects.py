@@ -1,21 +1,17 @@
 from __future__ import annotations
 
 import shutil
-import time
 import uuid
 from datetime import datetime, timezone
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func, select
-from sqlalchemy.exc import OperationalError
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.label_sync import load_label_rows, sync_labels
 from layered_span_studio_backend.storage.project_db import (
     documents_table,
-    ensure_project_indexes,
     get_project_engine,
     init_project_db,
     labels_table,
@@ -25,7 +21,11 @@ from layered_span_studio_backend.utils.json_utils import decode_meta, encode_met
 
 
 PROJECT_DB_FILENAME = "database.db"
-PROJECT_SCHEMA_RETRY_DELAYS = (0.01, 0.05, 0.1)
+PROJECT_DB_MIGRATION_MESSAGE = "Project database migration is required. Run the explicit project DB migration."
+
+
+class ProjectDatabaseMigrationRequired(RuntimeError):
+    pass
 
 
 def _project_dir(settings: Settings, project_id: str) -> Path:
@@ -52,48 +52,16 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _timestamp_to_utc_iso(timestamp: float) -> str:
-    return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+def _require_current_project_schema(conn) -> None:
+    project_columns = {row["name"] for row in conn.exec_driver_sql("PRAGMA table_info(project)").mappings()}
+    label_columns = {row["name"] for row in conn.exec_driver_sql("PRAGMA table_info(labels)").mappings()}
+    if "created_at" not in project_columns or "display_order" not in label_columns:
+        raise ProjectDatabaseMigrationRequired(PROJECT_DB_MIGRATION_MESSAGE)
 
 
-def _project_db_timestamp(db_path: Path) -> str:
-    return _timestamp_to_utc_iso(db_path.stat().st_mtime)
-
-
-def _is_sqlite_lock_error(exc: OperationalError) -> bool:
-    message = str(exc).lower()
-    return "database is locked" in message or "database table is locked" in message
-
-
-def _ensure_project_created_at_column(conn, db_path: Path) -> None:
-    for attempt in range(len(PROJECT_SCHEMA_RETRY_DELAYS) + 1):
-        columns = {row["name"] for row in conn.exec_driver_sql("PRAGMA table_info(project)").mappings()}
-        created_at = _project_db_timestamp(db_path)
-        should_backfill = False
-        try:
-            if "created_at" not in columns:
-                should_backfill = True
-                try:
-                    conn.exec_driver_sql("ALTER TABLE project ADD COLUMN created_at TEXT")
-                except OperationalError as exc:
-                    if "duplicate column name" not in str(exc).lower():
-                        raise
-            if not should_backfill:
-                should_backfill = (
-                    conn.execute(select(project_table.c.id).where(project_table.c.created_at.is_(None)).limit(1)).first()
-                    is not None
-                )
-            if should_backfill:
-                conn.execute(
-                    project_table.update()
-                    .where(project_table.c.created_at.is_(None))
-                    .values(created_at=created_at)
-                )
-            return
-        except OperationalError as exc:
-            if attempt == len(PROJECT_SCHEMA_RETRY_DELAYS) or not _is_sqlite_lock_error(exc):
-                raise
-            time.sleep(PROJECT_SCHEMA_RETRY_DELAYS[attempt])
+def _require_created_at(row: Dict[str, Any] | Any) -> None:
+    if not row["created_at"]:
+        raise ProjectDatabaseMigrationRequired(PROJECT_DB_MIGRATION_MESSAGE)
 
 
 def _project_sort_key(project: Dict[str, Any]) -> tuple[Any, ...]:
@@ -119,10 +87,11 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
             continue
         engine = get_project_engine(str(db_path))
         with engine.begin() as conn:
-            _ensure_project_created_at_column(conn, db_path)
+            _require_current_project_schema(conn)
             row = conn.execute(select(project_table)).mappings().first()
             if not row:
                 continue
+            _require_created_at(row)
 
             labels_count = conn.execute(select(func.count()).select_from(labels_table)).scalar_one()
             documents_count = conn.execute(select(func.count()).select_from(documents_table)).scalar_one()
@@ -150,33 +119,17 @@ def list_projects(settings: Settings) -> List[Dict[str, Any]]:
     return projects
 
 
-def _ensure_project_indexes_with_retry(db_path: Path) -> None:
-    engine = get_project_engine(str(db_path))
-    for attempt in range(len(PROJECT_SCHEMA_RETRY_DELAYS) + 1):
-        try:
-            ensure_project_indexes(engine)
-            return
-        except OperationalError as exc:
-            if attempt == len(PROJECT_SCHEMA_RETRY_DELAYS) or not _is_sqlite_lock_error(exc):
-                raise
-            time.sleep(PROJECT_SCHEMA_RETRY_DELAYS[attempt])
-
-
-@lru_cache
-def _ensure_project_indexes_once(db_path: str) -> None:
-    _ensure_project_indexes_with_retry(Path(db_path))
-
-
 def get_project(settings: Settings, project_id: str) -> Optional[Dict[str, Any]]:
     db_path = _project_db_path(settings, project_id)
     if not db_path.exists():
         return None
     engine = get_project_engine(str(db_path))
     with engine.begin() as conn:
-        _ensure_project_created_at_column(conn, db_path)
+        _require_current_project_schema(conn)
         row = conn.execute(select(project_table)).mappings().first()
     if not row:
         return None
+    _require_created_at(row)
     return {
         "id": row["id"],
         "name": row["name"],
@@ -337,7 +290,4 @@ def delete_project(settings: Settings, project_id: str) -> bool:
 
 
 def project_db_path(settings: Settings, project_id: str) -> Path:
-    db_path = _project_db_path(settings, project_id)
-    if db_path.exists():
-        _ensure_project_indexes_once(str(db_path))
-    return db_path
+    return _project_db_path(settings, project_id)

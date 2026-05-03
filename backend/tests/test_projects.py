@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi.testclient import TestClient
 
 from conftest import create_label_via_sync
-from layered_span_studio_backend.repositories.projects import PROJECT_DB_FILENAME, _parse_timestamp
+from layered_span_studio_backend.repositories.projects import PROJECT_DB_FILENAME, PROJECT_DB_MIGRATION_MESSAGE, _parse_timestamp
 
 
 def test_project_crud(client: TestClient, auth_headers: dict[str, str]) -> None:
@@ -405,12 +404,8 @@ def test_project_timestamp_parser_rejects_naive_datetime() -> None:
     assert _parse_timestamp("2026-03-01T00:00:00Z") is not None
 
 
-def test_projects_list_backfills_created_at_from_legacy_project_db(
-    client: TestClient,
-    auth_headers: dict[str, str],
-    settings,
-) -> None:
-    project_id = "legacy-project"
+def test_projects_list_reports_unmigrated_project_db(settings, client: TestClient, auth_headers: dict[str, str]) -> None:
+    project_id = "unmigrated-project"
     project_dir = settings.projects_dir / project_id
     project_dir.mkdir(parents=True, exist_ok=True)
     db_path = project_dir / PROJECT_DB_FILENAME
@@ -425,75 +420,21 @@ def test_projects_list_backfills_created_at_from_legacy_project_db(
         )
         conn.execute(
             "INSERT INTO project (id, name, description, meta) VALUES (?, ?, ?, ?)",
-            (project_id, "Legacy Project", "desc", "{}"),
+            (project_id, "Unmigrated Project", "desc", "{}"),
         )
-        conn.commit()
-    legacy_timestamp = datetime(2026, 3, 7, 12, 34, 56, tzinfo=timezone.utc).timestamp()
-    os.utime(db_path, (legacy_timestamp, legacy_timestamp))
-    expected_created_at = datetime.fromtimestamp(db_path.stat().st_mtime, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
     response = client.get("/projects", headers=auth_headers)
-    assert response.status_code == 200
-    payload = next(item for item in response.json()["projects"] if item["id"] == project_id)
-    assert payload["created_at"] == expected_created_at
 
-    with sqlite3.connect(db_path) as conn:
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(project)")}
-        assert "created_at" in columns
-        stored_created_at = conn.execute("SELECT created_at FROM project WHERE id = ?", (project_id,)).fetchone()[0]
-    assert stored_created_at == expected_created_at
+    assert response.status_code == 409
+    assert response.json()["detail"] == PROJECT_DB_MIGRATION_MESSAGE
 
 
-def test_labels_api_backfills_display_order_from_legacy_project_db(
+def test_project_detail_reports_null_created_at_project_db(
+    settings,
     client: TestClient,
     auth_headers: dict[str, str],
-    settings,
 ) -> None:
-    project_id = "legacy-label-order-project"
-    project_dir = settings.projects_dir / project_id
-    project_dir.mkdir(parents=True, exist_ok=True)
-    db_path = project_dir / PROJECT_DB_FILENAME
-
-    with sqlite3.connect(db_path) as conn:
-        conn.execute(
-            "CREATE TABLE project (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, meta TEXT, created_at TEXT NOT NULL)"
-        )
-        conn.execute(
-            "CREATE TABLE labels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL, description TEXT NOT NULL, shortcut TEXT, meta TEXT)"
-        )
-        conn.execute(
-            "CREATE TABLE documents (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, document_name TEXT NOT NULL, text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, meta TEXT)"
-        )
-        conn.execute(
-            "INSERT INTO project (id, name, description, meta, created_at) VALUES (?, ?, ?, ?, ?)",
-            (project_id, "Legacy Label Order Project", "desc", "{}", "2026-03-01T00:00:00Z"),
-        )
-        conn.executemany(
-            "INSERT INTO labels (id, project_id, name, color, description, shortcut, meta) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [
-                ("label-z", project_id, "Zulu", "#FF5733", "desc", None, "{}"),
-                ("label-a", project_id, "Alpha", "#33AA44", "desc", None, "{}"),
-            ],
-        )
-        conn.commit()
-
-    response = client.get(f"/projects/{project_id}/labels", headers=auth_headers)
-    assert response.status_code == 200
-    assert [label["name"] for label in response.json()["labels"]] == ["Alpha", "Zulu"]
-
-    with sqlite3.connect(db_path) as conn:
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(labels)")}
-        stored_order = conn.execute("SELECT name, display_order FROM labels ORDER BY display_order").fetchall()
-    assert "display_order" in columns
-    assert stored_order == [("Alpha", 0), ("Zulu", 1)]
-
-
-def test_projects_list_backfills_null_created_at_when_column_already_exists(
-    client: TestClient,
-    auth_headers: dict[str, str],
-    settings,
-) -> None:
-    project_id = "legacy-null-project"
+    project_id = "null-created-at-project"
     project_dir = settings.projects_dir / project_id
     project_dir.mkdir(parents=True, exist_ok=True)
     db_path = project_dir / PROJECT_DB_FILENAME
@@ -503,21 +444,17 @@ def test_projects_list_backfills_null_created_at_when_column_already_exists(
             "CREATE TABLE project (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, meta TEXT, created_at TEXT)"
         )
         conn.execute(
-            "CREATE TABLE labels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL, description TEXT NOT NULL, shortcut TEXT, meta TEXT)"
+            "CREATE TABLE labels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL, description TEXT NOT NULL, shortcut TEXT, meta TEXT, display_order INTEGER)"
         )
         conn.execute(
             "CREATE TABLE documents (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, document_name TEXT NOT NULL, text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, meta TEXT)"
         )
         conn.execute(
             "INSERT INTO project (id, name, description, meta, created_at) VALUES (?, ?, ?, ?, ?)",
-            (project_id, "Legacy Null Project", "desc", "{}", None),
+            (project_id, "Null Created At Project", "desc", "{}", None),
         )
-        conn.commit()
-    legacy_timestamp = datetime(2026, 3, 8, 9, 10, 11, tzinfo=timezone.utc).timestamp()
-    os.utime(db_path, (legacy_timestamp, legacy_timestamp))
-    expected_created_at = datetime.fromtimestamp(db_path.stat().st_mtime, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
-    response = client.get("/projects", headers=auth_headers)
-    assert response.status_code == 200
-    payload = next(item for item in response.json()["projects"] if item["id"] == project_id)
-    assert payload["created_at"] == expected_created_at
+    response = client.get(f"/projects/{project_id}", headers=auth_headers)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == PROJECT_DB_MIGRATION_MESSAGE
