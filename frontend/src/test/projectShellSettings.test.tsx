@@ -1,11 +1,24 @@
+import { useRef, useState } from "react";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { setupUserEvent } from "./userEvent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
 import { api } from "../api";
-import type { ProjectRecord, LabelRecord, UserRecord } from "../api-contract";
+import type { LabelRecord, ProjectRecord, UserRecord } from "../api-contract";
 import { I18nProvider } from "../i18n/I18nProvider";
+import type { LabelDraft } from "../features/project-shell/projectShellTypes";
+import { SettingsView } from "../features/project-shell/SettingsView";
+import {
+  createEmptyLabelDraft,
+  findConflictingLabelName,
+  isHexColor,
+  normalizeHexColor,
+  toLabelDraft,
+} from "../features/project-shell/projectShellUtils";
+import { DEFAULT_LABEL_COLOR } from "../features/project-shell/projectShellConstants";
+import type { ProjectBundle } from "../types";
+import { makeLocalId, setProjectGuideline } from "../utils";
 
 vi.mock("../features/project-shell/useProjectExamples", () => ({
   useProjectExamples: () => ({
@@ -84,6 +97,14 @@ const user: UserRecord = {
   meta: {},
 };
 
+function createBundle(labels = structuredClone(baseLabels)): ProjectBundle {
+  return {
+    project: structuredClone(project),
+    labels,
+    documents: [],
+  };
+}
+
 function getLabelRow(name: string) {
   const row = screen
     .getAllByText(name)
@@ -133,6 +154,154 @@ function renderProjectSettings(locale: "ja" | "en" | "zh-CN" = "ja") {
   );
 }
 
+function renderSettingsView(locale: "ja" | "en" | "zh-CN" = "ja") {
+  const saveProjectLabelsSpy = vi.spyOn(api, "saveProjectLabels").mockResolvedValue({
+    labels: structuredClone(baseLabels),
+    revision: "labels-revision-2",
+  });
+
+  function Harness() {
+    const [bundle, setBundle] = useState<ProjectBundle>(() => createBundle());
+    const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null);
+    const [labelDraft, setLabelDraft] = useState<LabelDraft>(() => createEmptyLabelDraft());
+    const [dirty, setDirty] = useState(false);
+    const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
+    const colorInputRef = useRef<HTMLInputElement | null>(null);
+    const normalizedLabelColor = normalizeHexColor(labelDraft.color);
+    const labelColorValid = isHexColor(labelDraft.color);
+    const labelColorPreview = labelColorValid ? normalizedLabelColor : DEFAULT_LABEL_COLOR;
+
+    function updateBundle(updater: (draft: ProjectBundle) => void) {
+      setBundle((current) => {
+        const next = structuredClone(current);
+        updater(next);
+        return next;
+      });
+      setDirty(true);
+    }
+
+    function handleSubmitLabelDraft() {
+      if (!labelDraft.name.trim() || !labelColorValid) {
+        return;
+      }
+      if (findConflictingLabelName(bundle.labels, labelDraft)) {
+        setDuplicateMessage("同名 label は保存できない");
+        return;
+      }
+      const editingLabel = bundle.labels.find((label) => label.id === labelDraft.id);
+      const nextLabel: LabelRecord = {
+        id: labelDraft.id || makeLocalId("label"),
+        project_id: bundle.project.id,
+        project_name: bundle.project.name,
+        name: labelDraft.name.trim(),
+        color: normalizedLabelColor,
+        description: labelDraft.description,
+        shortcut: editingLabel?.shortcut ?? null,
+        meta: {},
+      };
+      updateBundle((draft) => {
+        const index = draft.labels.findIndex((label) => label.id === nextLabel.id);
+        if (index >= 0) {
+          draft.labels[index] = nextLabel;
+          return;
+        }
+        draft.labels.push(nextLabel);
+      });
+      setSelectedLabelId(nextLabel.id);
+      setLabelDraft(toLabelDraft(nextLabel));
+      setDuplicateMessage(null);
+    }
+
+    function handleDeleteLabel(labelId: string) {
+      updateBundle((draft) => {
+        draft.labels = draft.labels.filter((label) => label.id !== labelId);
+      });
+      if (selectedLabelId === labelId) {
+        setSelectedLabelId(null);
+        setLabelDraft(createEmptyLabelDraft());
+      }
+    }
+
+    return (
+      <I18nProvider initialLocale={locale}>
+        {duplicateMessage ? <div>{duplicateMessage}</div> : null}
+        <SettingsView
+          bundle={bundle}
+          selectedLabelId={selectedLabelId}
+          labelDraft={labelDraft}
+          normalizedLabelColor={normalizedLabelColor}
+          labelColorValid={labelColorValid}
+          labelColorPreview={labelColorPreview}
+          labelColorInputRef={colorInputRef}
+          settingsImportFile={null}
+          exportPending
+          exportVerified
+          dirty={dirty}
+          saving={false}
+          importing={false}
+          importFeedback={null}
+          onProjectNameChange={(value) => updateBundle((draft) => { draft.project.name = value; })}
+          onProjectDescriptionChange={(value) => updateBundle((draft) => { draft.project.description = value; })}
+          onProjectGuidelineChange={(value) => updateBundle((draft) => { draft.project = setProjectGuideline(draft.project, value); })}
+          onLabelDraftChange={setLabelDraft}
+          onNormalizeLabelColor={() => setLabelDraft((current) => ({ ...current, color: normalizeHexColor(current.color) }))}
+          onOpenColorPicker={() => colorInputRef.current?.click()}
+          onPickLabelColor={(value) => setLabelDraft((current) => ({ ...current, color: value }))}
+          onSubmitLabelDraft={handleSubmitLabelDraft}
+          onResetLabelDraft={() => {
+            setSelectedLabelId(null);
+            setLabelDraft(createEmptyLabelDraft());
+            setDuplicateMessage(null);
+          }}
+          onSelectLabel={(labelId) => {
+            const label = bundle.labels.find((item) => item.id === labelId);
+            if (label) {
+              setSelectedLabelId(labelId);
+              setLabelDraft(toLabelDraft(label));
+            }
+          }}
+          onReorderLabel={(labelId, targetIndex) => {
+            updateBundle((draft) => {
+              const index = draft.labels.findIndex((label) => label.id === labelId);
+              if (index < 0) {
+                return;
+              }
+              const [label] = draft.labels.splice(index, 1);
+              draft.labels.splice(targetIndex, 0, label);
+            });
+          }}
+          onDeleteLabel={handleDeleteLabel}
+          onImportFileChange={vi.fn()}
+          onImport={vi.fn()}
+          onExportPendingChange={vi.fn()}
+          onExportVerifiedChange={vi.fn()}
+          onExport={vi.fn()}
+          onSave={() => {
+            void api.saveProjectLabels(
+              bundle.project.id,
+              bundle.labels.map((label) => ({
+                id: label.id.startsWith("local-") ? null : label.id,
+                name: label.name,
+                color: label.color,
+                description: label.description,
+                shortcut: label.shortcut ?? null,
+                meta: label.meta ?? {},
+              })),
+              "labels-revision-1",
+            );
+            setDirty(false);
+          }}
+          onRequestDeleteProject={vi.fn()}
+          deletingProject={false}
+        />
+      </I18nProvider>
+    );
+  }
+
+  const view = render(<Harness />);
+  return { ...view, saveProjectLabelsSpy };
+}
+
 function createImportFile(payload: unknown) {
   return new File([JSON.stringify(payload)], "import.json", { type: "application/json" });
 }
@@ -177,9 +346,7 @@ describe("ProjectShell settings label selection", () => {
 
   it("starts with no selected label and lets the user select and clear labels", async () => {
     const userEventSetup = setupUserEvent();
-    renderProjectSettings();
-
-    await screen.findByRole("heading", { name: "Project Settings" });
+    renderSettingsView();
 
     const nameInput = screen.getByLabelText("Name");
     const diagnosisRow = getLabelRow("病名");
@@ -209,20 +376,16 @@ describe("ProjectShell settings label selection", () => {
     expect(diagnosisRow).not.toHaveClass("Mui-selected");
     expect(patientRow).not.toHaveClass("Mui-selected");
     expect(screen.getByRole("button", { name: "Add label" })).toBeInTheDocument();
-  }, 15000);
+  });
 
-  it("shows the import guide link in project settings", async () => {
-    renderProjectSettings();
-
-    await screen.findByRole("heading", { name: "Project Settings" });
+  it("shows the import guide link in project settings", () => {
+    renderSettingsView();
 
     expect(screen.getByRole("link", { name: "手順書" }).getAttribute("href")).toBeTruthy();
   });
 
-  it("uses the zh-CN import guide link in project settings", async () => {
-    renderProjectSettings("zh-CN");
-
-    await screen.findByRole("heading", { name: "项目设置" });
+  it("uses the zh-CN import guide link in project settings", () => {
+    renderSettingsView("zh-CN");
 
     expect(screen.getByRole("link", { name: "指南" })).toHaveAttribute(
       "href",
@@ -232,9 +395,7 @@ describe("ProjectShell settings label selection", () => {
 
   it("keeps the edited or added label selected in the form", async () => {
     const userEventSetup = setupUserEvent();
-    renderProjectSettings();
-
-    await screen.findByRole("heading", { name: "Project Settings" });
+    renderSettingsView();
 
     const nameInput = screen.getByLabelText("Name");
     const descriptionInputs = screen.getAllByLabelText("Description");
@@ -261,13 +422,11 @@ describe("ProjectShell settings label selection", () => {
     expect(nameInput).toHaveValue("既往歴");
     expect(labelDescriptionInput).toHaveValue("過去の病歴");
     expect(screen.getByRole("button", { name: "Update label" })).toBeInTheDocument();
-  }, 15000);
+  });
 
   it("clears only when the selected label is deleted", async () => {
     const userEventSetup = setupUserEvent();
-    renderProjectSettings();
-
-    await screen.findByRole("heading", { name: "Project Settings" });
+    renderSettingsView();
 
     const nameInput = screen.getByLabelText("Name");
     await userEventSetup.click(getLabelRow("患者メタデータ"));
@@ -290,9 +449,7 @@ describe("ProjectShell settings label selection", () => {
 
   it("prevents renaming a label to another existing label name", async () => {
     const userEventSetup = setupUserEvent();
-    renderProjectSettings();
-
-    await screen.findByRole("heading", { name: "Project Settings" });
+    renderSettingsView();
 
     const nameInput = screen.getByLabelText("Name");
     await userEventSetup.click(getLabelRow("病名"));
@@ -308,13 +465,7 @@ describe("ProjectShell settings label selection", () => {
 
   it("reorders labels with the vertical drag handle and saves the reordered payload", async () => {
     const userEventSetup = setupUserEvent();
-    const saveProjectLabelsSpy = vi.spyOn(api, "saveProjectLabels").mockResolvedValue({
-      labels: [baseLabels[1], baseLabels[0], baseLabels[2]],
-      revision: "labels-revision-2",
-    });
-    renderProjectSettings();
-
-    await screen.findByRole("heading", { name: "Project Settings" });
+    const { saveProjectLabelsSpy } = renderSettingsView();
 
     mockLabelRowRect("主訴", 0, 48);
     mockLabelRowRect("病名", 48, 48);
@@ -343,13 +494,7 @@ describe("ProjectShell settings label selection", () => {
 
   it("moves a tall label to the bottom when its lower boundary crosses following labels", async () => {
     const userEventSetup = setupUserEvent();
-    const saveProjectLabelsSpy = vi.spyOn(api, "saveProjectLabels").mockResolvedValue({
-      labels: [baseLabels[0], baseLabels[2], baseLabels[1]],
-      revision: "labels-revision-2",
-    });
-    renderProjectSettings();
-
-    await screen.findByRole("heading", { name: "Project Settings" });
+    const { saveProjectLabelsSpy } = renderSettingsView();
 
     mockLabelRowRect("主訴", 0, 48);
     mockLabelRowRect("病名", 48, 240);

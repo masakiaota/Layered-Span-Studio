@@ -32,6 +32,90 @@ vi.mock("../features/project-shell/useProjectShortcuts", () => ({
   useProjectShortcuts: () => {},
 }));
 
+vi.mock("../features/project-shell/WorkspaceView", () => ({
+  WorkspaceView: ({
+    bundle,
+    currentDocument,
+    pendingDocumentTotal,
+    documentTotal,
+    selectedDocumentId,
+    visibleDocuments,
+    onSelectDocument,
+    onSelectAnnotation,
+    onUpdateSelectedAnnotationComment,
+  }: {
+    bundle: { documents: DocumentRecord[] };
+    currentDocument: DocumentRecord | null;
+    pendingDocumentTotal: number;
+    documentTotal: number;
+    selectedDocumentId: string | null;
+    visibleDocuments: Array<Omit<DocumentRecord, "annotations">>;
+    onSelectDocument: (documentId: string) => void;
+    onSelectAnnotation: (annotationId: string) => void;
+    onUpdateSelectedAnnotationComment: (comment: string) => void;
+  }) => (
+    <div>
+      <button type="button">Save</button>
+      <div>Workspace View</div>
+      <div>
+        {pendingDocumentTotal} pending / {documentTotal} docs
+      </div>
+      {[...visibleDocuments, ...bundle.documents.filter((document) => !visibleDocuments.some((item) => item.id === document.id))].map((document) => (
+        <button
+          key={document.id}
+          type="button"
+          role="button"
+          className={selectedDocumentId === document.id ? "Mui-selected" : ""}
+          onClick={() => onSelectDocument(document.id)}
+        >
+          {document.document_name}
+        </button>
+      ))}
+      {documentTotal > 1 && !visibleDocuments.some((document) => document.id === "doc-2") ? (
+        <button
+          type="button"
+          role="button"
+          className={selectedDocumentId === "doc-2" ? "Mui-selected" : ""}
+          onClick={() => onSelectDocument("doc-2")}
+        >
+          Doc 2
+        </button>
+      ) : null}
+      <button type="button" role="tab">
+        注釈一覧
+      </button>
+      {currentDocument?.annotations.map((annotation) => (
+        <button key={annotation.id} type="button" onClick={() => onSelectAnnotation(annotation.id)}>
+          {annotation.start}-{annotation.end}
+        </button>
+      ))}
+      <button type="button">Annotation details</button>
+      <label>
+        Comment
+        <input onChange={(event) => onUpdateSelectedAnnotationComment(event.target.value)} />
+      </label>
+    </div>
+  ),
+}));
+
+vi.mock("../features/project-shell/SettingsView", () => ({
+  SettingsView: ({
+    bundle,
+    onProjectNameChange,
+  }: {
+    bundle: { project: ProjectRecord };
+    onProjectNameChange: (value: string) => void;
+  }) => (
+    <div>
+      <h1>Project Settings</h1>
+      <label>
+        Project name
+        <input defaultValue={bundle.project.name} onChange={(event) => onProjectNameChange(event.target.value)} />
+      </label>
+    </div>
+  ),
+}));
+
 const project: ProjectRecord = {
   id: "project-1",
   name: "Medical NER",
