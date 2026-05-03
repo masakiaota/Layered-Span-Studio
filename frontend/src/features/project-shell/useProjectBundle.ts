@@ -88,6 +88,7 @@ export function useProjectBundle({
   }
 
   async function loadBundle(onLoaded?: OnBundleLoaded) {
+    clearSearchDebounceTimer();
     setLoading(true);
     documentListRequestIdRef.current += 1;
     documentLoadMoreRequestIdRef.current += 1;
@@ -322,6 +323,10 @@ export function useProjectBundle({
       }
     }
   }
+
+  useEffect(() => {
+    return clearSearchDebounceTimer;
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!bundle || !initialDocumentListLoadedRef.current) {
