@@ -86,6 +86,7 @@ export function ProjectShell({
   const { t } = useI18n();
   const { toast, showToast, closeToast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [focusedLabelId, setFocusedLabelId] = useState<string | null>(null);
   const [selectedSettingsLabelId, setSelectedSettingsLabelId] = useState<string | null>(null);
@@ -166,7 +167,7 @@ export function ProjectShell({
   }, [bundle, selectedDocId]);
   const currentDocumentLoading = Boolean(selectedDocId && !currentDocument);
   const currentDocumentSnapshot = currentDocument ? documentSnapshotsById[currentDocument.id] ?? null : null;
-  const workspaceBusy = saving || deletingDocument;
+  const workspaceBusy = saving || submitting || deletingDocument;
 
   const {
     historyState,
@@ -317,6 +318,34 @@ export function ProjectShell({
     setReplacementAnnotationIds({});
     clearWorkspaceSelection();
     resetWorkspacePanels();
+  }
+
+  async function preloadDocumentForActivation(documentId: string) {
+    if (!bundle) {
+      return false;
+    }
+    if (bundle.documents.some((document) => document.id === documentId)) {
+      return true;
+    }
+    try {
+      const document = await api.getDocument(bundle.project.id, documentId);
+      setBundle((current) =>
+        current
+          ? {
+              ...current,
+              documents: [...current.documents.filter((item) => item.id !== document.id), document],
+            }
+          : current,
+      );
+      setDocumentSnapshotsById((current) => ({
+        ...current,
+        [document.id]: deepClone(document),
+      }));
+      return true;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Document の取得に失敗した", "error");
+      return false;
+    }
   }
 
   function handleShortcutDragStart(event: React.PointerEvent<HTMLDivElement>) {
@@ -743,22 +772,31 @@ export function ProjectShell({
     if (!bundle || !currentDocument || view !== "workspace" || workspaceBusy) {
       return;
     }
-    const savedDocument = await saveCurrentDocument(null, true);
-    if (!savedDocument) {
-      return;
+    setSubmitting(true);
+    try {
+      const savedDocument = await saveCurrentDocument(null, true);
+      if (!savedDocument) {
+        return;
+      }
+      const refreshedDocuments = await fetchDocumentPage(true, savedDocument.id);
+      const currentIndex = refreshedDocuments.findIndex((document) => document.id === savedDocument.id);
+      const forwardPending =
+        currentIndex >= 0
+          ? refreshedDocuments.slice(currentIndex + 1).find((document) => getDocumentStatus(document) === "pending")
+          : null;
+      const fallbackPending = refreshedDocuments.find((document) => getDocumentStatus(document) === "pending") ?? null;
+      const nextId = forwardPending?.id ?? fallbackPending?.id ?? null;
+      if (nextId) {
+        const loaded = await preloadDocumentForActivation(nextId);
+        if (!loaded) {
+          return;
+        }
+        activateDocument(nextId);
+      }
+      showToast(t("projectShell.toasts.submitted"), "success");
+    } finally {
+      setSubmitting(false);
     }
-    const refreshedDocuments = await fetchDocumentPage(true, savedDocument.id);
-    const currentIndex = refreshedDocuments.findIndex((document) => document.id === savedDocument.id);
-    const forwardPending =
-      currentIndex >= 0
-        ? refreshedDocuments.slice(currentIndex + 1).find((document) => getDocumentStatus(document) === "pending")
-        : null;
-    const fallbackPending = refreshedDocuments.find((document) => getDocumentStatus(document) === "pending") ?? null;
-    const nextId = forwardPending?.id ?? fallbackPending?.id ?? null;
-    if (nextId) {
-      activateDocument(nextId);
-    }
-    showToast(t("projectShell.toasts.submitted"), "success");
   }
 
   function executePendingAction(action: PendingAction) {

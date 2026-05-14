@@ -1,5 +1,5 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { setupUserEvent } from "./userEvent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectShell } from "../App";
@@ -225,6 +225,20 @@ function createAnnotation(overrides: Partial<AnnotationRecord> = {}): Annotation
   };
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function toDocumentListStub(document: DocumentRecord): Omit<DocumentRecord, "annotations"> {
+  return { ...document, annotations: undefined } as Omit<DocumentRecord, "annotations">;
+}
+
 function getDocumentRow(documentName: string) {
   const row = screen
     .getAllByText(documentName)
@@ -293,6 +307,92 @@ describe("ProjectShell submit behavior", () => {
       expect(saveDocumentBundleSpy).toHaveBeenCalledWith("project-1", "doc-1", [], true);
     });
     expect(await screen.findByText("0 pending / 1 docs")).toBeInTheDocument();
+  });
+
+  it("loads the next pending document before focusing it after submit", async () => {
+    const userEventSetup = setupUserEvent();
+    const firstDocument = createDocument();
+    const secondDocument = createDocument({
+      id: "doc-2",
+      document_name: "Doc 2",
+      text: "Second document",
+      created_at: "2026-03-02T00:00:00Z",
+      updated_at: "2026-03-02T00:00:00Z",
+    });
+    const verifiedFirstDocument = createDocument({
+      status: "verified",
+      updated_at: "2026-03-03T00:00:00Z",
+    });
+    const verifiedSecondDocument = createDocument({
+      ...secondDocument,
+      status: "verified",
+      updated_at: "2026-03-04T00:00:00Z",
+    });
+    const secondDocumentLoad = createDeferred<DocumentRecord>();
+
+    vi.spyOn(api, "listDocuments")
+      .mockResolvedValueOnce({
+        documents: [firstDocument, secondDocument].map(toDocumentListStub),
+        total: 2,
+        pending_total: 2,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: [verifiedFirstDocument, secondDocument].map(toDocumentListStub),
+        total: 2,
+        pending_total: 1,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      })
+      .mockResolvedValueOnce({
+        documents: [verifiedFirstDocument, verifiedSecondDocument].map(toDocumentListStub),
+        total: 2,
+        pending_total: 0,
+        offset: 0,
+        limit: 40,
+        search: "",
+        sort: "created",
+      });
+    const getDocumentSpy = vi.spyOn(api, "getDocument").mockImplementation((_projectId, documentId) => {
+      if (documentId === "doc-2") {
+        return secondDocumentLoad.promise;
+      }
+      return Promise.resolve(firstDocument);
+    });
+    const saveDocumentBundleSpy = vi.spyOn(api, "saveDocumentBundle").mockImplementation((_projectId, documentId) => {
+      return Promise.resolve(documentId === "doc-2" ? verifiedSecondDocument : verifiedFirstDocument);
+    });
+
+    renderWorkspace();
+
+    await screen.findByText("2 pending / 2 docs");
+    await userEventSetup.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => {
+      expect(getDocumentSpy).toHaveBeenCalledWith("project-1", "doc-2");
+    });
+    expect(getDocumentRow("Doc 2")).not.toHaveClass("Mui-selected");
+    await userEventSetup.click(screen.getByRole("button", { name: "Submit" }));
+    expect(saveDocumentBundleSpy).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      secondDocumentLoad.resolve(secondDocument);
+      await secondDocumentLoad.promise;
+    });
+    await waitFor(() => {
+      expect(getDocumentRow("Doc 2")).toHaveClass("Mui-selected");
+    });
+
+    await userEventSetup.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => {
+      expect(saveDocumentBundleSpy).toHaveBeenCalledWith("project-1", "doc-2", [], true);
+    });
   });
 
   it("saves edited annotations without submit flag", async () => {
