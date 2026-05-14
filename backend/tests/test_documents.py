@@ -256,6 +256,32 @@ def test_document_list_search_treats_percent_and_underscore_as_literals(
     assert [item["document_name"] for item in underscore_response.json()["documents"]] == ["UnderscoreMatch"]
 
 
+def test_document_list_search_matches_document_id(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    project_id = _create_project(client, auth_headers)
+
+    target = client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "TargetById", "text": "no matching body text"},
+        headers=auth_headers,
+    ).json()
+    client.post(
+        f"/projects/{project_id}/documents",
+        json={"document_name": "Other", "text": "also unrelated"},
+        headers=auth_headers,
+    )
+
+    response = client.get(
+        f"/projects/{project_id}/documents?search={target['id'].upper()}",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert [item["document_name"] for item in response.json()["documents"]] == ["TargetById"]
+
+
 def test_document_navigation_resolves_prev_next_and_adjacent_pending(
     client: TestClient, auth_headers: dict[str, str], settings: Settings
 ) -> None:
