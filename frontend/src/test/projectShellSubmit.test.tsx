@@ -377,6 +377,8 @@ describe("ProjectShell submit behavior", () => {
       expect(getDocumentSpy).toHaveBeenCalledWith("project-1", "doc-2");
     });
     expect(getDocumentRow("Doc 2")).not.toHaveClass("Mui-selected");
+    await userEventSetup.click(screen.getByRole("button", { name: "Submit" }));
+    expect(saveDocumentBundleSpy).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       secondDocumentLoad.resolve(secondDocument);
