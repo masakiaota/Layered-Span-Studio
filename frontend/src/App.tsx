@@ -319,6 +319,34 @@ export function ProjectShell({
     resetWorkspacePanels();
   }
 
+  async function preloadDocumentForActivation(documentId: string) {
+    if (!bundle) {
+      return false;
+    }
+    if (bundle.documents.some((document) => document.id === documentId)) {
+      return true;
+    }
+    try {
+      const document = await api.getDocument(bundle.project.id, documentId);
+      setBundle((current) =>
+        current
+          ? {
+              ...current,
+              documents: [...current.documents.filter((item) => item.id !== document.id), document],
+            }
+          : current,
+      );
+      setDocumentSnapshotsById((current) => ({
+        ...current,
+        [document.id]: deepClone(document),
+      }));
+      return true;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Document の取得に失敗した", "error");
+      return false;
+    }
+  }
+
   function handleShortcutDragStart(event: React.PointerEvent<HTMLDivElement>) {
     shortcutDragStateRef.current = {
       startX: event.clientX,
@@ -756,6 +784,10 @@ export function ProjectShell({
     const fallbackPending = refreshedDocuments.find((document) => getDocumentStatus(document) === "pending") ?? null;
     const nextId = forwardPending?.id ?? fallbackPending?.id ?? null;
     if (nextId) {
+      const loaded = await preloadDocumentForActivation(nextId);
+      if (!loaded) {
+        return;
+      }
       activateDocument(nextId);
     }
     showToast(t("projectShell.toasts.submitted"), "success");
