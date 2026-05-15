@@ -294,6 +294,9 @@ export function isBoxInViewport(
 }
 
 export function resolveLineHeight(lineHeight: string, fallback: number) {
+  if (!lineHeight.trim().endsWith("px")) {
+    return fallback;
+  }
   const parsed = Number.parseFloat(lineHeight);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
@@ -318,6 +321,8 @@ export function calculateAnnotationScrollTop({
     return null;
   }
   const contextOffset = Math.max(lineHeight, viewportHeight * 0.32);
-  const target = selectedTop - contextOffset;
+  const contextTarget = selectedTop - contextOffset;
+  const bottomTarget = selectedBottom + lineHeight - viewportHeight;
+  const target = selectedTop < viewportTop ? contextTarget : Math.max(contextTarget, bottomTarget);
   return Math.min(Math.max(target, 0), Math.max(maxScrollTop, 0));
 }

@@ -204,6 +204,19 @@ describe("document canvas layout helpers", () => {
     ).toBe(179.6);
   });
 
+  it("scrolls far enough to show the end of a multi-line selected annotation and next line", () => {
+    expect(
+      calculateAnnotationScrollTop({
+        selectedTop: 250,
+        selectedBottom: 390,
+        lineHeight: 36,
+        viewportTop: 100,
+        viewportHeight: 220,
+        maxScrollTop: 800,
+      }),
+    ).toBe(206);
+  });
+
   it("clamps annotation scroll target to the scrollable range", () => {
     expect(
       calculateAnnotationScrollTop({
@@ -220,5 +233,6 @@ describe("document canvas layout helpers", () => {
   it("resolves computed line-height with a fallback for normal values", () => {
     expect(resolveLineHeight("35.1px", 32)).toBe(35.1);
     expect(resolveLineHeight("normal", 32)).toBe(32);
+    expect(resolveLineHeight("1.95", 32)).toBe(32);
   });
 });
