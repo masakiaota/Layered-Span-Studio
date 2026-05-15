@@ -11,10 +11,14 @@ import {
   buildRectsByAnnotationId,
   buildSegments,
   buildUnderlineLaneByAnnotation,
+  calculateAnnotationScrollTop,
+  collectTextNodeIndex,
+  getTextRectsForOffsetRange,
   isBoxInViewport,
   mergeInlineRects,
   mixColorWithBlack,
   getSelectionOffset,
+  resolveLineHeight,
 } from "./documentCanvasLayout";
 
 type SelectionDraft = {
@@ -164,6 +168,41 @@ export function DocumentCanvas({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [selection, onCreateAnnotation, onSelectionDraftChange]);
+
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    const root = textRef.current;
+    const selectedAnnotation = selectedAnnotationId ? annotationById.get(selectedAnnotationId) : null;
+    if (!canvas || !root || !selectedAnnotation) {
+      return;
+    }
+
+    const mergedRects = mergeInlineRects(
+      getTextRectsForOffsetRange(collectTextNodeIndex(root), selectedAnnotation.start, selectedAnnotation.end),
+    );
+    if (mergedRects.length === 0) {
+      return;
+    }
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const lineHeight = resolveLineHeight(
+      window.getComputedStyle(root).lineHeight,
+      Math.max(32, ...mergedRects.map((rect) => rect.bottom - rect.top)),
+    );
+    const selectedTop = Math.min(...mergedRects.map((rect) => rect.top)) - canvasRect.top + canvas.scrollTop;
+    const selectedBottom = Math.max(...mergedRects.map((rect) => rect.bottom)) - canvasRect.top + canvas.scrollTop;
+    const nextScrollTop = calculateAnnotationScrollTop({
+      selectedTop,
+      selectedBottom,
+      lineHeight,
+      viewportTop: canvas.scrollTop,
+      viewportHeight: canvas.clientHeight,
+      maxScrollTop: canvas.scrollHeight - canvas.clientHeight,
+    });
+    if (nextScrollTop !== null && nextScrollTop !== canvas.scrollTop) {
+      canvas.scrollTop = nextScrollTop;
+    }
+  }, [annotationById, document.id, layoutRevision, selectedAnnotationId]);
 
   useLayoutEffect(() => {
     const root = textRef.current;
@@ -347,6 +386,7 @@ export function DocumentCanvas({
           {t("projectShell.workspace.canvasHint")}
         </Typography>
         <Box
+          data-testid="document-canvas-scroll"
           ref={canvasRef}
           onClick={(event) => {
             if (selectionJustCommitted()) {
