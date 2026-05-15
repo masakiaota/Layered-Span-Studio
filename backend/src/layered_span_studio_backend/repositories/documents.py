@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import Select, case, func, select
+from sqlalchemy import Select, case, func, or_, select
 
 from layered_span_studio_backend.core.config import Settings
 from layered_span_studio_backend.repositories.projects import project_db_path
@@ -54,9 +54,15 @@ def _document_filter_conditions(project_id: str, search: str = "") -> List[Any]:
     normalized_search = search.strip().lower()
     if normalized_search:
         conditions.append(
-            func.lower(documents_table.c.text).contains(
-                normalized_search,
-                autoescape=True,
+            or_(
+                func.lower(documents_table.c.text).contains(
+                    normalized_search,
+                    autoescape=True,
+                ),
+                func.lower(documents_table.c.id).contains(
+                    normalized_search,
+                    autoescape=True,
+                ),
             )
         )
     return conditions

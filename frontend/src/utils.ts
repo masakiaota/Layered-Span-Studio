@@ -64,7 +64,11 @@ function findSimpleSearchMatchRange(text: string, query: string) {
 }
 
 export function documentMatchesSearch(document: DocumentRecord, query: string): boolean {
-  return !query.trim() || findSimpleSearchMatchRange(document.text, query) !== null;
+  return (
+    !query.trim() ||
+    findSimpleSearchMatchRange(document.text, query) !== null ||
+    findSimpleSearchMatchRange(document.id, query) !== null
+  );
 }
 
 export type DocumentListCompatible = Pick<

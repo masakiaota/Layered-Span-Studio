@@ -763,7 +763,7 @@ Authorization: Bearer <token>
 **Query Parameters:**
 - `offset` (integer, optional): スキップする件数（デフォルト: 0）
 - `limit` (integer, optional): 取得する最大件数（デフォルト: 50, 最大: 100）
-- `search` (string, optional): `Document.text` に対する単純な部分一致検索。大文字小文字差は無視し、`%` / `_` も通常文字として扱う
+- `search` (string, optional): `Document.text` または `Document.id` に対する単純な部分一致検索。大文字小文字差は無視し、`%` / `_` も通常文字として扱う
 - `sort` (string, optional): `created` / `pending` / `updated` / `name`（デフォルト: `created`）
 
 **Response (200 OK):**

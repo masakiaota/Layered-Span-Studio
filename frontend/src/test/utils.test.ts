@@ -82,6 +82,12 @@ describe("document search helpers", () => {
     expect(documentMatchesSearch(document, "theta")).toBe(false);
   });
 
+  it("matches document id case-insensitively", () => {
+    const document = makeDocument({ id: "Doc-ABC-123", text: "body text" });
+    expect(documentMatchesSearch(document, "abc-123")).toBe(true);
+    expect(documentMatchesSearch(document, "missing")).toBe(false);
+  });
+
   it("highlights only the matched fragment in snippet parts", () => {
     const document = makeDocument();
     expect(getDocumentSnippetParts(document, "gamma")).toEqual([
