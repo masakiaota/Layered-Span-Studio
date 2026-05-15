@@ -11,10 +11,14 @@ import {
   buildRectsByAnnotationId,
   buildSegments,
   buildUnderlineLaneByAnnotation,
+  calculateAnnotationScrollTop,
+  collectTextNodeIndex,
+  getTextRectsForOffsetRange,
   isBoxInViewport,
   mergeInlineRects,
   mixColorWithBlack,
   getSelectionOffset,
+  resolveLineHeight,
 } from "./documentCanvasLayout";
 
 type SelectionDraft = {
@@ -28,6 +32,14 @@ type SelectionDraft = {
 type MarkerBox = { annotationId: string; left: number; top: number; width: number; height: number; color: string };
 type OverlayLine = { annotationId: string; left: number; top: number; width: number; color: string };
 type SelectionBox = { left: number; top: number; width: number; height: number; color: string };
+
+function scrollCanvasTo(canvas: HTMLDivElement, top: number) {
+  if (typeof canvas.scrollTo === "function") {
+    canvas.scrollTo({ top, behavior: "smooth" });
+    return;
+  }
+  canvas.scrollTop = top;
+}
 
 function areOverlayItemsEqual<T extends object>(left: T[], right: T[]) {
   if (left.length !== right.length) {
@@ -116,6 +128,7 @@ export function DocumentCanvas({
     const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(scheduleLayoutRefresh) : null;
     if (canvas) {
       resizeObserver?.observe(canvas);
+      canvas.addEventListener("scroll", scheduleLayoutRefresh, { passive: true });
     }
     if (root && root !== canvas) {
       resizeObserver?.observe(root);
@@ -124,6 +137,7 @@ export function DocumentCanvas({
 
     return () => {
       window.removeEventListener("resize", scheduleLayoutRefresh);
+      canvas?.removeEventListener("scroll", scheduleLayoutRefresh);
       resizeObserver?.disconnect();
       if (frameId !== null) {
         window.cancelAnimationFrame(frameId);
@@ -164,6 +178,41 @@ export function DocumentCanvas({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [selection, onCreateAnnotation, onSelectionDraftChange]);
+
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    const root = textRef.current;
+    const selectedAnnotation = selectedAnnotationId ? annotationById.get(selectedAnnotationId) : null;
+    if (!canvas || !root || !selectedAnnotation) {
+      return;
+    }
+
+    const mergedRects = mergeInlineRects(
+      getTextRectsForOffsetRange(collectTextNodeIndex(root), selectedAnnotation.start, selectedAnnotation.end),
+    );
+    if (mergedRects.length === 0) {
+      return;
+    }
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const lineHeight = resolveLineHeight(
+      window.getComputedStyle(root).lineHeight,
+      Math.max(32, ...mergedRects.map((rect) => rect.bottom - rect.top)),
+    );
+    const selectedTop = Math.min(...mergedRects.map((rect) => rect.top)) - canvasRect.top + canvas.scrollTop;
+    const selectedBottom = Math.max(...mergedRects.map((rect) => rect.bottom)) - canvasRect.top + canvas.scrollTop;
+    const nextScrollTop = calculateAnnotationScrollTop({
+      selectedTop,
+      selectedBottom,
+      lineHeight,
+      viewportTop: canvas.scrollTop,
+      viewportHeight: canvas.clientHeight,
+      maxScrollTop: canvas.scrollHeight - canvas.clientHeight,
+    });
+    if (nextScrollTop !== null && nextScrollTop !== canvas.scrollTop) {
+      scrollCanvasTo(canvas, nextScrollTop);
+    }
+  }, [annotationById, document.id, selectedAnnotationId]);
 
   useLayoutEffect(() => {
     const root = textRef.current;
@@ -234,7 +283,6 @@ export function DocumentCanvas({
             color: mixColorWithBlack(selectedLabel?.color ?? "#1a73e8", 0.5),
           };
         })
-        .filter((box) => isBoxInViewport(box, viewport))
       : [];
 
     setMarkerBoxes((current) => (areOverlayItemsEqual(current, nextMarkerBoxes) ? current : nextMarkerBoxes));
@@ -347,6 +395,7 @@ export function DocumentCanvas({
           {t("projectShell.workspace.canvasHint")}
         </Typography>
         <Box
+          data-testid="document-canvas-scroll"
           ref={canvasRef}
           onClick={(event) => {
             if (selectionJustCommitted()) {
@@ -444,6 +493,7 @@ export function DocumentCanvas({
             {markerBoxes.map((box, index) => (
               <Box
                 key={`${box.annotationId}-marker-${index}`}
+                data-marker-ann-id={box.annotationId}
                 sx={{
                   position: "absolute",
                   left: box.left - 1,
@@ -508,6 +558,7 @@ export function DocumentCanvas({
             {selectionBoxes.map((box, index) => (
               <Box
                 key={`${box.left}-${box.top}-${index}`}
+                data-selected-ann-id={selectedAnnotationId ?? undefined}
                 sx={{
                   position: "absolute",
                   left: box.left - 1,

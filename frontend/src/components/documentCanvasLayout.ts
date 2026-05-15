@@ -292,3 +292,42 @@ export function isBoxInViewport(
   const height = box.height ?? 1;
   return box.left + box.width >= viewport.left && box.left <= viewport.right && box.top + height >= viewport.top && box.top <= viewport.bottom;
 }
+
+export function resolveLineHeight(lineHeight: string, fallback: number) {
+  if (!lineHeight.trim().endsWith("px")) {
+    return fallback;
+  }
+  const parsed = Number.parseFloat(lineHeight);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function calculateAnnotationScrollTop({
+  selectedTop,
+  selectedBottom,
+  lineHeight,
+  viewportTop,
+  viewportHeight,
+  maxScrollTop,
+}: {
+  selectedTop: number;
+  selectedBottom: number;
+  lineHeight: number;
+  viewportTop: number;
+  viewportHeight: number;
+  maxScrollTop: number;
+}) {
+  const viewportBottom = viewportTop + viewportHeight;
+  if (selectedTop >= viewportTop && selectedBottom + lineHeight <= viewportBottom) {
+    return null;
+  }
+  const contextOffset = Math.max(lineHeight, viewportHeight * 0.32);
+  const contextTarget = selectedTop - contextOffset;
+  const bottomTarget = selectedBottom + lineHeight - viewportHeight;
+  const canFitFullSelection = bottomTarget <= selectedTop;
+  const target = canFitFullSelection
+    ? Math.min(Math.max(contextTarget, bottomTarget), selectedTop)
+    : selectedTop < viewportTop
+      ? selectedTop
+      : bottomTarget;
+  return Math.min(Math.max(target, 0), Math.max(maxScrollTop, 0));
+}

@@ -591,6 +591,262 @@ describe("WorkspaceView", () => {
     }
   });
 
+  it("scrolls the document canvas when the selected annotation is not visible with the next line", () => {
+    const originalGetClientRects = Range.prototype.getClientRects;
+    const originalGetComputedStyle = window.getComputedStyle;
+    const originalGetBoundingClientRect = Object.getOwnPropertyDescriptor(
+      window.HTMLElement.prototype,
+      "getBoundingClientRect",
+    );
+    const originalClientHeight = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "clientHeight");
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "scrollHeight");
+    const originalScrollTop = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "scrollTop");
+    const originalScrollTo = window.HTMLElement.prototype.scrollTo;
+    const scrollTopByElement = new WeakMap<HTMLElement, number>();
+    const scrollTo = vi.fn(function scrollTo(this: HTMLElement, options?: ScrollToOptions | number) {
+      if (typeof options === "object" && typeof options.top === "number") {
+        scrollTopByElement.set(this, options.top);
+      }
+    });
+
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: function getClientRects(this: Range) {
+        if (this.toString() === "beta") {
+          return [{ left: 0, right: 40, top: 250, bottom: 280, width: 40, height: 30 }] as unknown as DOMRectList;
+        }
+        return [{ left: 0, right: 40, top: 20, bottom: 50, width: 40, height: 30 }] as unknown as DOMRectList;
+      },
+    });
+    window.getComputedStyle = ((element: Element) => {
+      const style = originalGetComputedStyle(element);
+      if ((element as HTMLElement).dataset.testid === "doc-text") {
+        return { ...style, lineHeight: "36px" };
+      }
+      return style;
+    }) as typeof window.getComputedStyle;
+    Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", {
+      value: function getBoundingClientRect(this: HTMLElement) {
+        if (this.dataset.testid === "document-canvas-scroll") {
+          return { top: 0, bottom: 220, left: 0, right: 480, width: 480, height: 220, x: 0, y: 0, toJSON: () => null };
+        }
+        return { top: 0, bottom: 400, left: 0, right: 480, width: 480, height: 400, x: 0, y: 0, toJSON: () => null };
+      },
+      configurable: true,
+    });
+    Object.defineProperty(window.HTMLElement.prototype, "clientHeight", {
+      get(this: HTMLElement) {
+        return this.dataset.testid === "document-canvas-scroll" ? 220 : 400;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(window.HTMLElement.prototype, "scrollHeight", {
+      get(this: HTMLElement) {
+        return this.dataset.testid === "document-canvas-scroll" ? 1000 : 400;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(window.HTMLElement.prototype, "scrollTop", {
+      get(this: HTMLElement) {
+        return scrollTopByElement.get(this) ?? (this.dataset.testid === "document-canvas-scroll" ? 100 : 0);
+      },
+      set(this: HTMLElement, value: number) {
+        scrollTopByElement.set(this, value);
+      },
+      configurable: true,
+    });
+    window.HTMLElement.prototype.scrollTo = scrollTo;
+
+    try {
+      render(
+        <WorkspaceView
+          {...createProps({
+            currentDocument: annotationCurrentDocument,
+            selectedAnnotationId: "ann-2",
+            selectedAnnotation: annotationCurrentDocument.annotations[1],
+          })}
+        />,
+      );
+
+      expect(scrollTo).toHaveBeenCalledWith({ top: 279.6, behavior: "smooth" });
+    } finally {
+      Object.defineProperty(Range.prototype, "getClientRects", {
+        configurable: true,
+        value: originalGetClientRects,
+      });
+      window.getComputedStyle = originalGetComputedStyle;
+      if (originalGetBoundingClientRect) {
+        Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", originalGetBoundingClientRect);
+      }
+      if (originalClientHeight) {
+        Object.defineProperty(window.HTMLElement.prototype, "clientHeight", originalClientHeight);
+      }
+      if (originalScrollHeight) {
+        Object.defineProperty(window.HTMLElement.prototype, "scrollHeight", originalScrollHeight);
+      }
+      if (originalScrollTop) {
+        Object.defineProperty(window.HTMLElement.prototype, "scrollTop", originalScrollTop);
+      }
+      window.HTMLElement.prototype.scrollTo = originalScrollTo;
+    }
+  });
+
+  it("renders the selected annotation marker after smooth scrolling across distant labels", async () => {
+    const originalGetClientRects = Range.prototype.getClientRects;
+    const originalGetComputedStyle = window.getComputedStyle;
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const originalCancelAnimationFrame = window.cancelAnimationFrame;
+    const originalGetBoundingClientRect = Object.getOwnPropertyDescriptor(
+      window.HTMLElement.prototype,
+      "getBoundingClientRect",
+    );
+    const originalClientHeight = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "clientHeight");
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "scrollHeight");
+    const originalScrollTop = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "scrollTop");
+    const originalScrollTo = window.HTMLElement.prototype.scrollTo;
+    const scrollTopByElement = new WeakMap<HTMLElement, number>();
+    const frameCallbacks = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 1;
+    let canvasElement: HTMLElement | null = null;
+    const distantDocument: DocumentRecord = {
+      ...annotationCurrentDocument,
+      text: "Alpha beta gamma delta omega",
+      annotations: [
+        {
+          ...annotationCurrentDocument.annotations[0],
+          id: "ann-bottom",
+          label_id: label.id,
+          label_name: label.name,
+          start: 17,
+          end: 22,
+          span_text: "delta",
+        },
+        {
+          ...annotationCurrentDocument.annotations[1],
+          id: "ann-top",
+          label_id: secondaryLabel.id,
+          label_name: secondaryLabel.name,
+          start: 0,
+          end: 5,
+          span_text: "Alpha",
+        },
+      ],
+    };
+
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: function getClientRects(this: Range) {
+        const currentScrollTop = canvasElement ? (scrollTopByElement.get(canvasElement) ?? 1000) : 1000;
+        if (this.toString() === "Alpha") {
+          return [
+            { left: 0, right: 48, top: 20 - currentScrollTop, bottom: 50 - currentScrollTop, width: 48, height: 30 },
+          ] as unknown as DOMRectList;
+        }
+        return [
+          { left: 0, right: 48, top: 1020 - currentScrollTop, bottom: 1050 - currentScrollTop, width: 48, height: 30 },
+        ] as unknown as DOMRectList;
+      },
+    });
+    window.getComputedStyle = ((element: Element) => {
+      const style = originalGetComputedStyle(element);
+      if ((element as HTMLElement).dataset.testid === "doc-text") {
+        return { ...style, lineHeight: "36px" };
+      }
+      return style;
+    }) as typeof window.getComputedStyle;
+    Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", {
+      value: function getBoundingClientRect(this: HTMLElement) {
+        if (this.dataset.testid === "document-canvas-scroll") {
+          return { top: 0, bottom: 220, left: 0, right: 480, width: 480, height: 220, x: 0, y: 0, toJSON: () => null };
+        }
+        return { top: 0, bottom: 400, left: 0, right: 480, width: 480, height: 400, x: 0, y: 0, toJSON: () => null };
+      },
+      configurable: true,
+    });
+    Object.defineProperty(window.HTMLElement.prototype, "clientHeight", {
+      get(this: HTMLElement) {
+        return this.dataset.testid === "document-canvas-scroll" ? 220 : 400;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(window.HTMLElement.prototype, "scrollHeight", {
+      get(this: HTMLElement) {
+        return this.dataset.testid === "document-canvas-scroll" ? 1200 : 400;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(window.HTMLElement.prototype, "scrollTop", {
+      get(this: HTMLElement) {
+        return scrollTopByElement.get(this) ?? (this.dataset.testid === "document-canvas-scroll" ? 1000 : 0);
+      },
+      set(this: HTMLElement, value: number) {
+        scrollTopByElement.set(this, value);
+      },
+      configurable: true,
+    });
+    window.HTMLElement.prototype.scrollTo = vi.fn();
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      const frameId = nextFrameId;
+      nextFrameId += 1;
+      frameCallbacks.set(frameId, callback);
+      return frameId;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = ((frameId: number) => {
+      frameCallbacks.delete(frameId);
+    }) as typeof window.cancelAnimationFrame;
+
+    try {
+      const view = render(
+        <WorkspaceView
+          {...createProps({
+            bundle: { project, labels: [label, secondaryLabel], documents: [] },
+            currentDocument: distantDocument,
+            focusedLabel: secondaryLabel,
+            selectedAnnotationId: "ann-top",
+            selectedAnnotation: distantDocument.annotations[1],
+          })}
+        />,
+      );
+      canvasElement = screen.getByTestId("document-canvas-scroll");
+
+      expect(view.container.querySelector('[data-marker-ann-id="ann-top"]')).toBeNull();
+      expect(window.HTMLElement.prototype.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+
+      scrollTopByElement.set(canvasElement, 0);
+      fireEvent.scroll(canvasElement);
+      const scrollFrame = frameCallbacks.get(nextFrameId - 1);
+      expect(scrollFrame).toBeTruthy();
+      await act(async () => {
+        scrollFrame?.(performance.now());
+      });
+
+      expect(view.container.querySelector('[data-marker-ann-id="ann-top"]')).toBeInTheDocument();
+      expect(view.container.querySelector('[data-selected-ann-id="ann-top"]')).toBeInTheDocument();
+      expect(window.HTMLElement.prototype.scrollTo).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(Range.prototype, "getClientRects", {
+        configurable: true,
+        value: originalGetClientRects,
+      });
+      window.getComputedStyle = originalGetComputedStyle;
+      window.requestAnimationFrame = originalRequestAnimationFrame;
+      window.cancelAnimationFrame = originalCancelAnimationFrame;
+      window.HTMLElement.prototype.scrollTo = originalScrollTo;
+      if (originalGetBoundingClientRect) {
+        Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", originalGetBoundingClientRect);
+      }
+      if (originalClientHeight) {
+        Object.defineProperty(window.HTMLElement.prototype, "clientHeight", originalClientHeight);
+      }
+      if (originalScrollHeight) {
+        Object.defineProperty(window.HTMLElement.prototype, "scrollHeight", originalScrollHeight);
+      }
+      if (originalScrollTop) {
+        Object.defineProperty(window.HTMLElement.prototype, "scrollTop", originalScrollTop);
+      }
+    }
+  });
+
   it("hides label groups without annotations in the document annotation list", () => {
     render(
       <WorkspaceView

@@ -4,11 +4,13 @@ import {
   buildAnnotationById,
   buildSegments,
   buildUnderlineLaneByAnnotation,
+  calculateAnnotationScrollTop,
   collectTextNodeIndex,
   getSelectionOffset,
   getTextRectsForOffsetRange,
   isBoxInViewport,
   mergeInlineRects,
+  resolveLineHeight,
 } from "../components/documentCanvasLayout";
 
 const label: LabelRecord = {
@@ -161,5 +163,89 @@ describe("document canvas layout helpers", () => {
     expect(
       isBoxInViewport({ left: 30, top: 10, width: 5, height: 5 }, { left: 0, top: 0, right: 20, bottom: 20 }),
     ).toBe(false);
+  });
+
+  it("keeps annotation scroll position when the selected annotation and next line are visible", () => {
+    expect(
+      calculateAnnotationScrollTop({
+        selectedTop: 120,
+        selectedBottom: 150,
+        lineHeight: 36,
+        viewportTop: 100,
+        viewportHeight: 160,
+        maxScrollTop: 800,
+      }),
+    ).toBeNull();
+  });
+
+  it("scrolls upward with context when the selected annotation is above the viewport", () => {
+    expect(
+      calculateAnnotationScrollTop({
+        selectedTop: 60,
+        selectedBottom: 90,
+        lineHeight: 36,
+        viewportTop: 100,
+        viewportHeight: 200,
+        maxScrollTop: 800,
+      }),
+    ).toBe(0);
+  });
+
+  it("scrolls downward from above when that is required to show the selected annotation and next line", () => {
+    expect(
+      calculateAnnotationScrollTop({
+        selectedTop: 60,
+        selectedBottom: 210,
+        lineHeight: 36,
+        viewportTop: 100,
+        viewportHeight: 220,
+        maxScrollTop: 800,
+      }),
+    ).toBe(26);
+  });
+
+  it("scrolls to show one line after a selected annotation that is too close to the bottom", () => {
+    expect(
+      calculateAnnotationScrollTop({
+        selectedTop: 250,
+        selectedBottom: 300,
+        lineHeight: 36,
+        viewportTop: 100,
+        viewportHeight: 220,
+        maxScrollTop: 800,
+      }),
+    ).toBe(179.6);
+  });
+
+  it("scrolls far enough to show the end of a multi-line selected annotation and next line", () => {
+    expect(
+      calculateAnnotationScrollTop({
+        selectedTop: 250,
+        selectedBottom: 390,
+        lineHeight: 36,
+        viewportTop: 100,
+        viewportHeight: 220,
+        maxScrollTop: 800,
+      }),
+    ).toBe(206);
+  });
+
+  it("clamps annotation scroll target to the scrollable range", () => {
+    expect(
+      calculateAnnotationScrollTop({
+        selectedTop: 980,
+        selectedBottom: 1040,
+        lineHeight: 36,
+        viewportTop: 100,
+        viewportHeight: 200,
+        maxScrollTop: 840,
+      }),
+    ).toBe(840);
+  });
+
+  it("resolves computed line-height with a fallback for normal values", () => {
+    expect(resolveLineHeight("35.1px", 32)).toBe(35.1);
+    expect(resolveLineHeight("normal", 32)).toBe(32);
+    expect(resolveLineHeight("1.95", 32)).toBe(32);
   });
 });
