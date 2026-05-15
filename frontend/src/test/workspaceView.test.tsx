@@ -822,6 +822,7 @@ describe("WorkspaceView", () => {
 
       expect(view.container.querySelector('[data-marker-ann-id="ann-top"]')).toBeInTheDocument();
       expect(view.container.querySelector('[data-selected-ann-id="ann-top"]')).toBeInTheDocument();
+      expect(window.HTMLElement.prototype.scrollTo).toHaveBeenCalledTimes(1);
     } finally {
       Object.defineProperty(Range.prototype, "getClientRects", {
         configurable: true,

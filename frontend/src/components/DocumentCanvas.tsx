@@ -212,7 +212,7 @@ export function DocumentCanvas({
     if (nextScrollTop !== null && nextScrollTop !== canvas.scrollTop) {
       scrollCanvasTo(canvas, nextScrollTop);
     }
-  }, [annotationById, document.id, layoutRevision, selectedAnnotationId]);
+  }, [annotationById, document.id, selectedAnnotationId]);
 
   useLayoutEffect(() => {
     const root = textRef.current;

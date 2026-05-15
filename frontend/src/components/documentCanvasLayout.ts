@@ -323,6 +323,11 @@ export function calculateAnnotationScrollTop({
   const contextOffset = Math.max(lineHeight, viewportHeight * 0.32);
   const contextTarget = selectedTop - contextOffset;
   const bottomTarget = selectedBottom + lineHeight - viewportHeight;
-  const target = selectedTop < viewportTop ? contextTarget : Math.max(contextTarget, bottomTarget);
+  const canFitFullSelection = bottomTarget <= selectedTop;
+  const target = canFitFullSelection
+    ? Math.min(Math.max(contextTarget, bottomTarget), selectedTop)
+    : selectedTop < viewportTop
+      ? selectedTop
+      : bottomTarget;
   return Math.min(Math.max(target, 0), Math.max(maxScrollTop, 0));
 }

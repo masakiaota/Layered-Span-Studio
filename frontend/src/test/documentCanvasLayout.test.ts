@@ -191,6 +191,19 @@ describe("document canvas layout helpers", () => {
     ).toBe(0);
   });
 
+  it("scrolls downward from above when that is required to show the selected annotation and next line", () => {
+    expect(
+      calculateAnnotationScrollTop({
+        selectedTop: 60,
+        selectedBottom: 210,
+        lineHeight: 36,
+        viewportTop: 100,
+        viewportHeight: 220,
+        maxScrollTop: 800,
+      }),
+    ).toBe(26);
+  });
+
   it("scrolls to show one line after a selected annotation that is too close to the bottom", () => {
     expect(
       calculateAnnotationScrollTop({
