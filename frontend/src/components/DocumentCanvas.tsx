@@ -128,6 +128,7 @@ export function DocumentCanvas({
     const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(scheduleLayoutRefresh) : null;
     if (canvas) {
       resizeObserver?.observe(canvas);
+      canvas.addEventListener("scroll", scheduleLayoutRefresh, { passive: true });
     }
     if (root && root !== canvas) {
       resizeObserver?.observe(root);
@@ -136,6 +137,7 @@ export function DocumentCanvas({
 
     return () => {
       window.removeEventListener("resize", scheduleLayoutRefresh);
+      canvas?.removeEventListener("scroll", scheduleLayoutRefresh);
       resizeObserver?.disconnect();
       if (frameId !== null) {
         window.cancelAnimationFrame(frameId);
@@ -281,7 +283,6 @@ export function DocumentCanvas({
             color: mixColorWithBlack(selectedLabel?.color ?? "#1a73e8", 0.5),
           };
         })
-        .filter((box) => isBoxInViewport(box, viewport))
       : [];
 
     setMarkerBoxes((current) => (areOverlayItemsEqual(current, nextMarkerBoxes) ? current : nextMarkerBoxes));
@@ -492,6 +493,7 @@ export function DocumentCanvas({
             {markerBoxes.map((box, index) => (
               <Box
                 key={`${box.annotationId}-marker-${index}`}
+                data-marker-ann-id={box.annotationId}
                 sx={{
                   position: "absolute",
                   left: box.left - 1,
@@ -556,6 +558,7 @@ export function DocumentCanvas({
             {selectionBoxes.map((box, index) => (
               <Box
                 key={`${box.left}-${box.top}-${index}`}
+                data-selected-ann-id={selectedAnnotationId ?? undefined}
                 sx={{
                   position: "absolute",
                   left: box.left - 1,
