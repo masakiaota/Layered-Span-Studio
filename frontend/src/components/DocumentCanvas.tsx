@@ -33,6 +33,14 @@ type MarkerBox = { annotationId: string; left: number; top: number; width: numbe
 type OverlayLine = { annotationId: string; left: number; top: number; width: number; color: string };
 type SelectionBox = { left: number; top: number; width: number; height: number; color: string };
 
+function scrollCanvasTo(canvas: HTMLDivElement, top: number) {
+  if (typeof canvas.scrollTo === "function") {
+    canvas.scrollTo({ top, behavior: "smooth" });
+    return;
+  }
+  canvas.scrollTop = top;
+}
+
 function areOverlayItemsEqual<T extends object>(left: T[], right: T[]) {
   if (left.length !== right.length) {
     return false;
@@ -200,7 +208,7 @@ export function DocumentCanvas({
       maxScrollTop: canvas.scrollHeight - canvas.clientHeight,
     });
     if (nextScrollTop !== null && nextScrollTop !== canvas.scrollTop) {
-      canvas.scrollTop = nextScrollTop;
+      scrollCanvasTo(canvas, nextScrollTop);
     }
   }, [annotationById, document.id, layoutRevision, selectedAnnotationId]);
 

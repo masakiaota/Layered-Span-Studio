@@ -601,7 +601,13 @@ describe("WorkspaceView", () => {
     const originalClientHeight = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "clientHeight");
     const originalScrollHeight = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "scrollHeight");
     const originalScrollTop = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "scrollTop");
+    const originalScrollTo = window.HTMLElement.prototype.scrollTo;
     const scrollTopByElement = new WeakMap<HTMLElement, number>();
+    const scrollTo = vi.fn(function scrollTo(this: HTMLElement, options?: ScrollToOptions | number) {
+      if (typeof options === "object" && typeof options.top === "number") {
+        scrollTopByElement.set(this, options.top);
+      }
+    });
 
     Object.defineProperty(Range.prototype, "getClientRects", {
       configurable: true,
@@ -649,6 +655,7 @@ describe("WorkspaceView", () => {
       },
       configurable: true,
     });
+    window.HTMLElement.prototype.scrollTo = scrollTo;
 
     try {
       render(
@@ -661,7 +668,7 @@ describe("WorkspaceView", () => {
         />,
       );
 
-      expect(screen.getByTestId("document-canvas-scroll").scrollTop).toBe(279.6);
+      expect(scrollTo).toHaveBeenCalledWith({ top: 279.6, behavior: "smooth" });
     } finally {
       Object.defineProperty(Range.prototype, "getClientRects", {
         configurable: true,
@@ -680,6 +687,7 @@ describe("WorkspaceView", () => {
       if (originalScrollTop) {
         Object.defineProperty(window.HTMLElement.prototype, "scrollTop", originalScrollTop);
       }
+      window.HTMLElement.prototype.scrollTo = originalScrollTo;
     }
   });
 
