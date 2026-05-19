@@ -1804,5 +1804,99 @@ describe("useProjectBundle", () => {
       expect(result.current.documentList.map((document) => document.id)).toEqual(listAfterPaging);
       expect(result.current.documentList.some((document) => document.id === "doc-new")).toBe(false);
     });
+
+    it("ignores stale background refresh responses after search conditions change", async () => {
+      const initialListResponse = {
+        documents: [createDocumentListItem({ id: "doc-1", document_name: "Doc 1" })],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created" as const,
+      };
+      const staleRefreshDeferred = createDeferred<{
+        documents: DocumentListItem[];
+        total: number;
+        pending_total: number;
+        offset: number;
+        limit: number;
+        search: string;
+        sort: DocumentSortValue;
+      }>();
+      const filteredListResponse = {
+        documents: [],
+        total: 0,
+        pending_total: 0,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "missing",
+        sort: "created" as const,
+      };
+      vi.spyOn(api, "getProject").mockResolvedValue(project);
+      vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+      vi.spyOn(api, "listDocuments")
+        .mockResolvedValueOnce(initialListResponse)
+        .mockReturnValueOnce(staleRefreshDeferred.promise)
+        .mockResolvedValue(filteredListResponse);
+      vi.spyOn(api, "getDocument").mockResolvedValue(createDocument({ id: "doc-1", document_name: "Doc 1" }));
+
+      const showToast = makeShowToast();
+      let currentSearchQuery = "";
+      const { result, rerender } = renderHook(() =>
+        useProjectBundle({
+          projectId: "project-1",
+          searchQuery: currentSearchQuery,
+          sortMode: "created",
+          selectedDocId: null,
+          showToast,
+        }),
+      );
+
+      await act(async () => {
+        await result.current.loadBundle();
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(DOCUMENT_LIST_SYNC_INTERVAL_MS);
+      });
+
+      act(() => {
+        currentSearchQuery = "missing";
+        rerender();
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+
+      expect(result.current.documentTotal).toBe(0);
+      expect(result.current.documentList).toEqual([]);
+
+      staleRefreshDeferred.resolve({
+        documents: [
+          createDocumentListItem({
+            id: "doc-2",
+            document_name: "Stale Doc",
+            created_at: "2026-03-02T00:00:00Z",
+            updated_at: "2026-03-02T00:00:00Z",
+          }),
+          createDocumentListItem({ id: "doc-1", document_name: "Doc 1" }),
+        ],
+        total: 2,
+        pending_total: 2,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created",
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(result.current.documentTotal).toBe(0);
+      expect(result.current.documentList).toEqual([]);
+    });
   });
 });

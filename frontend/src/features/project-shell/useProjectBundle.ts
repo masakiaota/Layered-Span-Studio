@@ -167,9 +167,28 @@ export function useProjectBundle({
     searchDebounceTimerRef.current = null;
   }
 
+  function isDocumentListRefreshContextStale(context: {
+    projectId: string;
+    searchQuery: string;
+    sortMode: DocumentSortValue;
+    bundleProjectId: string;
+  }) {
+    const current = syncContextRef.current;
+    return (
+      !current.bundle ||
+      !initialDocumentListLoadedRef.current ||
+      current.bundle.project.id !== current.projectId ||
+      current.projectId !== context.projectId ||
+      current.searchQuery !== context.searchQuery ||
+      current.sortMode !== context.sortMode ||
+      current.bundle.project.id !== context.bundleProjectId
+    );
+  }
+
   async function loadBundle(onLoaded?: OnBundleLoaded) {
     clearSearchDebounceTimer();
     initialDocumentListLoadedRef.current = false;
+    documentListRefreshRequestIdRef.current += 1;
     setLoading(true);
     documentListRequestIdRef.current += 1;
     documentLoadMoreRequestIdRef.current += 1;
@@ -333,8 +352,6 @@ export function useProjectBundle({
       projectId: currentProjectId,
       searchQuery: currentSearchQuery,
       sortMode: currentSortMode,
-      selectedDocId: currentSelectedDocId,
-      documentWindowStartOffset: currentDocumentWindowStartOffset,
     } = syncContextRef.current;
     if (
       !currentBundle ||
@@ -343,6 +360,12 @@ export function useProjectBundle({
     ) {
       return;
     }
+    const refreshContext = {
+      projectId: currentProjectId,
+      searchQuery: currentSearchQuery,
+      sortMode: currentSortMode,
+      bundleProjectId: currentBundle.project.id,
+    };
     const requestId = ++documentListRefreshRequestIdRef.current;
     try {
       const response = await api.listDocuments(currentProjectId, {
@@ -354,15 +377,22 @@ export function useProjectBundle({
       if (requestId !== documentListRefreshRequestIdRef.current) {
         return;
       }
+      if (isDocumentListRefreshContextStale(refreshContext)) {
+        return;
+      }
+      const {
+        selectedDocId: latestSelectedDocId,
+        documentWindowStartOffset: latestDocumentWindowStartOffset,
+      } = syncContextRef.current;
       setDocumentTotal(response.total);
       setPendingDocumentTotal(response.pending_total);
-      if (currentDocumentWindowStartOffset === 0) {
+      if (latestDocumentWindowStartOffset === 0) {
         setDocumentList((current) =>
           mergeDocumentListRefresh(
             current,
             response.documents,
             response.offset,
-            currentSelectedDocId,
+            latestSelectedDocId,
           ),
         );
       }
@@ -383,6 +413,9 @@ export function useProjectBundle({
     const loadMoreRequestId = direction !== "reset"
       ? ++documentLoadMoreRequestIdRef.current
       : null;
+    if (direction === "reset") {
+      documentListRefreshRequestIdRef.current += 1;
+    }
     if (direction !== "reset") {
       setDocumentsLoadingMore(true);
     } else {
