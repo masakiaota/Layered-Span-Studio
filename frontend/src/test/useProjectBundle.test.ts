@@ -1623,5 +1623,186 @@ describe("useProjectBundle", () => {
         }
       }
     });
+
+    it("does not cancel in-flight pagination when background refresh runs", async () => {
+      const initialListResponse = {
+        documents: [createDocumentListItem({ id: "doc-1", document_name: "Doc 1" })],
+        total: 3,
+        pending_total: 3,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created" as const,
+      };
+      const nextPageDeferred = createDeferred<{
+        documents: DocumentListItem[];
+        total: number;
+        pending_total: number;
+        offset: number;
+        limit: number;
+        search: string;
+        sort: DocumentSortValue;
+      }>();
+      const refreshedListResponse = {
+        documents: [createDocumentListItem({ id: "doc-1", document_name: "Doc 1" })],
+        total: 3,
+        pending_total: 3,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created" as const,
+      };
+      vi.spyOn(api, "getProject").mockResolvedValue(project);
+      vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+      vi.spyOn(api, "listDocuments")
+        .mockResolvedValueOnce(initialListResponse)
+        .mockReturnValueOnce(nextPageDeferred.promise)
+        .mockResolvedValue(refreshedListResponse);
+      vi.spyOn(api, "getDocument").mockResolvedValue(createDocument({ id: "doc-1", document_name: "Doc 1" }));
+
+      const { result } = renderHook(() =>
+        useProjectBundle({
+          projectId: "project-1",
+          searchQuery: "",
+          sortMode: "created",
+          selectedDocId: null,
+          showToast: makeShowToast(),
+        }),
+      );
+
+      await act(async () => {
+        await result.current.loadBundle();
+      });
+
+      let paginationPromise!: Promise<DocumentListItem[]>;
+      act(() => {
+        paginationPromise = result.current.fetchDocumentPage(false);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(DOCUMENT_LIST_SYNC_INTERVAL_MS);
+      });
+
+      nextPageDeferred.resolve({
+        documents: [
+          createDocumentListItem({
+            id: "doc-2",
+            document_name: "Doc 2",
+            created_at: "2026-03-02T00:00:00Z",
+            updated_at: "2026-03-02T00:00:00Z",
+          }),
+        ],
+        total: 3,
+        pending_total: 3,
+        offset: 1,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created",
+      });
+
+      await act(async () => {
+        await paginationPromise;
+      });
+
+      expect(result.current.documentList.map((document) => document.id)).toEqual(["doc-1", "doc-2"]);
+    });
+
+    it("updates totals but not list contents when the window start offset is non-zero", async () => {
+      const makePage = (offset: number) =>
+        Array.from({ length: DOCUMENT_PAGE_SIZE }, (_, index) =>
+          createDocumentListItem({
+            id: `doc-${offset + index}`,
+            document_name: `Doc ${offset + index}`,
+          }),
+        );
+      const totalDocuments = DOCUMENT_WINDOW_SIZE + DOCUMENT_PAGE_SIZE;
+
+      vi.spyOn(api, "getProject").mockResolvedValue(project);
+      vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+      vi.spyOn(api, "listDocuments")
+        .mockResolvedValueOnce({
+          documents: makePage(0),
+          total: totalDocuments,
+          pending_total: totalDocuments,
+          offset: 0,
+          limit: DOCUMENT_PAGE_SIZE,
+          search: "",
+          sort: "created",
+        })
+        .mockResolvedValueOnce({
+          documents: makePage(40),
+          total: totalDocuments,
+          pending_total: totalDocuments,
+          offset: 40,
+          limit: DOCUMENT_PAGE_SIZE,
+          search: "",
+          sort: "created",
+        })
+        .mockResolvedValueOnce({
+          documents: makePage(80),
+          total: totalDocuments,
+          pending_total: totalDocuments,
+          offset: 80,
+          limit: DOCUMENT_PAGE_SIZE,
+          search: "",
+          sort: "created",
+        })
+        .mockResolvedValueOnce({
+          documents: makePage(120),
+          total: totalDocuments,
+          pending_total: totalDocuments,
+          offset: 120,
+          limit: DOCUMENT_PAGE_SIZE,
+          search: "",
+          sort: "created",
+        })
+        .mockResolvedValueOnce({
+          documents: [
+            createDocumentListItem({ id: "doc-new", document_name: "Imported Doc" }),
+            ...makePage(0).slice(0, DOCUMENT_PAGE_SIZE - 1),
+          ],
+          total: totalDocuments + 1,
+          pending_total: totalDocuments + 1,
+          offset: 0,
+          limit: DOCUMENT_PAGE_SIZE,
+          search: "",
+          sort: "created",
+        });
+      vi.spyOn(api, "getDocument").mockResolvedValue(createDocument({ id: "doc-0", document_name: "Doc 0" }));
+
+      const { result } = renderHook(() =>
+        useProjectBundle({
+          projectId: "project-1",
+          searchQuery: "",
+          sortMode: "created",
+          selectedDocId: null,
+          showToast: makeShowToast(),
+        }),
+      );
+
+      await act(async () => {
+        await result.current.loadBundle();
+      });
+      await act(async () => {
+        await result.current.fetchDocumentPage(false);
+      });
+      await act(async () => {
+        await result.current.fetchDocumentPage(false);
+      });
+      await act(async () => {
+        await result.current.fetchDocumentPage(false);
+      });
+
+      expect(result.current.documentWindowStartOffset).toBe(40);
+      const listAfterPaging = result.current.documentList.map((document) => document.id);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(DOCUMENT_LIST_SYNC_INTERVAL_MS);
+      });
+
+      expect(result.current.documentTotal).toBe(totalDocuments + 1);
+      expect(result.current.documentList.map((document) => document.id)).toEqual(listAfterPaging);
+      expect(result.current.documentList.some((document) => document.id === "doc-new")).toBe(false);
+    });
   });
 });

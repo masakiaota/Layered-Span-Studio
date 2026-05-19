@@ -136,6 +136,7 @@ export function useProjectBundle({
   const [documentsLoadingMore, setDocumentsLoadingMore] = useState(false);
 
   const documentListRequestIdRef = useRef(0);
+  const documentListRefreshRequestIdRef = useRef(0);
   const bundleLoadRequestIdRef = useRef(0);
   const documentLoadMoreRequestIdRef = useRef(0);
   const initialDocumentListLoadedRef = useRef(false);
@@ -147,8 +148,16 @@ export function useProjectBundle({
     searchQuery,
     sortMode,
     selectedDocId,
+    documentWindowStartOffset,
   });
-  syncContextRef.current = { bundle, projectId, searchQuery, sortMode, selectedDocId };
+  syncContextRef.current = {
+    bundle,
+    projectId,
+    searchQuery,
+    sortMode,
+    selectedDocId,
+    documentWindowStartOffset,
+  };
 
   function clearSearchDebounceTimer() {
     if (searchDebounceTimerRef.current === null) {
@@ -325,6 +334,7 @@ export function useProjectBundle({
       searchQuery: currentSearchQuery,
       sortMode: currentSortMode,
       selectedDocId: currentSelectedDocId,
+      documentWindowStartOffset: currentDocumentWindowStartOffset,
     } = syncContextRef.current;
     if (
       !currentBundle ||
@@ -333,7 +343,7 @@ export function useProjectBundle({
     ) {
       return;
     }
-    const requestId = ++documentListRequestIdRef.current;
+    const requestId = ++documentListRefreshRequestIdRef.current;
     try {
       const response = await api.listDocuments(currentProjectId, {
         offset: 0,
@@ -341,19 +351,21 @@ export function useProjectBundle({
         search: currentSearchQuery,
         sort: currentSortMode,
       });
-      if (requestId !== documentListRequestIdRef.current) {
+      if (requestId !== documentListRefreshRequestIdRef.current) {
         return;
       }
       setDocumentTotal(response.total);
       setPendingDocumentTotal(response.pending_total);
-      setDocumentList((current) =>
-        mergeDocumentListRefresh(
-          current,
-          response.documents,
-          response.offset,
-          currentSelectedDocId,
-        ),
-      );
+      if (currentDocumentWindowStartOffset === 0) {
+        setDocumentList((current) =>
+          mergeDocumentListRefresh(
+            current,
+            response.documents,
+            response.offset,
+            currentSelectedDocId,
+          ),
+        );
+      }
     } catch {
       // Background sync failures should not interrupt annotation work.
     }
