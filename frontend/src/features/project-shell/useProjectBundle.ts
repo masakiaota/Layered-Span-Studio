@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import type {
   DocumentSortValue,
@@ -141,6 +141,14 @@ export function useProjectBundle({
   const initialDocumentListLoadedRef = useRef(false);
   const recentDocumentDetailIdsRef = useRef<string[]>([]);
   const searchDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncContextRef = useRef({
+    bundle,
+    projectId,
+    searchQuery,
+    sortMode,
+    selectedDocId,
+  });
+  syncContextRef.current = { bundle, projectId, searchQuery, sortMode, selectedDocId };
 
   function clearSearchDebounceTimer() {
     if (searchDebounceTimerRef.current === null) {
@@ -152,6 +160,7 @@ export function useProjectBundle({
 
   async function loadBundle(onLoaded?: OnBundleLoaded) {
     clearSearchDebounceTimer();
+    initialDocumentListLoadedRef.current = false;
     setLoading(true);
     documentListRequestIdRef.current += 1;
     documentLoadMoreRequestIdRef.current += 1;
@@ -309,17 +318,28 @@ export function useProjectBundle({
     }
   }, [bundle, documentSnapshotsById, selectedDocId]);
 
-  async function refreshDocumentList() {
-    if (!bundle || !initialDocumentListLoadedRef.current) {
+  const refreshDocumentList = useCallback(async () => {
+    const {
+      bundle: currentBundle,
+      projectId: currentProjectId,
+      searchQuery: currentSearchQuery,
+      sortMode: currentSortMode,
+      selectedDocId: currentSelectedDocId,
+    } = syncContextRef.current;
+    if (
+      !currentBundle ||
+      !initialDocumentListLoadedRef.current ||
+      currentBundle.project.id !== currentProjectId
+    ) {
       return;
     }
     const requestId = ++documentListRequestIdRef.current;
     try {
-      const response = await api.listDocuments(projectId, {
+      const response = await api.listDocuments(currentProjectId, {
         offset: 0,
         limit: DOCUMENT_PAGE_SIZE,
-        search: searchQuery,
-        sort: sortMode,
+        search: currentSearchQuery,
+        sort: currentSortMode,
       });
       if (requestId !== documentListRequestIdRef.current) {
         return;
@@ -331,13 +351,13 @@ export function useProjectBundle({
           current,
           response.documents,
           response.offset,
-          selectedDocId,
+          currentSelectedDocId,
         ),
       );
     } catch {
       // Background sync failures should not interrupt annotation work.
     }
-  }
+  }, []);
 
   async function fetchDocumentPage(
     request: DocumentPageRequest,
@@ -503,8 +523,11 @@ export function useProjectBundle({
     );
   }, [bundle]);
 
+  const bundleProjectId = bundle?.project.id ?? null;
+  const bundleLoaded = bundleProjectId === projectId;
+
   useEffect(() => {
-    if (!bundle || !initialDocumentListLoadedRef.current) {
+    if (!bundleLoaded || !initialDocumentListLoadedRef.current) {
       return;
     }
     const syncDocumentList = () => {
@@ -524,7 +547,7 @@ export function useProjectBundle({
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [bundle, projectId, searchQuery, sortMode, selectedDocId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bundleLoaded, projectId, searchQuery, sortMode, refreshDocumentList]);
 
   function mutateSettingsBundle(mutator: (draft: SettingsBundleDraft) => void) {
     if (!bundle) {

@@ -260,4 +260,15 @@ describe("document window helpers", () => {
 
     expect(merged.map((item) => item.id)).toEqual(["doc-new", "doc-1", "doc-40", "doc-41"]);
   });
+
+  it("keeps refreshed first-page documents when the scroll window is already full", () => {
+    const current = Array.from({ length: DOCUMENT_WINDOW_SIZE }, (_, index) => makeDocument(`doc-${index}`));
+    const refreshedFirstPage = [makeDocument("doc-new"), makeDocument("doc-0")];
+
+    const merged = mergeDocumentListRefresh(current, refreshedFirstPage, 0, "doc-119");
+
+    expect(merged.some((item) => item.id === "doc-new")).toBe(true);
+    expect(merged.some((item) => item.id === "doc-119")).toBe(true);
+    expect(merged).toHaveLength(DOCUMENT_WINDOW_SIZE);
+  });
 });

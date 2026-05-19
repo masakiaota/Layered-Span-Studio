@@ -164,6 +164,28 @@ export function mergeDocumentScrollWindow(
   return trimDocumentScrollWindow(merged, direction === "previous" ? "end" : "start");
 }
 
+function trimRemainderForRefresh(
+  remainder: DocumentListItem[],
+  maxCount: number,
+  selectedId: string | null,
+) {
+  if (remainder.length <= maxCount) {
+    return remainder;
+  }
+  let trimmed = trimDocumentWindow(remainder, selectedId);
+  if (trimmed.length <= maxCount) {
+    return trimmed;
+  }
+  let overflow = trimmed.length - maxCount;
+  return trimmed.filter((item) => {
+    if (overflow > 0 && item.id !== selectedId) {
+      overflow -= 1;
+      return false;
+    }
+    return true;
+  });
+}
+
 export function mergeDocumentListRefresh(
   current: DocumentListItem[],
   responseDocuments: DocumentListItem[],
@@ -173,7 +195,9 @@ export function mergeDocumentListRefresh(
   if (responseOffset === 0) {
     const responseIds = new Set(responseDocuments.map((document) => document.id));
     const remainder = current.filter((document) => !responseIds.has(document.id));
-    return trimDocumentScrollWindow([...responseDocuments, ...remainder], "start");
+    const maxRemainderCount = Math.max(0, DOCUMENT_WINDOW_SIZE - responseDocuments.length);
+    const keptRemainder = trimRemainderForRefresh(remainder, maxRemainderCount, selectedId);
+    return [...responseDocuments, ...keptRemainder];
   }
   return mergeDocumentWindow(current, responseDocuments, selectedId);
 }

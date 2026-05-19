@@ -1580,45 +1580,47 @@ describe("useProjectBundle", () => {
         get: () => true,
       });
 
-      const { result } = renderHook(() =>
-        useProjectBundle({
-          projectId: "project-1",
-          searchQuery: "",
-          sortMode: "created",
-          selectedDocId: null,
-          showToast: makeShowToast(),
-        }),
-      );
+      try {
+        const { result } = renderHook(() =>
+          useProjectBundle({
+            projectId: "project-1",
+            searchQuery: "",
+            sortMode: "created",
+            selectedDocId: null,
+            showToast: makeShowToast(),
+          }),
+        );
 
-      await act(async () => {
-        await result.current.loadBundle();
-      });
+        await act(async () => {
+          await result.current.loadBundle();
+        });
 
-      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+        const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(DOCUMENT_LIST_SYNC_INTERVAL_MS);
-      });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(DOCUMENT_LIST_SYNC_INTERVAL_MS);
+        });
 
-      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad);
+        expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad);
 
-      Object.defineProperty(document, "hidden", {
-        configurable: true,
-        get: () => false,
-      });
+        Object.defineProperty(document, "hidden", {
+          configurable: true,
+          get: () => false,
+        });
 
-      await act(async () => {
-        document.dispatchEvent(new Event("visibilitychange"));
-        await Promise.resolve();
-      });
+        await act(async () => {
+          document.dispatchEvent(new Event("visibilitychange"));
+          await Promise.resolve();
+        });
 
-      expect(result.current.documentTotal).toBe(2);
-      expect(result.current.documentList.map((document) => document.id)).toEqual(["doc-2", "doc-1"]);
-
-      if (hiddenDescriptor) {
-        Object.defineProperty(document, "hidden", hiddenDescriptor);
-      } else {
-        Reflect.deleteProperty(document, "hidden");
+        expect(result.current.documentTotal).toBe(2);
+        expect(result.current.documentList.map((document) => document.id)).toEqual(["doc-2", "doc-1"]);
+      } finally {
+        if (hiddenDescriptor) {
+          Object.defineProperty(document, "hidden", hiddenDescriptor);
+        } else {
+          Reflect.deleteProperty(document, "hidden");
+        }
       }
     });
   });
