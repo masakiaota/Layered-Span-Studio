@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_LABEL_COLOR, DOCUMENT_WINDOW_SIZE } from "../features/project-shell/projectShellConstants";
+import {
+  DEFAULT_LABEL_COLOR,
+  DOCUMENT_PAGE_SIZE,
+  DOCUMENT_WINDOW_SIZE,
+} from "../features/project-shell/projectShellConstants";
 import {
   collectDocumentNames,
   createEmptyLabelDraft,
   findConflictingLabelName,
   isHexColor,
+  mergeDocumentListRefresh,
   mergeDocumentWindow,
   normalizeHexColor,
   submitLabelDraft,
@@ -249,5 +254,41 @@ describe("document window helpers", () => {
     expect(merged).toHaveLength(DOCUMENT_WINDOW_SIZE);
     expect(merged.find((item) => item.id === "doc-2")?.document_name).toBe("Updated doc-2");
     expect(merged.some((item) => item.id === "doc-new")).toBe(true);
+  });
+
+  it("prepends first-page refresh results while keeping scrolled documents", () => {
+    const current = [makeDocument("doc-40"), makeDocument("doc-41")];
+    const refreshedFirstPage = [makeDocument("doc-new"), makeDocument("doc-1")];
+
+    const merged = mergeDocumentListRefresh(current, refreshedFirstPage, 0, null);
+
+    expect(merged.map((item) => item.id)).toEqual(["doc-new", "doc-1", "doc-40", "doc-41"]);
+  });
+
+  it("keeps refreshed first-page documents when the scroll window is already full", () => {
+    const current = Array.from({ length: DOCUMENT_WINDOW_SIZE }, (_, index) => makeDocument(`doc-${index}`));
+    const refreshedFirstPage = [makeDocument("doc-new"), makeDocument("doc-0")];
+
+    const merged = mergeDocumentListRefresh(current, refreshedFirstPage, 0, "doc-119");
+
+    expect(merged.some((item) => item.id === "doc-new")).toBe(true);
+    expect(merged.some((item) => item.id === "doc-119")).toBe(true);
+    expect(merged).toHaveLength(DOCUMENT_WINDOW_SIZE);
+  });
+
+  it("trims remainder overflow from the far end to keep the first-page boundary contiguous", () => {
+    const current = Array.from({ length: DOCUMENT_WINDOW_SIZE }, (_, index) => makeDocument(`doc-${index}`));
+    const refreshedFirstPage = [
+      makeDocument("doc-new"),
+      ...Array.from({ length: DOCUMENT_PAGE_SIZE - 1 }, (_, index) => makeDocument(`doc-${index}`)),
+    ];
+
+    const merged = mergeDocumentListRefresh(current, refreshedFirstPage, 0, null);
+    const boundaryId = `doc-${DOCUMENT_PAGE_SIZE - 1}`;
+
+    expect(merged.some((item) => item.id === "doc-new")).toBe(true);
+    expect(merged.some((item) => item.id === boundaryId)).toBe(true);
+    expect(merged.some((item) => item.id === "doc-119")).toBe(false);
+    expect(merged).toHaveLength(DOCUMENT_WINDOW_SIZE);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import type {
   DocumentSortValue,
@@ -8,10 +8,12 @@ import type { DocumentListItem, ProjectBundle } from "../../types";
 import { deepClone } from "../../utils";
 import {
   DOCUMENT_DETAIL_CACHE_RECENT_SIZE,
+  DOCUMENT_LIST_SYNC_INTERVAL_MS,
   DOCUMENT_PAGE_SIZE,
   DOCUMENT_WINDOW_SIZE,
 } from "./projectShellConstants";
 import {
+  mergeDocumentListRefresh,
   mergeDocumentScrollWindow,
   toDocumentListItem,
   trimDocumentScrollWindow,
@@ -134,11 +136,28 @@ export function useProjectBundle({
   const [documentsLoadingMore, setDocumentsLoadingMore] = useState(false);
 
   const documentListRequestIdRef = useRef(0);
+  const documentListRefreshRequestIdRef = useRef(0);
   const bundleLoadRequestIdRef = useRef(0);
   const documentLoadMoreRequestIdRef = useRef(0);
   const initialDocumentListLoadedRef = useRef(false);
   const recentDocumentDetailIdsRef = useRef<string[]>([]);
   const searchDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncContextRef = useRef({
+    bundle,
+    projectId,
+    searchQuery,
+    sortMode,
+    selectedDocId,
+    documentWindowStartOffset,
+  });
+  syncContextRef.current = {
+    bundle,
+    projectId,
+    searchQuery,
+    sortMode,
+    selectedDocId,
+    documentWindowStartOffset,
+  };
 
   function clearSearchDebounceTimer() {
     if (searchDebounceTimerRef.current === null) {
@@ -148,8 +167,28 @@ export function useProjectBundle({
     searchDebounceTimerRef.current = null;
   }
 
+  function isDocumentListRefreshContextStale(context: {
+    projectId: string;
+    searchQuery: string;
+    sortMode: DocumentSortValue;
+    bundleProjectId: string;
+  }) {
+    const current = syncContextRef.current;
+    return (
+      !current.bundle ||
+      !initialDocumentListLoadedRef.current ||
+      current.bundle.project.id !== current.projectId ||
+      current.projectId !== context.projectId ||
+      current.searchQuery !== context.searchQuery ||
+      current.sortMode !== context.sortMode ||
+      current.bundle.project.id !== context.bundleProjectId
+    );
+  }
+
   async function loadBundle(onLoaded?: OnBundleLoaded) {
     clearSearchDebounceTimer();
+    initialDocumentListLoadedRef.current = false;
+    documentListRefreshRequestIdRef.current += 1;
     setLoading(true);
     documentListRequestIdRef.current += 1;
     documentLoadMoreRequestIdRef.current += 1;
@@ -307,6 +346,61 @@ export function useProjectBundle({
     }
   }, [bundle, documentSnapshotsById, selectedDocId]);
 
+  const refreshDocumentList = useCallback(async () => {
+    const {
+      bundle: currentBundle,
+      projectId: currentProjectId,
+      searchQuery: currentSearchQuery,
+      sortMode: currentSortMode,
+    } = syncContextRef.current;
+    if (
+      !currentBundle ||
+      !initialDocumentListLoadedRef.current ||
+      currentBundle.project.id !== currentProjectId
+    ) {
+      return;
+    }
+    const refreshContext = {
+      projectId: currentProjectId,
+      searchQuery: currentSearchQuery,
+      sortMode: currentSortMode,
+      bundleProjectId: currentBundle.project.id,
+    };
+    const requestId = ++documentListRefreshRequestIdRef.current;
+    try {
+      const response = await api.listDocuments(currentProjectId, {
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: currentSearchQuery,
+        sort: currentSortMode,
+      });
+      if (requestId !== documentListRefreshRequestIdRef.current) {
+        return;
+      }
+      if (isDocumentListRefreshContextStale(refreshContext)) {
+        return;
+      }
+      const {
+        selectedDocId: latestSelectedDocId,
+        documentWindowStartOffset: latestDocumentWindowStartOffset,
+      } = syncContextRef.current;
+      setDocumentTotal(response.total);
+      setPendingDocumentTotal(response.pending_total);
+      if (latestDocumentWindowStartOffset === 0) {
+        setDocumentList((current) =>
+          mergeDocumentListRefresh(
+            current,
+            response.documents,
+            response.offset,
+            latestSelectedDocId,
+          ),
+        );
+      }
+    } catch {
+      // Background sync failures should not interrupt annotation work.
+    }
+  }, []);
+
   async function fetchDocumentPage(
     request: DocumentPageRequest,
     selectedIdOverride?: string | null,
@@ -319,6 +413,9 @@ export function useProjectBundle({
     const loadMoreRequestId = direction !== "reset"
       ? ++documentLoadMoreRequestIdRef.current
       : null;
+    if (direction === "reset") {
+      documentListRefreshRequestIdRef.current += 1;
+    }
     if (direction !== "reset") {
       setDocumentsLoadingMore(true);
     } else {
@@ -470,6 +567,32 @@ export function useProjectBundle({
       }),
     );
   }, [bundle]);
+
+  const bundleProjectId = bundle?.project.id ?? null;
+  const bundleLoaded = bundleProjectId === projectId;
+
+  useEffect(() => {
+    if (!bundleLoaded || !initialDocumentListLoadedRef.current) {
+      return;
+    }
+    const syncDocumentList = () => {
+      if (document.hidden) {
+        return;
+      }
+      void refreshDocumentList();
+    };
+    const intervalId = window.setInterval(syncDocumentList, DOCUMENT_LIST_SYNC_INTERVAL_MS);
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        void refreshDocumentList();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [bundleLoaded, projectId, searchQuery, sortMode, refreshDocumentList]);
 
   function mutateSettingsBundle(mutator: (draft: SettingsBundleDraft) => void) {
     if (!bundle) {
