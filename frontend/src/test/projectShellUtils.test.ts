@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_LABEL_COLOR, DOCUMENT_WINDOW_SIZE } from "../features/project-shell/projectShellConstants";
+import {
+  DEFAULT_LABEL_COLOR,
+  DOCUMENT_PAGE_SIZE,
+  DOCUMENT_WINDOW_SIZE,
+} from "../features/project-shell/projectShellConstants";
 import {
   collectDocumentNames,
   createEmptyLabelDraft,
@@ -269,6 +273,22 @@ describe("document window helpers", () => {
 
     expect(merged.some((item) => item.id === "doc-new")).toBe(true);
     expect(merged.some((item) => item.id === "doc-119")).toBe(true);
+    expect(merged).toHaveLength(DOCUMENT_WINDOW_SIZE);
+  });
+
+  it("trims remainder overflow from the far end to keep the first-page boundary contiguous", () => {
+    const current = Array.from({ length: DOCUMENT_WINDOW_SIZE }, (_, index) => makeDocument(`doc-${index}`));
+    const refreshedFirstPage = [
+      makeDocument("doc-new"),
+      ...Array.from({ length: DOCUMENT_PAGE_SIZE - 1 }, (_, index) => makeDocument(`doc-${index}`)),
+    ];
+
+    const merged = mergeDocumentListRefresh(current, refreshedFirstPage, 0, null);
+    const boundaryId = `doc-${DOCUMENT_PAGE_SIZE - 1}`;
+
+    expect(merged.some((item) => item.id === "doc-new")).toBe(true);
+    expect(merged.some((item) => item.id === boundaryId)).toBe(true);
+    expect(merged.some((item) => item.id === "doc-119")).toBe(false);
     expect(merged).toHaveLength(DOCUMENT_WINDOW_SIZE);
   });
 });

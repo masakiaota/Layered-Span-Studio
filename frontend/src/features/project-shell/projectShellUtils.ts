@@ -172,18 +172,21 @@ function trimRemainderForRefresh(
   if (remainder.length <= maxCount) {
     return remainder;
   }
-  let trimmed = trimDocumentWindow(remainder, selectedId);
-  if (trimmed.length <= maxCount) {
-    return trimmed;
-  }
-  let overflow = trimmed.length - maxCount;
-  return trimmed.filter((item) => {
-    if (overflow > 0 && item.id !== selectedId) {
-      overflow -= 1;
-      return false;
+  const kept = [...remainder];
+  while (kept.length > maxCount) {
+    let removed = false;
+    for (let index = kept.length - 1; index >= 0; index -= 1) {
+      if (kept[index]?.id !== selectedId) {
+        kept.splice(index, 1);
+        removed = true;
+        break;
+      }
     }
-    return true;
-  });
+    if (!removed) {
+      break;
+    }
+  }
+  return kept;
 }
 
 export function mergeDocumentListRefresh(
