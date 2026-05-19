@@ -4,6 +4,7 @@ export const EXAMPLES_BATCH_SIZE = 8;
 export const DOCUMENT_DETAIL_CACHE_RECENT_SIZE = 20;
 export const DOCUMENT_PAGE_SIZE = 40;
 export const DOCUMENT_WINDOW_SIZE = 120;
+export const DOCUMENT_LIST_SYNC_INTERVAL_MS = 10_000;
 export const DEFAULT_LABEL_COLOR = "#1a73e8";
 export const RELATED_EXAMPLES_PANEL_GAP = 2;
 

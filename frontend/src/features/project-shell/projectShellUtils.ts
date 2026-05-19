@@ -164,6 +164,20 @@ export function mergeDocumentScrollWindow(
   return trimDocumentScrollWindow(merged, direction === "previous" ? "end" : "start");
 }
 
+export function mergeDocumentListRefresh(
+  current: DocumentListItem[],
+  responseDocuments: DocumentListItem[],
+  responseOffset: number,
+  selectedId: string | null,
+) {
+  if (responseOffset === 0) {
+    const responseIds = new Set(responseDocuments.map((document) => document.id));
+    const remainder = current.filter((document) => !responseIds.has(document.id));
+    return trimDocumentScrollWindow([...responseDocuments, ...remainder], "start");
+  }
+  return mergeDocumentWindow(current, responseDocuments, selectedId);
+}
+
 export async function collectDocumentNames(
   total: number,
   pageSize: number,

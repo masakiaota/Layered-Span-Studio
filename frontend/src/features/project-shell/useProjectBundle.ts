@@ -8,10 +8,12 @@ import type { DocumentListItem, ProjectBundle } from "../../types";
 import { deepClone } from "../../utils";
 import {
   DOCUMENT_DETAIL_CACHE_RECENT_SIZE,
+  DOCUMENT_LIST_SYNC_INTERVAL_MS,
   DOCUMENT_PAGE_SIZE,
   DOCUMENT_WINDOW_SIZE,
 } from "./projectShellConstants";
 import {
+  mergeDocumentListRefresh,
   mergeDocumentScrollWindow,
   toDocumentListItem,
   trimDocumentScrollWindow,
@@ -307,6 +309,36 @@ export function useProjectBundle({
     }
   }, [bundle, documentSnapshotsById, selectedDocId]);
 
+  async function refreshDocumentList() {
+    if (!bundle || !initialDocumentListLoadedRef.current) {
+      return;
+    }
+    const requestId = ++documentListRequestIdRef.current;
+    try {
+      const response = await api.listDocuments(projectId, {
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: searchQuery,
+        sort: sortMode,
+      });
+      if (requestId !== documentListRequestIdRef.current) {
+        return;
+      }
+      setDocumentTotal(response.total);
+      setPendingDocumentTotal(response.pending_total);
+      setDocumentList((current) =>
+        mergeDocumentListRefresh(
+          current,
+          response.documents,
+          response.offset,
+          selectedDocId,
+        ),
+      );
+    } catch {
+      // Background sync failures should not interrupt annotation work.
+    }
+  }
+
   async function fetchDocumentPage(
     request: DocumentPageRequest,
     selectedIdOverride?: string | null,
@@ -470,6 +502,29 @@ export function useProjectBundle({
       }),
     );
   }, [bundle]);
+
+  useEffect(() => {
+    if (!bundle || !initialDocumentListLoadedRef.current) {
+      return;
+    }
+    const syncDocumentList = () => {
+      if (document.hidden) {
+        return;
+      }
+      void refreshDocumentList();
+    };
+    const intervalId = window.setInterval(syncDocumentList, DOCUMENT_LIST_SYNC_INTERVAL_MS);
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        void refreshDocumentList();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [bundle, projectId, searchQuery, sortMode, selectedDocId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function mutateSettingsBundle(mutator: (draft: SettingsBundleDraft) => void) {
     if (!bundle) {

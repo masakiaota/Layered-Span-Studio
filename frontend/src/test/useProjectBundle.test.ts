@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
 import {
   DOCUMENT_DETAIL_CACHE_RECENT_SIZE,
+  DOCUMENT_LIST_SYNC_INTERVAL_MS,
   DOCUMENT_PAGE_SIZE,
   DOCUMENT_WINDOW_SIZE,
 } from "../features/project-shell/projectShellConstants";
@@ -1467,6 +1468,158 @@ describe("useProjectBundle", () => {
       await advanceDebounceTime(200);
 
       expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad);
+    });
+  });
+
+  describe("document list background sync", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("merges externally added documents into the list", async () => {
+      const initialListResponse = {
+        documents: [createDocumentListItem({ id: "doc-1", document_name: "Doc 1" })],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created" as const,
+      };
+      const refreshedListResponse = {
+        documents: [
+          createDocumentListItem({
+            id: "doc-2",
+            document_name: "Doc 2",
+            created_at: "2026-03-02T00:00:00Z",
+            updated_at: "2026-03-02T00:00:00Z",
+          }),
+          createDocumentListItem({ id: "doc-1", document_name: "Doc 1" }),
+        ],
+        total: 2,
+        pending_total: 2,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created" as const,
+      };
+      vi.spyOn(api, "getProject").mockResolvedValue(project);
+      vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+      vi.spyOn(api, "listDocuments")
+        .mockResolvedValueOnce(initialListResponse)
+        .mockResolvedValue(refreshedListResponse);
+      vi.spyOn(api, "getDocument").mockResolvedValue(createDocument({ id: "doc-1", document_name: "Doc 1" }));
+
+      const { result } = renderHook(() =>
+        useProjectBundle({
+          projectId: "project-1",
+          searchQuery: "",
+          sortMode: "created",
+          selectedDocId: null,
+          showToast: makeShowToast(),
+        }),
+      );
+
+      await act(async () => {
+        await result.current.loadBundle();
+      });
+
+      expect(result.current.documentList.map((document) => document.id)).toEqual(["doc-1"]);
+      expect(result.current.documentTotal).toBe(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(DOCUMENT_LIST_SYNC_INTERVAL_MS);
+      });
+
+      expect(result.current.documentTotal).toBe(2);
+      expect(result.current.documentList.map((document) => document.id)).toEqual(["doc-2", "doc-1"]);
+    });
+
+    it("refreshes the document list when the tab becomes visible again", async () => {
+      const initialListResponse = {
+        documents: [createDocumentListItem({ id: "doc-1", document_name: "Doc 1" })],
+        total: 1,
+        pending_total: 1,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created" as const,
+      };
+      const refreshedListResponse = {
+        documents: [
+          createDocumentListItem({
+            id: "doc-2",
+            document_name: "Doc 2",
+            created_at: "2026-03-02T00:00:00Z",
+            updated_at: "2026-03-02T00:00:00Z",
+          }),
+          createDocumentListItem({ id: "doc-1", document_name: "Doc 1" }),
+        ],
+        total: 2,
+        pending_total: 2,
+        offset: 0,
+        limit: DOCUMENT_PAGE_SIZE,
+        search: "",
+        sort: "created" as const,
+      };
+      vi.spyOn(api, "getProject").mockResolvedValue(project);
+      vi.spyOn(api, "listLabels").mockResolvedValue({ labels: [], revision: labelsRevision });
+      const listDocumentsSpy = vi
+        .spyOn(api, "listDocuments")
+        .mockResolvedValueOnce(initialListResponse)
+        .mockResolvedValue(refreshedListResponse);
+      vi.spyOn(api, "getDocument").mockResolvedValue(createDocument({ id: "doc-1", document_name: "Doc 1" }));
+
+      const hiddenDescriptor = Object.getOwnPropertyDescriptor(document, "hidden");
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        get: () => true,
+      });
+
+      const { result } = renderHook(() =>
+        useProjectBundle({
+          projectId: "project-1",
+          searchQuery: "",
+          sortMode: "created",
+          selectedDocId: null,
+          showToast: makeShowToast(),
+        }),
+      );
+
+      await act(async () => {
+        await result.current.loadBundle();
+      });
+
+      const callCountAfterLoad = listDocumentsSpy.mock.calls.length;
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(DOCUMENT_LIST_SYNC_INTERVAL_MS);
+      });
+
+      expect(listDocumentsSpy.mock.calls.length).toBe(callCountAfterLoad);
+
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        get: () => false,
+      });
+
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"));
+        await Promise.resolve();
+      });
+
+      expect(result.current.documentTotal).toBe(2);
+      expect(result.current.documentList.map((document) => document.id)).toEqual(["doc-2", "doc-1"]);
+
+      if (hiddenDescriptor) {
+        Object.defineProperty(document, "hidden", hiddenDescriptor);
+      } else {
+        Reflect.deleteProperty(document, "hidden");
+      }
     });
   });
 });

@@ -5,6 +5,7 @@ import {
   createEmptyLabelDraft,
   findConflictingLabelName,
   isHexColor,
+  mergeDocumentListRefresh,
   mergeDocumentWindow,
   normalizeHexColor,
   submitLabelDraft,
@@ -249,5 +250,14 @@ describe("document window helpers", () => {
     expect(merged).toHaveLength(DOCUMENT_WINDOW_SIZE);
     expect(merged.find((item) => item.id === "doc-2")?.document_name).toBe("Updated doc-2");
     expect(merged.some((item) => item.id === "doc-new")).toBe(true);
+  });
+
+  it("prepends first-page refresh results while keeping scrolled documents", () => {
+    const current = [makeDocument("doc-40"), makeDocument("doc-41")];
+    const refreshedFirstPage = [makeDocument("doc-new"), makeDocument("doc-1")];
+
+    const merged = mergeDocumentListRefresh(current, refreshedFirstPage, 0, null);
+
+    expect(merged.map((item) => item.id)).toEqual(["doc-new", "doc-1", "doc-40", "doc-41"]);
   });
 });
